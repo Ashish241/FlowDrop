@@ -1,0 +1,13 @@
+{
+  "$schema":"https://json-schema.org/draft/2020-12/schema",
+  "$id":"https://flowdrop.local/protocol/lan-offer-v1",
+  "title":"LAN transfer offer v1",
+  "type":"object",
+  "required":["name","size","recipient","sha256"],
+  "properties":{
+    "name":{"type":"string","minLength":1,"maxLength":255},
+    "size":{"type":"integer","minimum":0,"maximum":21474836480},
+    "recipient":{"type":"string"},
+    "sha256":{"type":"string","pattern":"^[a-f0-9]{64}$"}
+  }
+}

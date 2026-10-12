@@ -1,0 +1,8 @@
+.git
+**/node_modules
+**/dist
+.flowdrop
+.env
+build
+dist
+**/__pycache__

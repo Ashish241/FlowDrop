@@ -1,0 +1,12 @@
+node_modules/
+dist/
+.venv/
+__pycache__/
+.pytest_cache/
+.flowdrop/
+*.spec
+build/
+*.egg-info/
+test-results/
+playwright-report/
+.env

@@ -1,0 +1,82 @@
+services:
+  web:
+    build:
+      context: .
+      dockerfile: infrastructure/docker/web.Dockerfile
+    ports: ['127.0.0.1:8080:80']
+    depends_on: [signaling, cloud]
+  signaling:
+    build:
+      context: .
+      dockerfile: infrastructure/docker/backend.Dockerfile
+    environment:
+      FLOWDROP_ORIGINS: http://localhost:8080,http://127.0.0.1:8080
+      FLOWDROP_STUN_URL: ${FLOWDROP_STUN_URL:-}
+      FLOWDROP_TURN_URL: ${FLOWDROP_TURN_URL:-}
+      FLOWDROP_TURN_SECRET: ${TURN_SECRET:-}
+    healthcheck:
+      test: ['CMD', 'python', '-c', "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 30s
+  cloud:
+    build:
+      context: .
+      dockerfile: infrastructure/docker/backend.Dockerfile
+    command: ['uvicorn', 'services.cloud_api.app:create_app', '--factory', '--host', '0.0.0.0', '--port', '8000', '--no-access-log']
+    environment:
+      DATABASE_URL: postgresql+psycopg://flowdrop:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}@postgres/flowdrop
+      S3_ENDPOINT: http://minio:9000
+      S3_BUCKET: flowdrop
+      AWS_ACCESS_KEY_ID: ${S3_ROOT_USER:?Set S3_ROOT_USER}
+      AWS_SECRET_ACCESS_KEY: ${S3_ROOT_PASSWORD:?Set S3_ROOT_PASSWORD}
+      AWS_DEFAULT_REGION: us-east-1
+    depends_on:
+      postgres: {condition: service_healthy}
+      bucket: {condition: service_completed_successfully}
+      migration: {condition: service_completed_successfully}
+  migration:
+    build:
+      context: .
+      dockerfile: infrastructure/docker/backend.Dockerfile
+    command: ['python','-m','alembic','upgrade','head']
+    environment:
+      DATABASE_URL: postgresql+psycopg://flowdrop:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}@postgres/flowdrop
+    depends_on:
+      postgres: {condition: service_healthy}
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: flowdrop
+      POSTGRES_DB: flowdrop
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}
+    volumes: ['postgres:/var/lib/postgresql/data']
+    healthcheck:
+      test: ['CMD-SHELL','pg_isready -U flowdrop']
+      interval: 5s
+      retries: 20
+  minio:
+    image: minio/minio:latest
+    command: server /data
+    environment:
+      MINIO_ROOT_USER: ${S3_ROOT_USER:?Set S3_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${S3_ROOT_PASSWORD:?Set S3_ROOT_PASSWORD}
+    volumes: ['objects:/data']
+  bucket:
+    image: minio/mc:latest
+    depends_on: [minio]
+    environment:
+      S3_ROOT_USER: ${S3_ROOT_USER:?Set S3_ROOT_USER}
+      S3_ROOT_PASSWORD: ${S3_ROOT_PASSWORD:?Set S3_ROOT_PASSWORD}
+    entrypoint: ['/bin/sh','-c']
+    command: ['until mc alias set local http://minio:9000 "$$S3_ROOT_USER" "$$S3_ROOT_PASSWORD"; do sleep 2; done; mc mb --ignore-existing local/flowdrop; mc anonymous set none local/flowdrop']
+  turn:
+    image: coturn/coturn:latest
+    profiles: [turn]
+    entrypoint: ['/bin/sh','/start.sh']
+    volumes: ['./infrastructure/coturn/start.sh:/start.sh:ro']
+    environment:
+      TURN_SECRET: ${TURN_SECRET:?Set TURN_SECRET}
+      TURN_REALM: ${TURN_REALM:-localhost}
+    ports: ['3478:3478/udp','3478:3478/tcp','49160-49200:49160-49200/udp']
+volumes:
+  postgres:
+  objects:

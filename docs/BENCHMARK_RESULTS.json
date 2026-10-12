@@ -1,0 +1,43 @@
+{
+  "scope": "Synthetic in-process ASGI upload, verification and cleanup. Includes test harness; excludes real network/download throughput. 5ms RSS sampling may miss brief peaks.",
+  "platform": "Windows-11-10.0.26200-SP0",
+  "python": "3.14.6",
+  "results": [
+    {
+      "bytes_per_file": 0,
+      "concurrent_files": 1,
+      "elapsed_seconds": 0.0235,
+      "in_process_mib_per_second": 0.0,
+      "cpu_seconds": 0.0312,
+      "peak_rss_mib": 57.25,
+      "rss_growth_mib": 0.23
+    },
+    {
+      "bytes_per_file": 65536,
+      "concurrent_files": 1,
+      "elapsed_seconds": 0.0379,
+      "in_process_mib_per_second": 1.65,
+      "cpu_seconds": 0.0156,
+      "peak_rss_mib": 57.43,
+      "rss_growth_mib": 0.2
+    },
+    {
+      "bytes_per_file": 33554432,
+      "concurrent_files": 1,
+      "elapsed_seconds": 0.6567,
+      "in_process_mib_per_second": 48.73,
+      "cpu_seconds": 0.4219,
+      "peak_rss_mib": 57.68,
+      "rss_growth_mib": 0.27
+    },
+    {
+      "bytes_per_file": 4194304,
+      "concurrent_files": 4,
+      "elapsed_seconds": 0.2459,
+      "in_process_mib_per_second": 65.06,
+      "cpu_seconds": 0.2969,
+      "peak_rss_mib": 59.1,
+      "rss_growth_mib": 1.45
+    }
+  ]
+}
