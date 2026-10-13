@@ -56,6 +56,33 @@ class LANTests(unittest.TestCase):
             self.client.get("/api/devices", headers=self.phone).status_code, 401
         )
 
+    def test_assembly_disk_failure_recovers_without_restart(self):
+        from unittest.mock import patch
+
+        self.approve()
+        data = b"recover me"
+        tid = self.offer(data)
+        path = f"/api/transfers/{tid}"
+        self.client.post(path + "/accept", headers=self.phone)
+        self.client.put(path + "/chunks/0", headers=self.host, content=data)
+        original = Path.open
+
+        def failing(path, *args, **kwargs):
+            if path.name == "payload" and args and args[0] == "wb":
+                raise OSError("disk full")
+            return original(path, *args, **kwargs)
+
+        with patch.object(Path, "open", failing):
+            self.assertEqual(
+                self.client.post(path + "/finish", headers=self.host).status_code, 507
+            )
+        self.assertEqual(
+            self.client.get(path, headers=self.host).json()["state"], "TRANSFERRING"
+        )
+        self.assertEqual(
+            self.client.post(path + "/finish", headers=self.host).status_code, 200
+        )
+
     def test_binary_transfer_and_duplicate(self):
         self.approve()
         data = bytes(range(256)) * 100

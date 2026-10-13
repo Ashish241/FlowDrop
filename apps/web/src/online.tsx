@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { createSHA256 } from "hash-wasm";
 import { hashFile } from "./hash";
+import { recordTransfer } from "./transfer-history";
 import { createStreamSink, type StreamSink } from "./stream-sink";
-type Session = { room: string; token: string; member: string };
+type Session = { room: string; token: string; member: string; expires: number };
 type Meta = {
   type: "file";
   id: string;
@@ -27,6 +28,7 @@ export function OnlinePanel() {
     channel = useRef<RTCDataChannel | undefined>(undefined),
     session = useRef<Session | undefined>(undefined),
     accept = useRef<(() => void) | undefined>(undefined),
+    verified = useRef<((error?: Error) => void) | undefined>(undefined),
     cancelled = useRef(false),
     sink = useRef<StreamSink | undefined>(undefined),
     queuedBytes = useRef(0),
@@ -41,6 +43,19 @@ export function OnlinePanel() {
     ),
     candidates = useRef<RTCIceCandidateInit[]>([]),
     receiveChain = useRef(Promise.resolve());
+  const transferRecord = useRef<
+    | { id: string; name: string; size: number; direction: "Send" | "Receive" }
+    | undefined
+  >(undefined);
+  useEffect(() => {
+    if (transferRecord.current)
+      recordTransfer({
+        ...transferRecord.current,
+        mode: "WebRTC",
+        state: status,
+        progress: percent,
+      });
+  }, [status, percent]);
   useEffect(
     () => () => {
       channel.current?.close();
@@ -69,6 +84,7 @@ export function OnlinePanel() {
   function close() {
     cancelled.current = true;
     accept.current?.();
+    verified.current?.(new Error("Transfer cancelled"));
     for (const waiter of creditWaiters.current.splice(0))
       waiter(new Error("Transfer cancelled"));
     sink.current?.abort();
@@ -88,6 +104,7 @@ export function OnlinePanel() {
     dc.onclose = () => {
       cancelled.current = true;
       accept.current?.();
+      verified.current?.(new Error("Peer disconnected"));
       for (const waiter of creditWaiters.current.splice(0))
         waiter(new Error("Peer disconnected"));
       sink.current?.abort();
@@ -157,6 +174,12 @@ export function OnlinePanel() {
                 return;
               }
               incoming.current = data;
+              transferRecord.current = {
+                id: data.id,
+                name: data.name,
+                size: data.size,
+                direction: "Receive",
+              };
               hash.current = undefined;
               setOffer(data);
               setReceived(undefined);
@@ -186,14 +209,17 @@ export function OnlinePanel() {
                   name: meta.name,
                   blob,
                 });
-                setStatus("Completed · SHA-256 verified");
+                setStatus(
+                  "Completed · SHA-256 verified; handed to browser downloads",
+                );
                 dc.send(JSON.stringify({ type: "verified" }));
               }
               incoming.current = undefined;
               setOffer(undefined);
-            } else if (data.type === "verified")
+            } else if (data.type === "verified") {
+              verified.current?.();
               setStatus("Delivered · receiver SHA-256 verified");
-            else if (
+            } else if (
               data.type === "text" &&
               typeof data.text === "string" &&
               data.text.length <= 65536
@@ -226,17 +252,27 @@ export function OnlinePanel() {
         });
     };
   }
-  async function connect(join: boolean) {
+  async function connect(join: boolean, recovering = false) {
     try {
       close();
       cancelled.current = false;
       setPending(false);
       setReceived(undefined);
       candidates.current = [];
-      const data = (await api(
-        join ? "/rooms/" + room.trim() + "/join" : "/rooms",
-        "POST",
-      )) as Session;
+      const saved = sessionStorage.getItem("flowdrop.online.v2");
+      const data = (
+        recovering && saved
+          ? JSON.parse(saved)
+          : await api(
+              join ? "/rooms/" + room.trim() + "/join" : "/rooms",
+              "POST",
+            )
+      ) as Session;
+      if (data.expires <= Date.now() / 1000) {
+        sessionStorage.removeItem("flowdrop.online.v2");
+        throw new Error("Room expired. Create or join a new room.");
+      }
+      sessionStorage.setItem("flowdrop.online.v2", JSON.stringify(data));
       session.current = data;
       setRoom(data.room);
       const ice = await api("/ice", "GET", data.token);
@@ -266,8 +302,10 @@ export function OnlinePanel() {
                 stat.state === "succeeded"
               ) {
                 const candidate = stats.get(stat.localCandidateId);
+                const remote = stats.get(stat.remoteCandidateId);
                 setRoute(
-                  candidate?.candidateType === "relay"
+                  candidate?.candidateType === "relay" ||
+                    remote?.candidateType === "relay"
                     ? "TURN relay"
                     : "Direct P2P",
                 );
@@ -319,6 +357,10 @@ export function OnlinePanel() {
         setStatus(
           "Signaling connection failed. Check network, HTTPS, origin configuration, and TURN availability.",
         );
+      ws.onclose = () =>
+        setStatus(
+          "Signaling disconnected. Reconnect the saved room; interrupted files must be resent.",
+        );
     } catch (e) {
       setStatus(String(e));
     }
@@ -355,6 +397,12 @@ export function OnlinePanel() {
         throw new Error("Current online limit is 20 GiB.");
       cancelled.current = false;
       const digest = await hashFile(file);
+      transferRecord.current = {
+        id: crypto.randomUUID(),
+        name: file.name,
+        size: file.size,
+        direction: "Send",
+      };
       setStatus("Waiting for receiver approval");
       await new Promise<void>((resolve) => {
         accept.current = resolve;
@@ -399,8 +447,25 @@ export function OnlinePanel() {
       }
       if (!cancelled.current) {
         while (acked.current < file.size) await waitForCredit();
+        const verification = new Promise<void>((resolve, reject) => {
+          const timer = setTimeout(() => {
+            verified.current = undefined;
+            reject(
+              new Error(
+                "Receiver verification timed out; resend the file after reconnecting",
+              ),
+            );
+          }, 30000);
+          verified.current = (error) => {
+            clearTimeout(timer);
+            verified.current = undefined;
+            if (error) reject(error);
+            else resolve();
+          };
+        });
         dc.send(JSON.stringify({ type: "finish" }));
         setStatus("Sent; receiver verifies the hash.");
+        await verification;
       }
     } catch (e) {
       setStatus(String(e));
@@ -422,6 +487,9 @@ export function OnlinePanel() {
       <button onClick={() => void connect(false)}>Create room</button>{" "}
       <button onClick={() => void connect(true)}>Join room</button>{" "}
       <button onClick={close}>Disconnect</button>
+      <button onClick={() => void connect(false, true)}>
+        Reconnect saved room
+      </button>
       {pending && (
         <p>
           <button

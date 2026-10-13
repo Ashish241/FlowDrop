@@ -96,6 +96,22 @@ test("real WebRTC DataChannel approval, file integrity, and text", async ({
   expect((await readFile((await emptyDownload.path())!)).length).toBe(0);
   await a.getByRole("button", { name: "Send text", exact: true }).click();
   await expect(b.locator("pre")).toContainText("WebRTC message");
+  await a.getByRole("button", { name: "Home", exact: true }).click();
+  await a.getByRole("button", { name: "Online Share", exact: true }).click();
+  await a
+    .getByPlaceholder("Share text with your peer")
+    .fill("navigation survives");
+  await a.getByRole("button", { name: "Send text", exact: true }).click();
+  await expect(b.locator("pre").first()).toContainText("navigation survives");
+  await b.reload();
+  await b.getByRole("button", { name: "Online Share", exact: true }).click();
+  await b
+    .getByRole("button", { name: "Reconnect saved room", exact: true })
+    .click();
+  await expect(b.getByRole("status")).toContainText("Connected.");
+  await a.getByPlaceholder("Share text with your peer").fill("rejoined peer");
+  await a.getByRole("button", { name: "Send text", exact: true }).click();
+  await expect(b.locator("pre")).toContainText("rejoined peer");
   await left.close();
   await right.close();
 });
@@ -121,6 +137,18 @@ test("Send Later browser encryption, secret link, download, and revocation", asy
   const link = await a
     .getByLabel("Secret sharing link (anyone with it can decrypt)")
     .inputValue();
+  await a.reload();
+  await a.getByRole("button", { name: "Send Later", exact: true }).click();
+  await expect(
+    a.getByLabel("Secret sharing link (anyone with it can decrypt)"),
+  ).toHaveValue(link);
+  await a
+    .getByRole("button", { name: "Transfer Dashboard", exact: true })
+    .click();
+  await expect(
+    a.getByRole("heading", { name: "Online and encrypted transfer history" }),
+  ).toBeVisible();
+  await a.getByRole("button", { name: "Send Later", exact: true }).click();
   await b.goto("/");
   await b.getByRole("button", { name: "Send Later", exact: true }).click();
   await b.getByLabel("Paste secret sharing link").fill(link);
@@ -135,6 +163,47 @@ test("Send Later browser encryption, secret link, download, and revocation", asy
   await expect(b.getByRole("status")).toContainText("Share unavailable");
   await sender.close();
   await receiver.close();
+});
+test("interrupted encrypted upload resumes after refresh and refuses a changed file", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: "Send Later", exact: true }).click();
+  let interrupted = false;
+  await page.route("**/cloud/shares/*/chunks/1", async (route) => {
+    if (!interrupted) {
+      interrupted = true;
+      await route.abort("connectionfailed");
+    } else await route.continue();
+  });
+  const file = {
+    name: "resume.bin",
+    mimeType: "application/octet-stream",
+    buffer: Buffer.alloc(1048593, 42),
+  };
+  await page.locator("input[type=file]").setInputFiles(file);
+  await page
+    .getByRole("button", { name: "Encrypt & upload", exact: true })
+    .click();
+  await expect(page.getByRole("status")).toContainText("Failed to fetch");
+  await page.reload();
+  await page.getByRole("button", { name: "Send Later", exact: true }).click();
+  await page
+    .locator("input[type=file]")
+    .setInputFiles({ ...file, buffer: Buffer.alloc(1048593, 43) });
+  await page
+    .getByRole("button", { name: "Encrypt & upload", exact: true })
+    .click();
+  await expect(page.getByRole("status")).toContainText("original file");
+  await page.locator("input[type=file]").setInputFiles(file);
+  await page
+    .getByRole("button", { name: "Encrypt & upload", exact: true })
+    .click();
+  await expect(
+    page.getByLabel("Secret sharing link (anyone with it can decrypt)"),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Revoke share", exact: true }).click();
+  await expect(page.getByRole("status")).toContainText("Revoked");
 });
 for (const width of [360, 390, 768, 1024, 1440])
   test(`responsive layout ${width}px`, async ({ page }) => {

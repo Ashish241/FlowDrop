@@ -457,7 +457,16 @@ def create_app(storage: Path | None = None, host_token: str | None = None):
                                 out.write(data)
                 return digest.hexdigest()
 
-            digest = await asyncio.to_thread(assemble)
+            try:
+                digest = await asyncio.to_thread(assemble)
+            except OSError as exc:
+                safe_path(tid, "payload").unlink(missing_ok=True)
+                t["state"] = "TRANSFERRING"
+                save(t)
+                await notify()
+                raise HTTPException(
+                    507, "Assembly failed; free host storage and retry verification"
+                ) from exc
             t["state"] = "COMPLETED" if digest == t["sha256"] else "FAILED"
             save(t)
             await notify()

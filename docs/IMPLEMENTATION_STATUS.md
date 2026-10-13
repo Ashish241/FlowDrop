@@ -1,6 +1,16 @@
 # Implementation status
 
-Updated: 2026-10-12. Development version: 0.1.0.
+Updated: 2026-10-13. Development version: 0.2.0.
+
+## v0.2.0 continuation
+
+The clean 780ed3f baseline was rerun successfully (16 Pytest, 7 Vitest, 11 Playwright). Added tab-scoped online transfer history; mounted active panels survive navigation; saved signaling capabilities allow explicit refresh reconnection; separate-context WebRTC reconnect/text tested. The sender waits for verification before advancing its file queue; relay diagnostics inspect both candidates.
+
+Send Later stores one managed share/key/nonce in the originating tab, checks the full original-file hash before retry, retrieves sender-only chunk checkpoints, pauses requests and retains link/revocation across refresh. Optional download-session limits use independent expiring hashed leases and atomic database coordination. Browser interruption/refresh/changed-file tests passed. Closing a tab still loses capabilities; no cross-tab/user capability sharing is introduced intentionally.
+
+LAN assembly disk failures now recover without restart. Cloud writes/read failures are retryable, uploads timed/bounded, local objects staged atomically, unauthorized IDs cannot allocate locks, and forwarded IPs require explicitly trusted direct peers. Added internal security review, known limitations, physical acceptance and rollback instructions. Backend now has 21 passing tests; final full frontend/packaging evidence is in TEST_REPORT.md.
+
+Alembic 0002 applied to disposable SQLite. Docker engine remains unavailable; PostgreSQL/S3/TURN/TLS/Redis distributed behavior is unverified or incomplete. Not production ready. Sections below retain the prior implementation history; superseded remaining-work statements should be read with this continuation and KNOWN_LIMITATIONS.md.
 
 ## Phase 1 — TESTED
 

@@ -183,6 +183,13 @@ def create_app():
                     "approved": room["members"][member]["approved"],
                 }
             )
+            # Both sides must renegotiate when an approved participant reconnects.
+            if len(room["sockets"]) == 2 and all(
+                m["approved"] for m in room["members"].values()
+            ):
+                owner = room["sockets"].get("owner")
+                if owner:
+                    await owner.send_json({"type": "ready"})
             if member == "receiver" and not room["members"]["receiver"]["approved"]:
                 owner = room["sockets"].get("owner")
                 if owner:

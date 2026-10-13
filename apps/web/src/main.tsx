@@ -8,6 +8,7 @@ import { OnlinePanel } from "./online";
 import { LaterPanel } from "./later";
 import { OpticalPanel } from "./optical";
 import { ModeCards } from "./mode-cards";
+import { TransferHistory } from "./transfer-history";
 type Device = { id: string; name: string; approved: boolean };
 type Transfer = {
   id: string;
@@ -22,6 +23,7 @@ type Transfer = {
   speed?: number;
 };
 function App() {
+  const [visited, setVisited] = useState<string[]>([]);
   const [token, setToken] = useState(sessionStorage.getItem("token") || ""),
     [me, setMe] = useState<{ id: string; pairing_code?: string }>(),
     [devices, setDevices] = useState<Device[]>([]),
@@ -37,6 +39,9 @@ function App() {
     ),
     [progress, setProgress] = useState<Record<string, number>>({}),
     [qr, setQr] = useState("");
+  useEffect(() => {
+    setVisited((items) => (items.includes(page) ? items : [...items, page]));
+  }, [page]);
   const socket = useRef<WebSocket | null>(null),
     files = useRef(new Map<string, File>()),
     busy = useRef(new Set<string>()),
@@ -303,12 +308,20 @@ function App() {
           </div>
         )}
         {page === "Home" && <ModeCards onSelect={setPage} />}
-        {page === "Optical Text" ? (
+        {page === "Transfer Dashboard" && <TransferHistory onMode={setPage} />}
+        <div hidden={page !== "Send Later"}>
+          {(page === "Send Later" || visited.includes("Send Later")) && (
+            <LaterPanel />
+          )}
+        </div>
+        <div hidden={page !== "Online Share"}>
+          {(page === "Online Share" || visited.includes("Online Share")) && (
+            <OnlinePanel />
+          )}
+        </div>
+        {page === "Send Later" || page === "Online Share" ? null : page ===
+          "Optical Text" ? (
           <OpticalPanel />
-        ) : page === "Send Later" ? (
-          <LaterPanel />
-        ) : page === "Online Share" ? (
-          <OnlinePanel />
         ) : !me ? (
           <section className="panel">
             <h2>Connect to this host</h2>

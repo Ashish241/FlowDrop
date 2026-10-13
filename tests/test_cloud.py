@@ -55,6 +55,33 @@ class CloudTests(unittest.TestCase):
         self.assertEqual(self.client.delete(path, headers=up).status_code, 200)
         self.assertEqual(self.client.get(path, headers=down).status_code, 404)
 
+    def test_download_limit_counts_sessions_and_revokes_leases(self):
+        s = self.client.post(
+            "/shares",
+            json={"chunks": 1, "bytes_limit": 32, "ttl": 60, "download_limit": 1},
+        ).json()
+        path = "/shares/" + s["id"]
+        up = {"Authorization": "Bearer " + s["upload_token"]}
+        down = {"Authorization": "Bearer " + s["download_token"]}
+        self.client.put(path + "/chunks/0", headers=up, content=b"a" * 16)
+        self.client.post(path + "/finish", headers=up)
+        self.assertEqual(
+            self.client.get(path + "/chunks/0", headers=down).status_code, 403
+        )
+        session = self.client.post(path + "/downloads", headers=down)
+        self.assertEqual(session.status_code, 200)
+        lease = {"Authorization": "Bearer " + session.json()["token"]}
+        self.assertEqual(
+            self.client.get(path + "/chunks/0", headers=lease).content, b"a" * 16
+        )
+        self.assertEqual(
+            self.client.post(path + "/downloads", headers=down).status_code, 410
+        )
+        self.client.delete(path, headers=up)
+        self.assertNotEqual(
+            self.client.get(path + "/chunks/0", headers=lease).status_code, 200
+        )
+
     def test_expiry_cleanup(self):
         import unittest.mock
 
@@ -78,6 +105,44 @@ class CloudTests(unittest.TestCase):
                 headers={"Authorization": "Bearer " + s["download_token"]},
             ).status_code,
             404,
+        )
+
+    def test_upload_checkpoint_is_sender_only_and_storage_failure_retryable(self):
+        from unittest.mock import patch
+
+        share = self.client.post(
+            "/shares", json={"chunks": 1, "bytes_limit": 32, "ttl": 60}
+        ).json()
+        path = "/shares/" + share["id"]
+        up = {"Authorization": "Bearer " + share["upload_token"]}
+        down = {"Authorization": "Bearer " + share["download_token"]}
+        self.assertEqual(
+            self.client.get(path + "/upload-status", headers=down).status_code, 404
+        )
+        with patch.object(LocalStore, "put", side_effect=OSError("disk full")):
+            self.assertEqual(
+                self.client.put(
+                    path + "/chunks/0", headers=up, content=b"a" * 16
+                ).status_code,
+                503,
+            )
+        self.assertEqual(
+            self.client.get(path + "/upload-status", headers=up).json()[
+                "completed_chunks"
+            ],
+            [],
+        )
+        self.assertEqual(
+            self.client.put(
+                path + "/chunks/0", headers=up, content=b"a" * 16
+            ).status_code,
+            200,
+        )
+        self.assertEqual(
+            self.client.get(path + "/upload-status", headers=up).json()[
+                "completed_chunks"
+            ],
+            [0],
         )
 
     def test_atomic_quota_and_orphan_cleanup(self):

@@ -4,6 +4,8 @@
 
 FlowDrop is under active implementation. Working browser-tested flows include approved LAN file/text sharing, resumable chunk uploads, native streamed downloads, WebRTC file/text sharing, and browser-encrypted Send Later through the development storage adapter. Optical text sharing is experimental. No account is required.
 
+Current development checkpoint: **0.2.0**. See [verification record](docs/TEST_REPORT.md), [known limitations](docs/KNOWN_LIMITATIONS.md), [release gates](docs/RELEASE_READINESS.md) and [rollback](docs/ROLLBACK.md). Existing cloud databases must apply Alembic migration 0002 before startup. Sender recovery/history is scoped to the originating browser tab; closing it loses secret capabilities. This checkpoint is not production ready.
+
 ## Run locally
 
 ```powershell

@@ -1,5 +1,7 @@
 # Test report
 
+This page preserves v0.1.0 evidence below. Current v0.2.0 results are in [TEST_REPORT.md](TEST_REPORT.md): 21 Pytest, 7 Vitest and 12 Playwright passed, plus lint/build, scoped dependency audits, SQLite migration 0002 and Windows executable smoke. Disk-full assembly recovery is now automated-tested; physical filesystem races remain unverified.
+
 Tests run on Windows on 2026-10-12. Commands and latest checkpoint results:
 
 | Check | Result | Scope |

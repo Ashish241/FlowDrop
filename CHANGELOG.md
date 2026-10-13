@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.0 development checkpoint — 2026-10-13
+
+- Preserve online sessions during navigation; explicit room refresh/reconnect and correct relay diagnostics.
+- Tab-scoped unified online history and encrypted sender management, original-file checked checkpoint retry and upload pause.
+- Optional download-session limits, expiring leases and migration 0002.
+- Recover LAN assembly disk failures; retryable cloud storage errors, atomic local object writes, upload timeout, bounded abuse controls and explicit proxy trust.
+- Regression, internal security review, physical acceptance checklist and rollback documentation. Public release gates remain unmet.
+
 ## 0.1.0 — Unreleased
 
 - Implemented authenticated LAN pairing, explicit approval, persistent sessions/chunks, restart resume, native streaming downloads, transfer cancellation and text sharing.
