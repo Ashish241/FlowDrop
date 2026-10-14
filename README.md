@@ -17,7 +17,7 @@ cd ../..
 python -m apps.desktop.launcher
 ```
 
-The launcher opens native host controls and a browser dashboard. Select the correct private adapter and use the displayed URL/port on other devices. Enter the code or scan the QR, wait for host approval, choose a recipient and have the recipient accept each offer. The host remains running for all LAN transfers, including mobile to mobile. CLI mode supports explicit --bind and --port; see docs/OFFLINE_LAN_GUIDE.md.
+The launcher opens native host controls and a browser dashboard. Stop the initial loopback host, check **Enable Offline LAN sharing**, select the Wi-Fi/Ethernet/hotspot adapter used by your phones, and start the host. Use the displayed URL/port on other devices. Enter the code or scan the QR, wait for host approval, choose a recipient and have the recipient accept each offer. The host remains running for all LAN transfers, including mobile to mobile. CLI mode supports --lan, explicit --bind and --port; see docs/OFFLINE_LAN_GUIDE.md.
 
 Use a trusted private network: default LAN HTTP is **not encrypted**. Optional trusted-certificate TLS is configurable. Do not expose the LAN host to the internet. LAN uploads, assembly and native downloads use bounded buffers. Secure browsers stream WebRTC and decrypted Send Later downloads; unsupported browsers have a 128 MiB fallback limit. Very large physical-device transfers remain unverified.
 

@@ -11,6 +11,7 @@ from pathlib import Path
 
 import uvicorn
 
+from apps.desktop.network import lan_adapters, startup_network
 from services.lan_server.app import create_app
 from services.version import VERSION
 
@@ -25,8 +26,13 @@ def main(argv=None, on_ready=None):
     )
     parser.add_argument(
         "--bind",
-        default="127.0.0.1",
-        help="Explicit private adapter IPv4 address; default is loopback",
+        default=None,
+        help="Explicit local IPv4 adapter (enables LAN); 0.0.0.0 requires --lan",
+    )
+    parser.add_argument(
+        "--lan",
+        action="store_true",
+        help="Enable Offline LAN on an active Wi-Fi/Ethernet IPv4 adapter",
     )
     parser.add_argument("--port", type=int, default=8000)
     parser.add_argument("--no-browser", action="store_true")
@@ -52,24 +58,17 @@ def main(argv=None, on_ready=None):
         parser.error("Provide both --tls-cert and --tls-key")
     import ipaddress
 
-    import psutil
-
     if args.list_adapters:
-        for interface, addresses in psutil.net_if_addrs().items():
-            for adapter in addresses:
-                if (
-                    adapter.family == socket.AF_INET
-                    and ipaddress.ip_address(adapter.address).is_private
-                ):
-                    print(f"{interface}: {adapter.address}")
+        for interface, address in lan_adapters():
+            print(f"{interface}: {address}")
+        print("This PC only: 127.0.0.1")
         return
 
     try:
-        address = ipaddress.ip_address(args.bind)
-    except ValueError:
-        parser.error("Choose a valid private IPv4 address from --list-adapters")
-    if address.version != 4 or not address.is_private or address.is_unspecified:
-        parser.error("Choose an explicit private or loopback IPv4 adapter address")
+        bind, advertised = startup_network(args.lan, args.bind)
+    except ValueError as exc:
+        parser.error(str(exc))
+    address = ipaddress.ip_address(advertised)
     token = secrets.token_urlsafe(32)
     import os
 
@@ -81,19 +80,36 @@ def main(argv=None, on_ready=None):
             ),
         )
     )
-    app = create_app(storage=data, host_token=token)
     sock = socket.socket()
     try:
-        sock.bind((args.bind, args.port))
+        sock.bind((bind, args.port))
     except OSError as exc:
         parser.error(
-            f"Cannot bind {args.bind}:{args.port}: {exc}. Choose a different --port or adapter."
+            f"Cannot bind {bind}:{args.port}: {exc}. Choose a different --port or adapter."
         )
+    scheme = "https" if args.tls_cert else "http"
+    base = f"{scheme}://{advertised}:{sock.getsockname()[1]}"
+    allowed_hosts = [advertised]
+    mdns_host = f"flowdrop-{secrets.token_hex(4)}.local"
+    if not address.is_loopback:
+        allowed_hosts.append(mdns_host)
+    if bind == "0.0.0.0":
+        allowed_hosts += ["127.0.0.1", "localhost"] + [ip for _, ip in lan_adapters()]
+    elif address.is_loopback:
+        allowed_hosts += ["localhost"]
+    app = create_app(
+        storage=data, host_token=token, connection_url=base, allowed_hosts=allowed_hosts
+    )
     if not args.tls_cert:
         print("FlowDrop: use a trusted private LAN. HTTP traffic is not encrypted.")
     print("Pairing code:", app.state.pairing_code)
-    scheme = "https" if args.tls_cert else "http"
-    base = f"{scheme}://{args.bind}:{sock.getsockname()[1]}"
+    print("Listening address:", f"{bind}:{sock.getsockname()[1]}")
+    print(
+        "Offline LAN:",
+        "disabled (this PC only)"
+        if address.is_loopback
+        else "enabled; pairing and host approval required",
+    )
     print("Connection URL:", base)
     server = uvicorn.Server(
         uvicorn.Config(
@@ -104,6 +120,7 @@ def main(argv=None, on_ready=None):
             ws_max_size=131072,
             limit_concurrency=256,
             timeout_graceful_shutdown=10,
+            proxy_headers=False,
         )
     )
     if on_ready:
@@ -135,14 +152,14 @@ def main(argv=None, on_ready=None):
         try:
             from zeroconf import ServiceInfo, Zeroconf
 
-            zeroconf = Zeroconf(interfaces=[args.bind])
+            zeroconf = Zeroconf(interfaces=[advertised])
             service = ServiceInfo(
                 "_flowdrop._tcp.local.",
                 "FlowDrop._flowdrop._tcp.local.",
-                addresses=[socket.inet_aton(args.bind)],
+                addresses=[socket.inet_aton(advertised)],
                 port=sock.getsockname()[1],
                 properties={"path": "/", "version": VERSION},
-                server=f"flowdrop-{secrets.token_hex(4)}.local.",
+                server=mdns_host + ".",
             )
             zeroconf.register_service(service, allow_name_change=True)
         except (OSError, RuntimeError) as exc:

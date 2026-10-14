@@ -1,6 +1,10 @@
 # Internal security review — v0.3.0
 
-Internal implementation review only; no independent certification. Current additions:
+Internal implementation review only; no independent certification.
+
+2026-10-15 LAN fix: network exposure requires explicit desktop checkbox / CLI `--lan` or private `--bind`. Default remains loopback. Desktop requests allow only bound local addresses and the exact generated mDNS name; implicit forwarded-header trust is disabled. Pairing and host approval, per-transfer acceptance and same-origin HTTP/WS checks are retained. No wildcard CORS or firewall/profile changes were introduced. Native socket tests confirm unauthorized transfer/socket access is denied.
+
+Current additions:
 
 - Redis is the configured authority for room membership/approval/expiry and socket generations. Optimistic updates reject concurrent extra receivers; revocation denies future ICE and closes live sockets across instances. Configured Redis outages fail closed. Global room capacity and expiring distributed rate counters bound state growth; backend WS/concurrency limits are explicit.
 - Async uploads stage bounded request bodies before opening locked transactions; database locks and S3 operations run together in bounded workers, preserving event-loop responsiveness and admission slots through request cancellation. Duplicate concurrent uploads are idempotent and covered against PostgreSQL.

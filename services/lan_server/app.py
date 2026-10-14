@@ -15,6 +15,7 @@ from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconn
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
+from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from services.version import VERSION
 from services.web_security import CSP
@@ -36,7 +37,12 @@ class SaveOutcome(BaseModel):
     outcome: str = Field(pattern=r"^(saved|failed)$")
 
 
-def create_app(storage: Path | None = None, host_token: str | None = None):
+def create_app(
+    storage: Path | None = None,
+    host_token: str | None = None,
+    connection_url: str | None = None,
+    allowed_hosts: list[str] | None = None,
+):
     root = storage or Path(os.getenv("FLOWDROP_STORAGE", ".flowdrop"))
     if root.is_symlink():
         raise RuntimeError("Transfer storage must not be a symlink")
@@ -146,6 +152,8 @@ def create_app(storage: Path | None = None, host_token: str | None = None):
         docs_url=None,
         redoc_url=None,
     )
+    if allowed_hosts is not None:
+        app.add_middleware(TrustedHostMiddleware, allowed_hosts=allowed_hosts)
 
     def save(t):
         target = root / (t["id"] + ".json")
@@ -201,7 +209,11 @@ def create_app(storage: Path | None = None, host_token: str | None = None):
     @app.get("/api/session")
     async def session(request: Request):
         s = auth(request)
-        return {**s, "pairing_code": code if s["id"] == "host" else None}
+        return {
+            **s,
+            "pairing_code": code if s["id"] == "host" else None,
+            "connection_url": connection_url if s["id"] == "host" else None,
+        }
 
     @app.post("/api/pair")
     async def pair(body: Pair, request: Request):

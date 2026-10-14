@@ -1,15 +1,13 @@
 """Native host controls; browser remains the main sharing interface."""
 
-import ipaddress
 import json
-import socket
 import threading
 import tkinter as tk
 import urllib.request
 import webbrowser
 from tkinter import ttk
 
-import psutil
+from apps.desktop.network import lan_adapters
 
 
 def run_panel():
@@ -17,23 +15,9 @@ def run_panel():
 
     root = tk.Tk()
     root.title("FlowDrop Desktop")
-    root.geometry("620x430")
-    root.minsize(540, 380)
-    adapter_map = {}
-    for interface, addresses in psutil.net_if_addrs().items():
-        if (
-            not psutil.net_if_stats().get(interface)
-            or not psutil.net_if_stats()[interface].isup
-        ):
-            continue
-        for address in addresses:
-            if (
-                address.family == socket.AF_INET
-                and ipaddress.ip_address(address.address).is_private
-                and not ipaddress.ip_address(address.address).is_loopback
-            ):
-                adapter_map[f"{interface} — {address.address}"] = address.address
-    adapter_map["This PC only — 127.0.0.1"] = "127.0.0.1"
+    root.geometry("680x560")
+    root.minsize(600, 520)
+    adapter_map = {f"{name} — {address}": address for name, address in lan_adapters()}
     state = {
         "thread": None,
         "server": None,
@@ -48,10 +32,22 @@ def run_panel():
     ttk.Label(frame, text="Share anything. Anywhere. Even offline.").pack(
         anchor="w", pady=(2, 18)
     )
-    ttk.Label(frame, text="Network adapter").pack(anchor="w")
-    selected = tk.StringVar(value=next(iter(adapter_map)))
+    lan_enabled = tk.BooleanVar(value=False)
+    lan_toggle = ttk.Checkbutton(
+        frame,
+        text="Enable Offline LAN sharing (trusted network only)",
+        variable=lan_enabled,
+        command=lambda: adapter.config(
+            state="readonly" if lan_enabled.get() else "disabled"
+        ),
+    )
+    lan_toggle.pack(anchor="w")
+    ttk.Label(frame, text="LAN adapter — choose the network your phones use").pack(
+        anchor="w"
+    )
+    selected = tk.StringVar(value=next(iter(adapter_map), "No active LAN adapter"))
     adapter = ttk.Combobox(
-        frame, textvariable=selected, values=list(adapter_map), state="readonly"
+        frame, textvariable=selected, values=list(adapter_map), state="disabled"
     )
     adapter.pack(fill="x", pady=6)
     status = tk.StringVar(value="Starting the local host…")
@@ -84,11 +80,17 @@ def run_panel():
         thread = state["thread"]
         if thread and thread.is_alive():
             return
+        if lan_enabled.get() and selected.get() not in adapter_map:
+            status.set(
+                "No active LAN adapter. Connect Wi-Fi/Ethernet, then reopen FlowDrop."
+            )
+            return
         start_button.config(state="disabled")
+        lan_toggle.config(state="disabled")
         adapter.config(state="disabled")
         status.set("Starting…")
         state["opened"] = False
-        bind_address = adapter_map[selected.get()]
+        bind_address = adapter_map[selected.get()] if lan_enabled.get() else "127.0.0.1"
 
         def launch():
             try:
@@ -108,7 +110,10 @@ def run_panel():
                     start_button.config(state="normal")
                     stop_button.config(state="disabled")
                     open_button.config(state="disabled")
-                    adapter.config(state="readonly")
+                    lan_toggle.config(state="normal")
+                    adapter.config(
+                        state="readonly" if lan_enabled.get() else "disabled"
+                    )
                     url.set("")
                     pairing.set("")
                     devices.set("Host stopped.")
@@ -146,7 +151,11 @@ def run_panel():
                 pairing.set("Pairing code: " + state["app"].state.pairing_code)
                 if not state["opened"] and not state["closing"]:
                     state["opened"] = True
-                    status.set("Host running. Approve devices in the dashboard.")
+                    status.set(
+                        "Offline LAN enabled. Approve paired devices in the dashboard."
+                        if lan_enabled.get()
+                        else "This PC only. Stop host, enable Offline LAN and start to connect phones."
+                    )
                     open_button.config(state="normal")
                     open_dashboard()
                 devices.set(

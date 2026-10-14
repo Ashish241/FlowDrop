@@ -1,3 +1,11 @@
+# Offline LAN follow-up — 2026-10-15
+
+32 Pytest passed (6 unconfigured provider integration tests skipped), 9 Vitest passed, 14 Playwright passed in 35.7s. Ruff, ESLint, strict TypeScript/Vite, final PyInstaller rebuild and executable smoke passed. Real native socket checks cover loopback, automatic LAN, explicit LAN and wildcard startup; Windows PowerShell confirmed `192.168.1.7:8000` and HTTP health there. Physical phones and interactive desktop GUI were not tested. Full binding evidence and current ZIP checksum are in [LAN_CONNECTIVITY_VERIFICATION.md](LAN_CONNECTIVITY_VERIFICATION.md).
+
+---
+
+## Previous engineering checkpoint record (2026-10-14)
+
 # v0.3.0 verification record
 
 Run initiated 2026-10-13, completed 2026-10-14 on Windows 11, Python 3.14.6 / Node 24.18.0. Starting commit `721668cabd0c47a93ecd1a80e240d8f526e45211`, clean working tree. Baseline independently rerun: 21 Pytest, 7 Vitest, 12 Playwright passed.

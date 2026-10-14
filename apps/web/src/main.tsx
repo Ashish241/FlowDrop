@@ -28,7 +28,11 @@ function App() {
   const [preparing, setPreparing] = useState("");
   const [visited, setVisited] = useState<string[]>([]);
   const [token, setToken] = useState(sessionStorage.getItem("token") || ""),
-    [me, setMe] = useState<{ id: string; pairing_code?: string }>(),
+    [me, setMe] = useState<{
+      id: string;
+      pairing_code?: string;
+      connection_url?: string;
+    }>(),
     [devices, setDevices] = useState<Device[]>([]),
     [transfers, setTransfers] = useState<Transfer[]>([]),
     [page, setPage] = useState("Home"),
@@ -196,10 +200,10 @@ function App() {
   }, [me?.id, token]);
   useEffect(() => {
     if (me?.pairing_code)
-      void QRCode.toDataURL(location.origin + "/#code=" + me.pairing_code).then(
-        setQr,
-      );
-  }, [me?.pairing_code]);
+      void QRCode.toDataURL(
+        (me.connection_url || location.origin) + "/#code=" + me.pairing_code,
+      ).then(setQr);
+  }, [me?.pairing_code, me?.connection_url]);
   useEffect(() => {
     for (const t of transfers) {
       if (
@@ -667,6 +671,9 @@ function App() {
                   <div className="pairing">
                     <img src={qr} alt="Scan to connect to this LAN host" />
                     <div>
+                      <p>
+                        Connection URL: {me.connection_url || location.origin}
+                      </p>
                       <p>Pairing code</p>
                       <h2>{me.pairing_code}</h2>
                       <small>Expires 10 minutes after host launch.</small>

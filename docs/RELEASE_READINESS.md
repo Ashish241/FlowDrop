@@ -1,5 +1,7 @@
 # Release readiness — 0.3.0 engineering checkpoint
 
+Offline LAN follow-up (2026-10-15): explicit LAN startup, canonical pairing URL/QR and Windows socket verification are implemented; see [LAN_CONNECTIVITY_VERIFICATION.md](LAN_CONNECTIVITY_VERIFICATION.md). Current regression run: 32 backend, 9 unit and 14 browser tests passed; the six provider integration tests below belong to the previous checkpoint and were not rerun for this LAN-only fix. External physical/network acceptance gates remain open.
+
 **Not a verified public release candidate. Not production ready.** Implementation and local automated verification advanced; mandatory external gates remain open.
 
 | Area | IMPLEMENTED | AUTOMATED TESTED | PHYSICALLY VERIFIED | Release gate |

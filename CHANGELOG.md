@@ -1,5 +1,11 @@
 # Changelog
 
+## Offline LAN connectivity fix — 2026-10-15
+
+- Explicit desktop Offline LAN toggle and CLI `--lan`, active private IPv4 selection, optional wildcard bind, and safe loopback default.
+- Canonical LAN connection URL and pairing QR independent of dashboard origin; retain same-origin/WebSocket authorization, add exact Host allowlist and disable implicit proxy trust.
+- Windows binding/QR/approval regression coverage, rebuilt portable bundle and Private/LocalSubnet firewall guidance. See `docs/LAN_CONNECTIVITY_VERIFICATION.md`.
+
 ## 0.3.0 engineering checkpoint — 2026-10-13
 
 - Redis distributed signaling/session authority, atomic membership, expiry/live revocation, cross-instance routing and shared abuse controls.
