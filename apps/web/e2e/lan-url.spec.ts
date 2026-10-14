@@ -52,3 +52,24 @@ test("pairing QR uses the selected LAN address even on a loopback dashboard", as
     });
   expect(decoded).toBe(connection + "/#code=" + code);
 });
+
+test("This PC Only never displays a phone QR", async ({ page }) => {
+  await page.route("**/api/session", async (route) => {
+    const response = await route.fetch();
+    const session = await response.json();
+    await route.fulfill({
+      response,
+      json: { ...session, connection_url: null, lan_enabled: false },
+    });
+  });
+  await page.goto("/#host=e2e-host-only");
+  await page.getByRole("button", { name: "Offline LAN", exact: true }).click();
+  await expect(
+    page.getByText("This PC Only. Enable Offline LAN Sharing", {
+      exact: false,
+    }),
+  ).toBeVisible();
+  await expect(
+    page.getByAltText("Scan to connect to this LAN host"),
+  ).toHaveCount(0);
+});

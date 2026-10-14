@@ -4,8 +4,12 @@ $taskExe = Join-Path $taskRoot 'dist/FlowDrop/FlowDrop.exe'
 $taskStorage = Join-Path $taskRoot '.flowdrop/exe-smoke'
 New-Item -ItemType Directory -Path $taskStorage -Force | Out-Null
 $env:FLOWDROP_STORAGE = $taskStorage
-& $taskExe --help
+$taskHelp = & $taskExe --help
 if ($LASTEXITCODE -ne 0) { throw 'Executable help failed' }
+if (-not ($taskHelp -match '--lan')) { throw 'Packaged executable lacks --lan; stale build' }
+$taskInfo = & $taskExe --build-info | ConvertFrom-Json
+if ($LASTEXITCODE -ne 0 -or $taskInfo.build -ne 'LAN-20261015.2') { throw 'Executable build identifier mismatch' }
+if ((Get-FileHash -LiteralPath $taskExe -Algorithm SHA256).Hash -ne (Get-Content (Join-Path (Split-Path $taskExe -Parent) 'BUILD_INFO.json') -Raw | ConvertFrom-Json).executable_sha256) { throw 'Executable/manifest hash mismatch' }
 & $taskExe --version
 if ($LASTEXITCODE -ne 0) { throw 'Executable version failed' }
 $taskProcess = Start-Process -FilePath $taskExe -ArgumentList '--bind','127.0.0.1','--port','8766','--no-browser','--shutdown-after','5' -WorkingDirectory $env:TEMP -WindowStyle Hidden -PassThru -RedirectStandardOutput (Join-Path $taskStorage 'stdout.log') -RedirectStandardError (Join-Path $taskStorage 'stderr.log')

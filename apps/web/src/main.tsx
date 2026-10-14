@@ -32,6 +32,7 @@ function App() {
       id: string;
       pairing_code?: string;
       connection_url?: string;
+      lan_enabled?: boolean;
     }>(),
     [devices, setDevices] = useState<Device[]>([]),
     [transfers, setTransfers] = useState<Transfer[]>([]),
@@ -199,11 +200,11 @@ function App() {
     };
   }, [me?.id, token]);
   useEffect(() => {
-    if (me?.pairing_code)
+    if (me?.pairing_code && me.lan_enabled !== false)
       void QRCode.toDataURL(
         (me.connection_url || location.origin) + "/#code=" + me.pairing_code,
       ).then(setQr);
-  }, [me?.pairing_code, me?.connection_url]);
+  }, [me?.pairing_code, me?.connection_url, me?.lan_enabled]);
   useEffect(() => {
     for (const t of transfers) {
       if (
@@ -667,7 +668,13 @@ function App() {
             {["Offline LAN", "Connected Devices"].includes(page) && (
               <section className="panel">
                 <h2>Your connected devices</h2>
-                {me.pairing_code && (
+                {me.lan_enabled === false && (
+                  <p>
+                    This PC Only. Enable Offline LAN Sharing in the desktop
+                    panel, then Restart / Rebind to connect phones.
+                  </p>
+                )}
+                {me.pairing_code && me.lan_enabled !== false && (
                   <div className="pairing">
                     <img src={qr} alt="Scan to connect to this LAN host" />
                     <div>
@@ -814,7 +821,7 @@ function App() {
         )}
         <footer>
           <Shield size={14} /> Your files belong to you.
-          <span>FLOWDROP / 0.3.0 DEVELOPMENT</span>
+          <span>FLOWDROP / 0.3.1 DEVELOPMENT</span>
         </footer>
       </main>
     </div>

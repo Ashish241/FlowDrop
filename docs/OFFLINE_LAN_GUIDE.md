@@ -1,64 +1,64 @@
-# Offline LAN
+# Offline LAN — FlowDrop 0.3.1 / LAN-20261015.2
 
-Installation and build require internet; runtime serves all assets locally and performs no external fetches. Only the PC host needs the application. Other computers and phones use browsers.
+Extract the **complete** corrected `FlowDrop-windows.zip` into a fresh folder. Double-click `FlowDrop.exe`. The desktop title must show **0.3.1 / LAN-20261015.2**. Do not reuse an older extracted folder or shortcut. The `_internal` folder is required next to the executable.
 
-Loopback is the safe default: CLI `FlowDrop.exe --no-browser` listens on `127.0.0.1:8000`. Double-click opens the desktop panel and starts in **This PC only** mode. To connect phones: **Stop host**, check **Enable Offline LAN sharing**, choose the adapter on the same network as the phones, and **Start host**. The panel uses an available port; copy its complete displayed URL.
+1. The panel opens **Stopped**, with **This PC Only** as the safe default.
+2. Check **Enable Offline LAN Sharing**.
+3. FlowDrop automatically selects the sole usable physical Wi-Fi/Ethernet interface. If several are plausible, choose the network shared with the phone in the adapter selector. Virtual interfaces, including WSL/Hyper-V and Windows hotspot adapters, are manual selections only.
+4. Press **Start**. On a Public/unknown profile, explicitly confirm that this is a trusted LAN; FlowDrop will not change its profile. A Private-only firewall rule will not permit Public-profile traffic.
+5. Wait for **Running**. Only after authenticated HTTP and compiled-frontend readiness passes does the host dashboard open at its **127.0.0.1** URL.
+6. Open the **Phone / LAN Connection URL** on the phone, or scan the QR from the panel/dashboard. The host approves the paired device, and recipients separately accept file offers. The QR contains only a short-lived pairing code, never the host authorization capability.
 
-For CLI use (from the extracted portable folder):
+No terminal is required for normal use. Stop/Start, **Restart / Rebind**, **Copy Phone URL**, **Refresh Networks**, **Run Diagnostics**, and explicit private firewall setup are available in the panel.
 
-```powershell
-.\FlowDrop.exe --list-adapters
-.\FlowDrop.exe --lan --port 8000
-# Select explicitly when multiple networks are active:
-.\FlowDrop.exe --lan --bind 192.168.43.105 --port 8000
-# Optional all-interface listener; requires explicit LAN consent:
-.\FlowDrop.exe --lan --bind 0.0.0.0 --port 8000
-# Disable LAN / retain loopback-only mode:
-.\FlowDrop.exe --bind 127.0.0.1 --port 8000
-```
+## Selection and network changes
 
-`--lan` automatically chooses an active private IPv4 adapter, preferring Wi-Fi/Ethernet over virtual adapters. Link-local, loopback and disconnected adapters are excluded. It never needs Internet access. With multiple physical networks, select explicitly: a Windows-hosted hotspot often uses `192.168.137.1`; a PC connected to a phone hotspot uses the PC's Wi-Fi address. The phone must open the **PC address**, not its own gateway, localhost, or `0.0.0.0`. A private `--bind` remains an explicit LAN opt-in for older commands. Without a usable adapter LAN startup fails with guidance rather than silently falling back to localhost. Restart after changing networks or DHCP addresses.
+Windows discovery enumerates adapter hardware/virtual status, operational state, interface index/type/GUID, IPv4 prefix/subnet, default gateway, route/interface metrics and connection profile. It does not make an Internet probe or infer reachability merely from a private address. Automatic selection excludes disconnected, loopback, 169.254/16, virtual and route-less candidates. It never silently falls back to WSL or localhost. If Windows discovery is unavailable, profile/routing information is marked unavailable and automatic selection is disabled; manual active-IP selection remains possible.
 
-The console prints both the listening address and the usable Connection URL. The host dashboard receives that canonical URL from the launcher and generates its pairing QR from it, even if a wildcard listener's dashboard is opened through localhost. Pairing QR contains only the short-lived pairing code, never the host authorization token. All frontend HTTP and WebSocket paths use the device's current origin. No wildcard CORS is enabled; unexpected Host headers and cross-origin requests are rejected. Desktop Uvicorn ignores proxy headers.
+Only the selected adapter identity is remembered, never LAN consent or a stale DHCP IP. Startup re-enumerates the interface. Network polling warns about disconnection, DHCP/profile changes; press **Restart / Rebind** after selecting the current network. Restart reuses the current port when available. Otherwise a collision on either LAN or loopback selects an available shared port and updates every URL/QR. No unrelated process is killed.
 
-Find adapters using `python -m apps.desktop.launcher --list-adapters`. Choose the private Wi-Fi/Ethernet/hotspot adapter, then run:
+A PC connected to a phone hotspot uses its own Wi-Fi IPv4. A Windows-hosted hotspot often uses a virtual `Local Area Connection*` interface; select it explicitly only when that is the network the phones use. Multiple adapters can be active on different networks. The phone needs the PC address on its own reachable subnet, not localhost, its own gateway, `0.0.0.0`, or a WSL address. The selected address is not guaranteed reachable through a hotspot/router that isolates clients.
 
-```powershell
-python -m apps.desktop.launcher --bind 192.168.1.10 --port 8000
-```
+## Host and phone listeners
 
-Use your actual adapter address. On an occupied port choose another port or use `--port 0` to select an available one. Open the displayed URL on other devices. Enter the host pairing code or scan its QR. The host must approve each device; receivers must separately accept file offers. Revocation blocks subsequent requests. The host console shuts down with Ctrl+C.
+**This PC Only:** only `127.0.0.1` listens; no phone QR is displayed.
 
-For firewall trouble, permit the application on your Windows **private** network profile through Windows Firewall. FlowDrop does not change firewall settings automatically. Disable Wi-Fi client isolation or use another trusted network when clients cannot reach one another. VPNs and guest networks may block access. The public hosted site cannot safely substitute for the locally served interface.
+**Offline LAN:** the same application listens on the selected private IPv4 **and** `127.0.0.1`, on one port. The desktop health checks and host dashboard use loopback, without environment proxy routing. Phone URLs and pairing QR always use the selected LAN address. HTTP and WebSocket URLs in the frontend follow the current browser origin. Exact local Host names/IPs and the generated mDNS name are allowed; arbitrary Host headers, cross-origin requests and implicit proxy-header trust are rejected. No wildcard CORS is enabled.
 
-The current transport uses unencrypted HTTP. Use trusted local networks only. Service discovery advertises `_flowdrop._tcp.local` when supported; manual IP always remains available. Browser and mobile mDNS discovery support varies.
+All frontend assets, hashing and optical processing are local at runtime. Installation/build requires dependencies; the portable runtime does not require Python, Node or Internet. LAN HTTP is plaintext; use only trusted networks. CLI trusted-certificate TLS is supported, and the certificate must cover the host loopback and advertised LAN URL for readiness to pass. Physical TLS/device acceptance remains pending.
 
-LAN downloads use native browser streaming through short-lived, path-scoped HttpOnly cookies. JavaScript does not buffer the entire download. Browser download permissions, file naming and disk progress remain browser managed. HTTP is still plaintext. Configure trusted TLS certificates with --tls-cert/--tls-key for untrusted networks; actual TLS device testing remains pending.
+## Windows firewall
 
-FLOWDROP_CHUNK_SIZE supports 1048576, 2097152 or 4194304 bytes. FLOWDROP_UPLOAD_CONCURRENCY accepts 1–16 (default 4). Transfer records preserve their negotiated size across configuration changes. Browser uploads allow two simultaneous files; chunks time out after sixty seconds and can be retried.
+**Run Diagnostics** reports current profile, Windows firewall profile policy, local sockets, authenticated HTTP/frontend checks, LAN-IP checks from the same PC, WebSocket invalid-capability refusal and URL consistency. A missing managed rule means inbound *may* be blocked; other Windows/GPO rules can apply. It is not proof of a specific firewall block. Local checks never mark phone connectivity verified.
 
-Double-clicking the executable opens native adapter/start/stop controls and the browser dashboard. CLI mode remains available; --gui explicitly opens the panel. Interactive GUI and clean target-PC testing are pending.
+For a trusted network, use Windows Settings to select **Private** yourself after verifying that you trust it. FlowDrop never changes the network profile. After a profile change, **Refresh Networks → Restart / Rebind**.
 
-## Windows build
+On a Private network, **Allow Private LAN…** displays the exact executable, port and local IP, requests explicit approval and Windows UAC, then creates one deterministic rule scoped to that executable, TCP port, local IP, **Private** and **LocalSubnet**. Repeating the same request verifies the existing rule rather than adding duplicates. Conflicting named rules are rejected. UAC cancellation/policy errors are shown; no Public allow rule or unrelated rule is changed. This elevation path is implemented and unit-reviewed; it was not executed against the user's firewall during engineering verification.
 
-Run `powershell -File scripts/build-desktop.ps1` after the frontend build. The portable folder bundles Python and frontend assets. The ZIP is a build artifact, not a release endorsement. Actual target-PC offline testing remains required.
-
-## Windows firewall and binding checks
-
-On a **trusted** home/hotspot network, check `Get-NetConnectionProfile`. If the profile is Public, a Private-only rule will not apply. Change the specific network to Private through Windows Settings only after confirming you trust it. FlowDrop does not change network profiles or firewall rules automatically.
-
-For a fixed CLI port of 8000, an administrator can add a narrow inbound rule (replace the executable path):
+Manual alternative (administrator PowerShell, substitute the real extracted path/IP/port):
 
 ```powershell
 $taskExe = (Resolve-Path 'C:\path\to\FlowDrop\FlowDrop.exe').Path
-New-NetFirewallRule -DisplayName 'FlowDrop Offline LAN' -Direction Inbound -Action Allow -Program $taskExe -Protocol TCP -LocalPort 8000 -Profile Private -RemoteAddress LocalSubnet
+New-NetFirewallRule -DisplayName 'FlowDrop Offline LAN manual' -Direction Inbound -Action Allow -Program $taskExe -Protocol TCP -LocalPort 8000 -LocalAddress 192.168.43.105 -Profile Private -RemoteAddress LocalSubnet
 Get-NetTCPConnection -State Listen -LocalPort 8000 | Select-Object LocalAddress,LocalPort,OwningProcess
-# Remove this specific rule when no longer needed:
-Remove-NetFirewallRule -DisplayName 'FlowDrop Offline LAN'
+# Remove only the rule you created when no longer needed:
+Remove-NetFirewallRule -DisplayName 'FlowDrop Offline LAN manual'
 ```
 
-For a panel-selected port, use the port shown in its URL. Prefer binding a specific adapter; `0.0.0.0` also listens on other interfaces, so retain Private/LocalSubnet firewall scope. Do not disable Windows Firewall, permit Public networks, or forward the port on an Internet router. Revisit the rule if the executable moves. mDNS is optional; use the numeric URL when multicast discovery is blocked.
+Do not disable Windows Firewall or forward FlowDrop's port on an Internet router. If binding/local checks pass but the phone fails, check the phone's subnet, actual profile/rule scope, VPN/proxy routing and hotspot/guest-network client isolation. FlowDrop cannot override router isolation. Optional mDNS `_flowdrop._tcp.local` is not required; use the numeric phone URL when multicast discovery is unavailable.
 
-Expected listener: `127.0.0.1` in local-only mode, the selected LAN IPv4 with `--lan`, or `0.0.0.0` only with the explicit wildcard option. If the listener is correct but phones cannot connect, check subnet, the firewall profile/rule, VPN routing and hotspot/client isolation. The application cannot override isolation enforced by a hotspot/router. Test from another device separately; successful requests from this PC to its LAN IP do not establish physical-phone reachability.
+## CLI and build identification
 
-Regression commands: `python -m pytest tests/test_desktop_network.py -q`; after rebuilding, `python -m scripts.smoke_network` tests actual executable loopback, automatic LAN, selected LAN and wildcard sockets, HTTP/frontend and WebSocket authentication. This local socket test records `.flowdrop/network-smoke.json` and is not physical-device acceptance.
+```powershell
+.\FlowDrop.exe --version
+.\FlowDrop.exe --build-info
+.\FlowDrop.exe --help
+.\FlowDrop.exe --list-adapters
+.\FlowDrop.exe --lan --port 8000
+.\FlowDrop.exe --lan --bind 192.168.43.105 --port 8000
+.\FlowDrop.exe --bind 127.0.0.1 --port 8000
+```
+
+Substitute the actual IP from `--list-adapters`. `--lan` alone selects a unique physical candidate on a Private profile. Multiple candidates require explicit `--bind`; a Public profile also requires explicit trusted-interface selection rather than automatic exposure. `--lan --bind 0.0.0.0` is an advanced explicit wildcard option; selected-interface mode is preferred. The build ID in `--version`, desktop title and `BUILD_INFO.json` must match. The manifest records the executable and frontend index SHA-256 hashes.
+
+Developer checks: `python -m pytest -q`, frontend lint/build/unit/Playwright, `python -m scripts.integration_check` against disposable infrastructure. Build with `powershell -File scripts/build-desktop.ps1`; extract the resulting ZIP into a fresh folder and run `python -m scripts.smoke_network --exe dist/FlowDrop-windows/FlowDrop.exe`. The packaged `--panel-smoke` exercises actual hidden Tk widgets/readiness/QR/restart and records no physical-phone claim. Neither check substitutes for a clean Windows or physical-device acceptance run.

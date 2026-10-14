@@ -1,3 +1,9 @@
+# 0.3.1 LAN follow-up — LAN-20261015.2
+
+The adapter/startup/packaging fixes are implemented. Current evidence and remaining acceptance gates are maintained in [LAN_CONNECTIVITY_VERIFICATION.md](LAN_CONNECTIVITY_VERIFICATION.md). This follow-up adds actual native Tk lifecycle/QR tests and local authenticated LAN payload/socket checks; physical phone, router isolation, clean-PC and human GUI acceptance remain unverified. No production readiness claim is made.
+
+---
+
 # Release readiness — 0.3.0 engineering checkpoint
 
 Offline LAN follow-up (2026-10-15): explicit LAN startup, canonical pairing URL/QR and Windows socket verification are implemented; see [LAN_CONNECTIVITY_VERIFICATION.md](LAN_CONNECTIVITY_VERIFICATION.md). Current regression run: 32 backend, 9 unit and 14 browser tests passed; the six provider integration tests below belong to the previous checkpoint and were not rerun for this LAN-only fix. External physical/network acceptance gates remain open.

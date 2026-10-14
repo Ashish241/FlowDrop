@@ -1,3 +1,13 @@
+# 0.3.1 network acceptance limits
+
+- Physical phone/second-PC reachability, camera QR scanning, clean Windows and human GUI usability remain UNVERIFIED. Automated Tk tests use hidden native widgets, and local LAN clients run on the host PC.
+- This Wi-Fi currently has a Public profile and all firewall profiles default inbound Block. No managed allow rule was created. Other policies may affect reachability; the application cannot certify a firewall or router path from local probes.
+- Windows automatic adapter selection requires hardware/route inventory. If discovery is denied/unavailable, automatic selection fails closed and explicitly selected active IPs remain available with unknown-profile confirmation.
+- The GUI polls network metadata approximately every ten seconds. An abrupt change can interrupt transfers until Restart/Rebind. Network ambiguity requires a user selection; no IP is assumed universally reachable. TLS certificates must cover the loopback dashboard and LAN address.
+- Optional firewall elevation is implemented and its script is unit-tested, but actual UAC approval/rule mutation remains unexecuted. Router client isolation, VPN policies and deployed Internet/TURN/TLS/HA gates remain external.
+
+---
+
 # Known limitations — v0.3.0
 
 This is a development checkpoint, not a public release.

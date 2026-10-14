@@ -1,0 +1,80 @@
+{
+  "date": "2026-10-15",
+  "build": {
+    "version": "0.3.1",
+    "build": "LAN-20261015.2",
+    "executable": "FlowDrop.exe",
+    "executable_sha256": "90848B3353EC1DB2ACAEE3823D3CE817D10C047C38F0356AF4B642B5EDF2540E",
+    "frontend_sha256": "4613933BEBF87DA307A6C9C44EEC99F49629FF82825E668A1BF6F8AAFC6ADA3A"
+  },
+  "packaged_panel": {
+    "build": "LAN-20261015.2",
+    "adapter": "Wi-Fi",
+    "lan": "http://192.168.1.7:14318",
+    "host": "http://127.0.0.1:14318",
+    "native_qr": true,
+    "authenticated_transfer": "Passed: 256 KiB hash-matched LAN download and authenticated WebSocket echo; clients on same PC",
+    "diagnostics": {
+      "Host Dashboard URL": "http://127.0.0.1:14318",
+      "Phone URL": "http://192.168.1.7:14318",
+      "Phone connectivity": "Not verified \u2014 local checks cannot establish phone reachability",
+      "Local HTTP / frontend / authorization": "Passed",
+      "LAN IP HTTP (same PC)": "Passed; physical phone not verified",
+      "Socket check": "Passed",
+      "WebSocket authorization": "Passed: denied (1008)",
+      "URL check": "Passed",
+      "Current network state": "Connected",
+      "Selected adapter": "Wi-Fi",
+      "LAN IPv4 / subnet": "192.168.1.7 / 192.168.1.0/24",
+      "Gateway": "192.168.1.1",
+      "Firewall profile": "Public",
+      "Adapter source": "Windows networking APIs",
+      "Firewall policy": "Domain firewall enabled: True; default inbound: Block\nPrivate firewall enabled: True; default inbound: Block\nPublic firewall enabled: True; default inbound: Block\nNo FlowDrop managed rule for this executable/IP/port. Inbound may be blocked; other rules and policy require review."
+    },
+    "network_change": "mocked DHCP notification detected; rebind requested",
+    "restart": "passed",
+    "shutdown": "passed"
+  },
+  "packaged_network": [
+    {
+      "mode": "lan-auto-public",
+      "result": "correctly requires explicit trusted-network selection; no silent exposure"
+    },
+    {
+      "mode": "loopback",
+      "listening_address": "127.0.0.1",
+      "port": 1982,
+      "connection_url": "http://127.0.0.1:1982",
+      "http_frontend_ws_auth": "passed"
+    },
+    {
+      "mode": "lan-selected",
+      "listening_address": "192.168.1.7",
+      "port": 1992,
+      "connection_url": "http://192.168.1.7:1992",
+      "http_frontend_ws_auth": "passed"
+    },
+    {
+      "mode": "lan-all",
+      "listening_address": "0.0.0.0",
+      "port": 2021,
+      "connection_url": "http://192.168.1.7:2021",
+      "http_frontend_ws_auth": "passed"
+    }
+  ],
+  "tests": {
+    "pytest_baseline_passed": 50,
+    "provider_integration_passed": 6,
+    "vitest_passed": 9,
+    "playwright_passed": 15,
+    "playwright_seconds": 43.3
+  },
+  "physical_phone": "UNVERIFIED",
+  "uac_rule_creation": "NOT EXECUTED",
+  "zip_sha256": "46AFB58F60D56ADC9BAE58DD7B77757D5290483A7A59F53CC499B1E5EC5BA4D5",
+  "zip_bytes": 25318163,
+  "verification_notes": [
+    "An initial concurrent final-artifact harness run exceeded startup/outer deadlines and was not counted as passing. Final socket and native-panel acceptance ran sequentially and passed. Socket harness now uses a bounded 45-second startup interval and preserves failure logs.",
+    "WebSocket runtime 16.1.1 and QR encoder 8.2 are explicitly pinned; they are included in the tested bundle."
+  ]
+}

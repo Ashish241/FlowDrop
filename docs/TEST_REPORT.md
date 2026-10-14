@@ -1,3 +1,9 @@
+# 0.3.1 / LAN-20261015.2 — 2026-10-15
+
+50 backend + 6 real provider integration + 9 frontend unit + 15 browser tests passed. Final extracted Windows native-panel, authenticated LAN file/socket, actual binding, restart and ordinary executable smoke also passed. See [LAN_CONNECTIVITY_VERIFICATION.md](LAN_CONNECTIVITY_VERIFICATION.md) for current artifact identity, scope, warnings and remaining physical/UAC gates. Earlier records below are retained as historical checkpoints.
+
+---
+
 # Offline LAN follow-up — 2026-10-15
 
 32 Pytest passed (6 unconfigured provider integration tests skipped), 9 Vitest passed, 14 Playwright passed in 35.7s. Ruff, ESLint, strict TypeScript/Vite, final PyInstaller rebuild and executable smoke passed. Real native socket checks cover loopback, automatic LAN, explicit LAN and wildcard startup; Windows PowerShell confirmed `192.168.1.7:8000` and HTTP health there. Physical phones and interactive desktop GUI were not tested. Full binding evidence and current ZIP checksum are in [LAN_CONNECTIVITY_VERIFICATION.md](LAN_CONNECTIVITY_VERIFICATION.md).

@@ -1,6 +1,7 @@
 """Portable host launcher. The capability is delivered via fragment, never HTTP logs."""
 
 import argparse
+import json
 import secrets
 import socket
 import sys
@@ -11,14 +12,23 @@ from pathlib import Path
 
 import uvicorn
 
-from apps.desktop.network import lan_adapters, startup_network
+from apps.desktop.diagnostics import bind_listeners, readiness
+from apps.desktop.network import inventory_json, lan_adapters, startup_network
 from services.lan_server.app import create_app
-from services.version import VERSION
+from services.version import BUILD_ID, VERSION
 
 
 def main(argv=None, on_ready=None):
-    parser = argparse.ArgumentParser(description="FlowDrop private LAN host")
-    parser.add_argument("--version", action="version", version="FlowDrop " + VERSION)
+    class Parser(argparse.ArgumentParser):
+        def error(self, message):
+            if on_ready is not None:
+                raise ValueError(message)
+            super().error(message)
+
+    parser = Parser(description="FlowDrop private LAN host")
+    parser.add_argument(
+        "--version", action="version", version=f"FlowDrop {VERSION} ({BUILD_ID})"
+    )
     parser.add_argument(
         "--shutdown-after",
         type=int,
@@ -38,6 +48,16 @@ def main(argv=None, on_ready=None):
     parser.add_argument("--no-browser", action="store_true")
     parser.add_argument("--list-adapters", action="store_true")
     parser.add_argument(
+        "--build-info",
+        action="store_true",
+        help="Print version, build ID and executable path",
+    )
+    parser.add_argument(
+        "--panel-smoke",
+        action="store_true",
+        help="Run automated native panel lifecycle diagnostics",
+    )
+    parser.add_argument(
         "--gui", action="store_true", help="Open the desktop host control panel"
     )
     parser.add_argument(
@@ -49,6 +69,23 @@ def main(argv=None, on_ready=None):
         parser.error("Port must be between 0 and 65535")
     if args.shutdown_after is not None and not 1 <= args.shutdown_after <= 86400:
         parser.error("Shutdown delay must be between 1 and 86400 seconds")
+    if args.build_info:
+        print(
+            json.dumps(
+                {
+                    "version": VERSION,
+                    "build": BUILD_ID,
+                    "executable": sys.executable,
+                    "frozen": bool(getattr(sys, "frozen", False)),
+                }
+            )
+        )
+        return
+    if args.panel_smoke:
+        from apps.desktop.panel import panel_smoke
+
+        panel_smoke()
+        return
     if args.gui or (argv is None and len(sys.argv) == 1):
         from apps.desktop.panel import run_panel
 
@@ -59,9 +96,7 @@ def main(argv=None, on_ready=None):
     import ipaddress
 
     if args.list_adapters:
-        for interface, address in lan_adapters():
-            print(f"{interface}: {address}")
-        print("This PC only: 127.0.0.1")
+        print(json.dumps(inventory_json(), indent=2))
         return
 
     try:
@@ -80,16 +115,16 @@ def main(argv=None, on_ready=None):
             ),
         )
     )
-    sock = socket.socket()
     try:
-        sock.bind((bind, args.port))
+        sockets, port = bind_listeners(bind, args.port)
     except OSError as exc:
         parser.error(
-            f"Cannot bind {bind}:{args.port}: {exc}. Choose a different --port or adapter."
+            f"Cannot bind {bind}:{args.port}: {exc}. Refresh the adapter or inspect port listeners; no localhost fallback occurred."
         )
     scheme = "https" if args.tls_cert else "http"
-    base = f"{scheme}://{advertised}:{sock.getsockname()[1]}"
-    allowed_hosts = [advertised]
+    base = f"{scheme}://{advertised}:{port}"
+    host_url = f"{scheme}://127.0.0.1:{port}"
+    allowed_hosts = [advertised, "127.0.0.1", "localhost"]
     mdns_host = f"flowdrop-{secrets.token_hex(4)}.local"
     if not address.is_loopback:
         allowed_hosts.append(mdns_host)
@@ -98,19 +133,40 @@ def main(argv=None, on_ready=None):
     elif address.is_loopback:
         allowed_hosts += ["localhost"]
     app = create_app(
-        storage=data, host_token=token, connection_url=base, allowed_hosts=allowed_hosts
+        storage=data,
+        host_token=token,
+        connection_url=base if not address.is_loopback else None,
+        allowed_hosts=allowed_hosts,
+        lan_enabled=not address.is_loopback,
     )
+    app.state.host_dashboard_url = host_url
+    app.state.connection_url = base if not address.is_loopback else None
+    app.state.bind_address = bind
+    app.state.port = port
+    app.state.build_id = BUILD_ID
+    if port != args.port and args.port:
+        print(
+            f"Port {args.port} occupied; selected available port {port} for both host and LAN."
+        )
     if not args.tls_cert:
         print("FlowDrop: use a trusted private LAN. HTTP traffic is not encrypted.")
     print("Pairing code:", app.state.pairing_code)
-    print("Listening address:", f"{bind}:{sock.getsockname()[1]}")
+    print(
+        "Listening addresses:",
+        ", ".join(f"{sock.getsockname()[0]}:{port}" for sock in sockets),
+    )
+    print("Host Dashboard URL:", host_url)
     print(
         "Offline LAN:",
         "disabled (this PC only)"
         if address.is_loopback
         else "enabled; pairing and host approval required",
     )
-    print("Connection URL:", base)
+    print(
+        "Connection URL:",
+        base if not address.is_loopback else "Disabled (This PC Only)",
+        flush=True,
+    )
     server = uvicorn.Server(
         uvicorn.Config(
             app,
@@ -142,9 +198,16 @@ def main(argv=None, on_ready=None):
                 if server.should_exit:
                     return
                 if server.started:
-                    webbrowser.open(base + "/#host=" + token)
-                    return
+                    try:
+                        readiness(host_url, token)
+                        webbrowser.open(host_url + "/#host=" + token)
+                        return
+                    except (OSError, ValueError, RuntimeError):
+                        pass
                 time.sleep(0.1)
+            print(
+                "Dashboard not opened: HTTP/frontend readiness failed. Run desktop diagnostics."
+            )
 
         threading.Thread(target=open_when_ready, daemon=True).start()
     zeroconf = None
@@ -157,7 +220,7 @@ def main(argv=None, on_ready=None):
                 "_flowdrop._tcp.local.",
                 "FlowDrop._flowdrop._tcp.local.",
                 addresses=[socket.inet_aton(advertised)],
-                port=sock.getsockname()[1],
+                port=port,
                 properties={"path": "/", "version": VERSION},
                 server=mdns_host + ".",
             )
@@ -165,11 +228,12 @@ def main(argv=None, on_ready=None):
         except (OSError, RuntimeError) as exc:
             print("mDNS unavailable; use the connection URL:", exc)
     try:
-        server.run(sockets=[sock])
+        server.run(sockets=sockets)
     finally:
         if zeroconf:
             zeroconf.close()
-        sock.close()
+        for sock in sockets:
+            sock.close()
 
 
 if __name__ == "__main__":

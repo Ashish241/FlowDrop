@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.3.1 — LAN-20261015.2 — 2026-10-15
+
+- Reproduced a stale 0.3.0 extracted executable without `--lan`; preserve it as an explicitly named checkpoint and identify new packages with build IDs and hash manifests.
+- Windows hardware/route/profile inventory, strict physical auto-selection, ambiguity handling, explicit virtual/manual selection and validated adapter preferences.
+- Separate loopback host and selected-interface LAN listeners, shared collision-recovered ports, readiness-gated opening, stopped-by-default native controls, QR, diagnostics and restart/rebind.
+- Public-profile consent, no automatic firewall/profile mutation, optional user-approved UAC Private/LocalSubnet rule and clear physical-phone verification boundary.
+
 ## Offline LAN connectivity fix — 2026-10-15
 
 - Explicit desktop Offline LAN toggle and CLI `--lan`, active private IPv4 selection, optional wildcard bind, and safe loopback default.

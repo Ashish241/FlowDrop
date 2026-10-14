@@ -17,7 +17,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
-from services.version import VERSION
+from services.version import BUILD_ID, VERSION
 from services.web_security import CSP
 
 
@@ -42,6 +42,7 @@ def create_app(
     host_token: str | None = None,
     connection_url: str | None = None,
     allowed_hosts: list[str] | None = None,
+    lan_enabled: bool | None = None,
 ):
     root = storage or Path(os.getenv("FLOWDROP_STORAGE", ".flowdrop"))
     if root.is_symlink():
@@ -204,7 +205,13 @@ def create_app(
 
     @app.get("/api/health")
     def health():
-        return {"status": "ok", "mode": "lan", "chunk_size": chunk_size}
+        return {
+            "status": "ok",
+            "mode": "lan",
+            "chunk_size": chunk_size,
+            "version": VERSION,
+            "build": BUILD_ID,
+        }
 
     @app.get("/api/session")
     async def session(request: Request):
@@ -213,6 +220,7 @@ def create_app(
             **s,
             "pairing_code": code if s["id"] == "host" else None,
             "connection_url": connection_url if s["id"] == "host" else None,
+            "lan_enabled": lan_enabled if s["id"] == "host" else None,
         }
 
     @app.post("/api/pair")

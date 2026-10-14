@@ -1,3 +1,9 @@
+# 0.3.1 native LAN recovery
+
+Windows hardware/route/profile inventory, ambiguity handling, validated adapter identity preferences, dual local/LAN listeners, available-port recovery, readiness-gated host browser, native QR/diagnostics, explicit UAC firewall setup and build manifests are implemented. See [LAN_CONNECTIVITY_VERIFICATION.md](LAN_CONNECTIVITY_VERIFICATION.md) for actual tests and physical/UAC gates.
+
+---
+
 # Implementation status
 
 Updated: 2026-10-13. Engineering version: 0.3.0.

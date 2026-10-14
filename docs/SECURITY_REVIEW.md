@@ -1,3 +1,13 @@
+# 0.3.1 desktop network review
+
+LAN remains explicit opt-in. Physical adapter discovery uses Windows hardware, route and profile information; automatic selection cannot fall back to WSL/virtual interfaces. Multiple physical candidates require explicit choice. Public/unknown networks require explicit trusted-interface confirmation in the GUI; CLI automatic Public selection is refused. No profile is changed. Restart revalidates adapter identity/IP and gives current port/URL information.
+
+The host capability is used only in the loopback dashboard fragment and authenticated readiness requests. Pairing QR contains the selected LAN URL and short-lived code, never the host capability. This PC Only produces no phone QR. HTTP/WS same-origin rules and exact Host validation apply to both sockets. Native diagnostics bypass environment HTTP proxies to reach the actual local service, validate host authentication and never infer phone reachability from local requests.
+
+Optional firewall setup requires explicit panel approval plus UAC. Rules are deterministic and scoped to the exact executable, selected IP, TCP port, Private profile and LocalSubnet. Existing conflicting/disabled named rules are rejected; other rules and profiles remain untouched. Real firewall mutation/UAC interaction was not executed during verification. Rule construction and escaping were regression-tested and policy was read from Windows.
+
+---
+
 # Internal security review — v0.3.0
 
 Internal implementation review only; no independent certification.
