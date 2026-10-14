@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { createSHA256 } from "hash-wasm";
 import { hashFile } from "./hash";
 import { recordTransfer } from "./transfer-history";
+import { persistFile, recoverFiles, forgetFile } from "./queue";
 import { createStreamSink, type StreamSink } from "./stream-sink";
 type Session = { room: string; token: string; member: string; expires: number };
 type Meta = {
@@ -12,6 +13,12 @@ type Meta = {
   sha256: string;
 };
 export function OnlinePanel() {
+  const [recovered, setRecovered] = useState<
+    Array<{ id: string; file: File; sha256: string }>
+  >([]);
+  const expiryTimer = useRef<ReturnType<typeof setTimeout> | undefined>(
+    undefined,
+  );
   const [room, setRoom] = useState(""),
     [status, setStatus] = useState(
       "Create a temporary room or enter an invitation.",
@@ -30,6 +37,8 @@ export function OnlinePanel() {
     accept = useRef<(() => void) | undefined>(undefined),
     verified = useRef<((error?: Error) => void) | undefined>(undefined),
     cancelled = useRef(false),
+    userCancelled = useRef(false),
+    hashing = useRef<AbortController | undefined>(undefined),
     sink = useRef<StreamSink | undefined>(undefined),
     queuedBytes = useRef(0),
     acked = useRef(0),
@@ -52,12 +61,24 @@ export function OnlinePanel() {
       recordTransfer({
         ...transferRecord.current,
         mode: "WebRTC",
+        scope: session.current
+          ? session.current.member + ":" + session.current.room
+          : "",
+        sender:
+          transferRecord.current.direction === "Send"
+            ? "This browser"
+            : "Approved room peer",
+        receiver:
+          transferRecord.current.direction === "Receive"
+            ? "This browser"
+            : "Approved room peer",
         state: status,
         progress: percent,
       });
   }, [status, percent]);
   useEffect(
     () => () => {
+      clearTimeout(expiryTimer.current);
       channel.current?.close();
       peer.current?.close();
       socket.current?.close();
@@ -82,6 +103,8 @@ export function OnlinePanel() {
     return r.json();
   }
   function close() {
+    clearTimeout(expiryTimer.current);
+    hashing.current?.abort();
     cancelled.current = true;
     accept.current?.();
     verified.current?.(new Error("Transfer cancelled"));
@@ -89,9 +112,15 @@ export function OnlinePanel() {
       waiter(new Error("Transfer cancelled"));
     sink.current?.abort();
     sink.current = undefined;
-    channel.current?.close();
-    peer.current?.close();
-    socket.current?.close();
+    const oldChannel = channel.current,
+      oldPeer = peer.current,
+      oldSocket = socket.current;
+    channel.current = undefined;
+    peer.current = undefined;
+    socket.current = undefined;
+    oldChannel?.close();
+    oldPeer?.close();
+    oldSocket?.close();
     incoming.current = undefined;
     setStatus("Disconnected");
     setRoute("Not connected");
@@ -102,6 +131,7 @@ export function OnlinePanel() {
     dc.bufferedAmountLowThreshold = 262144;
     dc.onopen = () => setStatus("Connected. Files require receiver approval.");
     dc.onclose = () => {
+      if (channel.current !== dc) return;
       cancelled.current = true;
       accept.current?.();
       verified.current?.(new Error("Peer disconnected"));
@@ -114,6 +144,7 @@ export function OnlinePanel() {
       setStatus("Peer disconnected; retry by reconnecting.");
     };
     dc.onmessage = (e) => {
+      if (channel.current !== dc) return;
       if (typeof e.data === "string") {
         if (e.data.length > 65536) {
           close();
@@ -151,11 +182,16 @@ export function OnlinePanel() {
       }
       receiveChain.current = receiveChain.current
         .then(async () => {
+          if (channel.current !== dc) return;
           if (typeof e.data === "string") {
             const data = JSON.parse(e.data);
             if (data.type === "file") {
               if (
                 incoming.current ||
+                sending.current ||
+                typeof data.id !== "string" ||
+                data.id.length < 1 ||
+                data.id.length > 64 ||
                 typeof data.name !== "string" ||
                 data.name.length > 255 ||
                 typeof data.sha256 !== "string" ||
@@ -174,6 +210,8 @@ export function OnlinePanel() {
                 return;
               }
               incoming.current = data;
+              setPercent(0);
+              setStatus("Incoming file waiting for approval");
               transferRecord.current = {
                 id: data.id,
                 name: data.name,
@@ -186,6 +224,11 @@ export function OnlinePanel() {
             } else if (data.type === "accept") {
               accept.current?.();
             } else if (data.type === "reject" || data.type === "cancel") {
+              userCancelled.current = true;
+              hashing.current?.abort();
+              verified.current?.(new Error("Transfer rejected or cancelled"));
+              for (const waiter of creditWaiters.current.splice(0))
+                waiter(new Error("Transfer rejected or cancelled"));
               cancelled.current = true;
               accept.current?.();
               incoming.current = undefined;
@@ -212,6 +255,7 @@ export function OnlinePanel() {
                 setStatus(
                   "Completed · SHA-256 verified; handed to browser downloads",
                 );
+                setPercent(100);
                 dc.send(JSON.stringify({ type: "verified" }));
               }
               incoming.current = undefined;
@@ -219,6 +263,7 @@ export function OnlinePanel() {
             } else if (data.type === "verified") {
               verified.current?.();
               setStatus("Delivered · receiver SHA-256 verified");
+              setPercent(100);
             } else if (
               data.type === "text" &&
               typeof data.text === "string" &&
@@ -244,9 +289,11 @@ export function OnlinePanel() {
           }
         })
         .finally(() => {
-          queuedBytes.current -= queued;
+          if (channel.current === dc)
+            queuedBytes.current = Math.max(0, queuedBytes.current - queued);
         })
         .catch((e) => {
+          if (channel.current !== dc) return;
           close();
           setStatus("Transfer failed: " + String(e));
         });
@@ -254,12 +301,15 @@ export function OnlinePanel() {
   }
   async function connect(join: boolean, recovering = false) {
     try {
+      transferRecord.current = undefined;
       close();
       cancelled.current = false;
       setPending(false);
       setReceived(undefined);
       candidates.current = [];
       const saved = sessionStorage.getItem("flowdrop.online.v2");
+      if (recovering && !saved)
+        throw new Error("No saved room. Create or join a room first.");
       const data = (
         recovering && saved
           ? JSON.parse(saved)
@@ -274,10 +324,25 @@ export function OnlinePanel() {
       }
       sessionStorage.setItem("flowdrop.online.v2", JSON.stringify(data));
       session.current = data;
+      expiryTimer.current = setTimeout(
+        () => {
+          if (session.current !== data) return;
+          close();
+          session.current = undefined;
+          sessionStorage.removeItem("flowdrop.online.v2");
+          setRecovered([]);
+          setStatus("Room expired; transfers stopped.");
+        },
+        Math.max(0, data.expires * 1000 - Date.now()),
+      );
+      setRecovered(
+        await recoverFiles(await hashFile(new Blob([data.token]))).catch(
+          () => [],
+        ),
+      );
       setRoom(data.room);
-      const ice = await api("/ice", "GET", data.token);
-      const pc = new RTCPeerConnection(ice);
-      peer.current = pc;
+      let ice = await api("/ice", "GET", data.token);
+      let pc: RTCPeerConnection;
       const ws = new WebSocket(
         new URL(
           base + "/rooms/" + data.room + "/ws",
@@ -285,34 +350,63 @@ export function OnlinePanel() {
         ).href.replace(/^http/, "ws"),
       );
       socket.current = ws;
-      pc.onicecandidate = (e) => {
-        if (e.candidate && ws.readyState === WebSocket.OPEN)
-          ws.send(
-            JSON.stringify({ type: "ice", candidate: e.candidate.toJSON() }),
-          );
-      };
-      pc.ondatachannel = (e) => bind(e.channel);
-      pc.onconnectionstatechange = () => {
-        setStatus(pc.connectionState);
-        if (pc.connectionState === "connected")
-          void pc.getStats().then((stats) => {
-            for (const stat of stats.values()) {
-              if (
-                stat.type === "candidate-pair" &&
-                stat.state === "succeeded"
-              ) {
-                const candidate = stats.get(stat.localCandidateId);
-                const remote = stats.get(stat.remoteCandidateId);
-                setRoute(
-                  candidate?.candidateType === "relay" ||
-                    remote?.candidateType === "relay"
-                    ? "TURN relay"
-                    : "Direct P2P",
-                );
+      function resetPeer() {
+        const old = channel.current;
+        channel.current = undefined;
+        old?.close();
+        peer.current?.close();
+        sink.current?.abort();
+        sink.current = undefined;
+        incoming.current = undefined;
+        setOffer(undefined);
+        accept.current?.();
+        verified.current?.(
+          new Error("Peer reconnected; resend the interrupted file"),
+        );
+        for (const waiter of creditWaiters.current.splice(0))
+          waiter(new Error("Peer reconnected"));
+        cancelled.current = true;
+        queuedBytes.current = 0;
+        receiveChain.current = Promise.resolve();
+        pc = new RTCPeerConnection(ice);
+        const instance = pc;
+        peer.current = pc;
+        pc.onicecandidate = (e) => {
+          if (peer.current !== instance) return;
+          if (e.candidate && ws.readyState === WebSocket.OPEN)
+            ws.send(
+              JSON.stringify({ type: "ice", candidate: e.candidate.toJSON() }),
+            );
+        };
+        pc.ondatachannel = (e) => {
+          if (peer.current === instance) bind(e.channel);
+        };
+        pc.onconnectionstatechange = () => {
+          if (peer.current !== instance) return;
+          if (pc.connectionState !== "connected") setStatus(pc.connectionState);
+          else if (channel.current?.readyState === "open")
+            setStatus("Connected. Files require receiver approval.");
+          if (pc.connectionState === "connected")
+            void pc.getStats().then((stats) => {
+              for (const stat of stats.values()) {
+                if (
+                  stat.type === "candidate-pair" &&
+                  stat.state === "succeeded"
+                ) {
+                  const candidate = stats.get(stat.localCandidateId);
+                  const remote = stats.get(stat.remoteCandidateId);
+                  setRoute(
+                    candidate?.candidateType === "relay" ||
+                      remote?.candidateType === "relay"
+                      ? "TURN relay"
+                      : "Direct P2P",
+                  );
+                }
               }
-            }
-          });
-      };
+            });
+        };
+      }
+      resetPeer();
       ws.onopen = () => {
         ws.send(data.token);
         setStatus(
@@ -321,57 +415,92 @@ export function OnlinePanel() {
             : "Room ready. Share the invitation code.",
         );
       };
+      let signalingChain = Promise.resolve();
       ws.onmessage = (e) => {
-        void (async () => {
-          const msg = JSON.parse(e.data);
-          if (msg.type === "join-request") setPending(true);
-          if (msg.type === "ready") {
-            const dc = pc.createDataChannel("flowdrop", { ordered: true });
-            bind(dc);
-            const offer = await pc.createOffer();
-            await pc.setLocalDescription(offer);
-            ws.send(JSON.stringify({ type: "offer", sdp: offer.sdp }));
-          }
-          if (msg.type === "offer") {
-            await pc.setRemoteDescription({ type: "offer", sdp: msg.sdp });
-            for (const candidate of candidates.current)
-              await pc.addIceCandidate(candidate);
-            candidates.current = [];
-            const answer = await pc.createAnswer();
-            await pc.setLocalDescription(answer);
-            ws.send(JSON.stringify({ type: "answer", sdp: answer.sdp }));
-          }
-          if (msg.type === "answer") {
-            await pc.setRemoteDescription({ type: "answer", sdp: msg.sdp });
-            for (const candidate of candidates.current)
-              await pc.addIceCandidate(candidate);
-            candidates.current = [];
-          }
-          if (msg.type === "ice") {
-            if (pc.remoteDescription) await pc.addIceCandidate(msg.candidate);
-            else candidates.current.push(msg.candidate);
-          }
-        })().catch((e) => setStatus(String(e)));
+        signalingChain = signalingChain
+          .then(async () => {
+            const msg = JSON.parse(e.data);
+            if (msg.type === "join-request") setPending(true);
+            if (msg.type === "ready") {
+              ice = await api("/ice", "GET", data.token);
+              resetPeer();
+              candidates.current = [];
+              const dc = pc.createDataChannel("flowdrop", { ordered: true });
+              bind(dc);
+              const offer = await pc.createOffer();
+              await pc.setLocalDescription(offer);
+              ws.send(JSON.stringify({ type: "offer", sdp: offer.sdp }));
+            }
+            if (msg.type === "offer") {
+              ice = await api("/ice", "GET", data.token);
+              resetPeer();
+              await pc.setRemoteDescription({ type: "offer", sdp: msg.sdp });
+              for (const candidate of candidates.current)
+                await pc.addIceCandidate(candidate);
+              candidates.current = [];
+              const answer = await pc.createAnswer();
+              await pc.setLocalDescription(answer);
+              ws.send(JSON.stringify({ type: "answer", sdp: answer.sdp }));
+            }
+            if (msg.type === "answer") {
+              await pc.setRemoteDescription({ type: "answer", sdp: msg.sdp });
+              for (const candidate of candidates.current)
+                await pc.addIceCandidate(candidate);
+              candidates.current = [];
+            }
+            if (msg.type === "ice") {
+              if (
+                !msg.candidate ||
+                typeof msg.candidate.candidate !== "string" ||
+                msg.candidate.candidate.length > 2048 ||
+                candidates.current.length >= 256
+              ) {
+                close();
+                setStatus("Invalid or excessive ICE candidates");
+                return;
+              }
+              if (pc.remoteDescription) await pc.addIceCandidate(msg.candidate);
+              else candidates.current.push(msg.candidate);
+            }
+          })
+          .catch((e) => setStatus(String(e)));
       };
       ws.onerror = () =>
         setStatus(
           "Signaling connection failed. Check network, HTTPS, origin configuration, and TURN availability.",
         );
-      ws.onclose = () =>
+      ws.onclose = (event) => {
+        if (socket.current !== ws) return;
+        if (event.code === 1008) {
+          close();
+          session.current = undefined;
+          sessionStorage.removeItem("flowdrop.online.v2");
+          setRecovered([]);
+          setStatus("Room expired or revoked; transfers stopped.");
+          return;
+        }
         setStatus(
           "Signaling disconnected. Reconnect the saved room; interrupted files must be resent.",
         );
+      };
     } catch (e) {
       setStatus(String(e));
     }
   }
-  async function send(file?: File) {
+  async function send(file?: File, recoveryId?: string) {
     if (!file) return;
     if (sending.current) {
       setStatus("Another file is still in progress.");
       return;
     }
     sending.current = true;
+    transferRecord.current = undefined;
+    userCancelled.current = false;
+    const sourceSession = session.current;
+    const hashController = new AbortController();
+    hashing.current = hashController;
+    let persistedId: string | undefined;
+    setPercent(0);
     acked.current = 0;
     sent.current = 0;
     function waitForCredit() {
@@ -391,25 +520,49 @@ export function OnlinePanel() {
     }
     try {
       const dc = channel.current;
+      if (incoming.current)
+        throw new Error(
+          "Finish or cancel the incoming file before sending another file.",
+        );
       if (!dc || dc.readyState !== "open")
         throw new Error("Connect to a peer first.");
       if (file.size > 20 * 1024 ** 3)
         throw new Error("Current online limit is 20 GiB.");
       cancelled.current = false;
-      const digest = await hashFile(file);
+      setStatus("Checking file SHA-256");
+      const digest = await hashFile(file, hashController.signal);
+      if (cancelled.current || sourceSession !== session.current) return;
       transferRecord.current = {
-        id: crypto.randomUUID(),
+        id:
+          recoveryId ||
+          Array.from(crypto.getRandomValues(new Uint8Array(16)), (byte) =>
+            byte.toString(16).padStart(2, "0"),
+          ).join(""),
         name: file.name,
         size: file.size,
         direction: "Send",
       };
+      persistedId = transferRecord.current.id;
+      try {
+        await persistFile({
+          id: transferRecord.current.id,
+          scope: await hashFile(new Blob([sourceSession!.token])),
+          file,
+          sha256: digest,
+        });
+      } catch {
+        setStatus(
+          "Browser persistence unavailable; keep this page open or reselect the file after reconnecting.",
+        );
+      }
+      if (cancelled.current || sourceSession !== session.current) return;
       setStatus("Waiting for receiver approval");
       await new Promise<void>((resolve) => {
         accept.current = resolve;
         dc.send(
           JSON.stringify({
             type: "file",
-            id: crypto.randomUUID(),
+            id: transferRecord.current!.id,
             name: file.name,
             size: file.size,
             sha256: digest,
@@ -428,19 +581,27 @@ export function OnlinePanel() {
         while (dc.bufferedAmount > 1048576) {
           await new Promise<void>((resolve, reject) => {
             const timeout = setTimeout(
-              () => reject(new Error("Peer stopped receiving")),
+              () => finish(new Error("Peer stopped receiving")),
               30000,
             );
-            dc.addEventListener(
-              "bufferedamountlow",
-              () => {
-                clearTimeout(timeout);
-                resolve();
-              },
-              { once: true },
-            );
+            const low = () => finish();
+            const aborted = () => finish(new Error("Transfer cancelled"));
+            const finish = (error?: Error) => {
+              clearTimeout(timeout);
+              dc.removeEventListener("bufferedamountlow", low);
+              hashController.signal.removeEventListener("abort", aborted);
+              if (error) reject(error);
+              else resolve();
+            };
+            dc.addEventListener("bufferedamountlow", low, { once: true });
+            if (hashController.signal.aborted) aborted();
+            else
+              hashController.signal.addEventListener("abort", aborted, {
+                once: true,
+              });
           });
         }
+        if (cancelled.current) break;
         dc.send(await file.slice(start, start + 65536).arrayBuffer());
         sent.current = Math.min(file.size, start + 65536);
         setPercent(Math.min(100, ((start + 65536) / file.size) * 100));
@@ -466,10 +627,18 @@ export function OnlinePanel() {
         dc.send(JSON.stringify({ type: "finish" }));
         setStatus("Sent; receiver verifies the hash.");
         await verification;
+        await forgetFile(transferRecord.current!.id).catch(() => undefined);
+        setRecovered((items) =>
+          items.filter((item) => item.id !== transferRecord.current?.id),
+        );
       }
     } catch (e) {
-      setStatus(String(e));
+      if (sourceSession === session.current)
+        setStatus(userCancelled.current ? "Transfer cancelled" : String(e));
     } finally {
+      if (userCancelled.current && persistedId)
+        await forgetFile(persistedId).catch(() => undefined);
+      if (hashing.current === hashController) hashing.current = undefined;
       sending.current = false;
     }
   }
@@ -487,9 +656,63 @@ export function OnlinePanel() {
       <button onClick={() => void connect(false)}>Create room</button>{" "}
       <button onClick={() => void connect(true)}>Join room</button>{" "}
       <button onClick={close}>Disconnect</button>
+      <button
+        disabled={session.current?.member !== "owner"}
+        onClick={() =>
+          void (async () => {
+            const current = session.current;
+            if (!current || current.member !== "owner")
+              throw new Error("Only the room owner can end this room.");
+            const pending = await recoverFiles(
+              await hashFile(new Blob([current.token])),
+            );
+            await api(`/rooms/${current.room}`, "DELETE", current.token);
+            close();
+            session.current = undefined;
+            sessionStorage.removeItem("flowdrop.online.v2");
+            setRecovered([]);
+            await Promise.all(pending.map((item) => forgetFile(item.id)));
+            setStatus("Room ended and signaling capabilities revoked.");
+          })().catch((e) => setStatus(String(e)))
+        }
+      >
+        End room
+      </button>
       <button onClick={() => void connect(false, true)}>
         Reconnect saved room
       </button>
+      {recovered.length > 0 && (
+        <div>
+          <p>
+            {recovered.length} pending file(s) recovered for this room. Each
+            resend requires fresh recipient file approval.
+          </p>
+          <button
+            onClick={() =>
+              void (async () => {
+                for (const item of recovered) {
+                  if ((await hashFile(item.file)) !== item.sha256)
+                    throw new Error(
+                      "Stored file changed; reselect the original",
+                    );
+                  await send(item.file, item.id);
+                }
+              })().catch((e) => setStatus(String(e)))
+            }
+          >
+            Resume pending sends
+          </button>
+          <button
+            onClick={() =>
+              void Promise.all(
+                recovered.map((item) => forgetFile(item.id)),
+              ).then(() => setRecovered([]))
+            }
+          >
+            Discard pending sends
+          </button>
+        </div>
+      )}
       {pending && (
         <p>
           <button
@@ -511,8 +734,10 @@ export function OnlinePanel() {
           type="file"
           multiple
           onChange={async (e) => {
+            const selected = Array.from(e.target.files || []);
+            e.currentTarget.value = "";
             cancelled.current = false;
-            for (const file of Array.from(e.target.files || [])) {
+            for (const file of selected) {
               if (cancelled.current) break;
               await send(file);
             }
@@ -525,12 +750,36 @@ export function OnlinePanel() {
           {offer.name} · {offer.size} bytes{" "}
           <button
             onClick={async () => {
-              hash.current = await createSHA256();
-              hash.current.init();
-              offset.current = 0;
+              const approved = offer;
+              const receivingChannel = channel.current;
+              const decoder = await createSHA256();
+              decoder.init();
+              if (
+                incoming.current !== approved ||
+                channel.current !== receivingChannel
+              )
+                return;
               try {
-                sink.current = await createStreamSink(offer.name, offer.size);
+                const created = await createStreamSink(
+                  approved.name,
+                  approved.size,
+                );
+                if (
+                  incoming.current !== approved ||
+                  channel.current !== receivingChannel
+                ) {
+                  created.abort();
+                  return;
+                }
+                sink.current = created;
+                hash.current = decoder;
+                offset.current = 0;
               } catch (e) {
+                if (
+                  incoming.current !== approved ||
+                  channel.current !== receivingChannel
+                )
+                  return;
                 setStatus(String(e));
                 channel.current?.send(JSON.stringify({ type: "reject" }));
                 incoming.current = undefined;
@@ -557,9 +806,19 @@ export function OnlinePanel() {
       )}
       <button
         onClick={() => {
+          userCancelled.current = true;
+          hashing.current?.abort();
           cancelled.current = true;
+          incoming.current = undefined;
+          sink.current?.abort();
+          sink.current = undefined;
+          setOffer(undefined);
           accept.current?.();
+          verified.current?.(new Error("Transfer cancelled"));
+          for (const waiter of creditWaiters.current.splice(0))
+            waiter(new Error("Transfer cancelled"));
           channel.current?.send(JSON.stringify({ type: "cancel" }));
+          setStatus("Transfer cancelled");
         }}
       >
         Cancel transfer

@@ -1,6 +1,18 @@
 # Implementation status
 
-Updated: 2026-10-13. Development version: 0.2.0.
+Updated: 2026-10-13. Engineering version: 0.3.0.
+
+## v0.3.0 release engineering
+
+Implemented Redis-backed room/session authority, atomic join/approval, TTL expiry, generation-based socket replacement, owner revocation, cross-instance routing and distributed abuse counters with fail-closed operation. Memory mode remains explicitly single-instance development. Real Redis tests include closing a live authorized socket after revocation and preserving rooms across worker restart.
+
+Disposable native PostgreSQL 18 migrations/concurrency, Garage 2.4.1 private S3 operations/failures/cleanup and current coturn 4.18.0 allocation/authentication/ACL checks passed without changing the installed PostgreSQL service or installing WSL packages. Docker remains unavailable; alternative local resources were inspected and used. Supported container manifests are digest-pinned; disposable integration Compose and CI harnesses are provided, not remotely run.
+
+Capability-scoped IndexedDB source recovery is implemented for LAN, WebRTC resend and Send Later. LAN has round-robin chunk admission, cached-file retry and byte-accurate progress; online panels survive navigation, renegotiate fresh peers on reconnect and retain pending files. Dashboard participants/rates/ETA/state and explicit receiver save reporting are implemented; zero-byte progress and short final chunks are handled. Browser persistence can fail under quota; source reselect remains available.
+
+Verified: 21 baseline + 6 real-infrastructure Pytest, 9 Vitest, 13 Playwright; cloud browser scenarios additionally run against real PostgreSQL/Garage/Redis. Lint/strict build/audits, 1 GiB/four-client loopback benchmark, Windows build/version/frontend/worker and graceful shutdown smoke passed. See TEST_REPORT.md and INFRASTRUCTURE_VERIFICATION.md for exact scope.
+
+**Not a verified public RC / not production ready.** Physical/clean-PC/GUI acceptance, real Internet TURN/TLS, Docker builds/CI and production HA/security signoff remain open. Known product limits include byte-zero WebRTC restart, one managed cloud share per tab and no user queue reordering. No remote push, publication, paid infrastructure or public deployment occurred. The older sections below are historical, superseded where the v0.3.0 evidence differs.
 
 ## v0.2.0 continuation
 

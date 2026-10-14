@@ -6,7 +6,9 @@ New-Item -ItemType Directory -Path $taskStorage -Force | Out-Null
 $env:FLOWDROP_STORAGE = $taskStorage
 & $taskExe --help
 if ($LASTEXITCODE -ne 0) { throw 'Executable help failed' }
-$taskProcess = Start-Process -FilePath $taskExe -ArgumentList '--bind','127.0.0.1','--port','8766','--no-browser' -WorkingDirectory $env:TEMP -WindowStyle Hidden -PassThru -RedirectStandardOutput (Join-Path $taskStorage 'stdout.log') -RedirectStandardError (Join-Path $taskStorage 'stderr.log')
+& $taskExe --version
+if ($LASTEXITCODE -ne 0) { throw 'Executable version failed' }
+$taskProcess = Start-Process -FilePath $taskExe -ArgumentList '--bind','127.0.0.1','--port','8766','--no-browser','--shutdown-after','5' -WorkingDirectory $env:TEMP -WindowStyle Hidden -PassThru -RedirectStandardOutput (Join-Path $taskStorage 'stdout.log') -RedirectStandardError (Join-Path $taskStorage 'stderr.log')
 try {
     $taskHealth = $null
     for ($taskAttempt = 0; $taskAttempt -lt 40; $taskAttempt++) {
@@ -18,7 +20,10 @@ try {
     if (-not $taskPage.Content.Contains('FlowDrop')) { throw 'Bundled frontend missing' }
     $taskWorker = Invoke-WebRequest 'http://127.0.0.1:8766/stream-sw.js' -UseBasicParsing
     if ($taskWorker.StatusCode -ne 200) { throw 'Bundled download worker missing' }
-    Write-Output 'PASS: Windows executable, loopback API, compiled frontend and download worker from outside the source checkout.'
+    if (-not $taskProcess.WaitForExit(20000)) { throw 'Host failed to stop gracefully' }
+    $taskProcess.Refresh()
+    if ($taskProcess.ExitCode -ne 0) { throw "Host graceful exit failed: $($taskProcess.ExitCode)" }
+    Write-Output 'PASS: Windows executable/version, loopback API, compiled frontend, download worker and graceful shutdown from outside the source checkout.'
 } finally {
     if (-not $taskProcess.HasExited) { Stop-Process -Id $taskProcess.Id }
 }

@@ -4,16 +4,22 @@ services:
       context: .
       dockerfile: infrastructure/docker/web.Dockerfile
     ports: ['127.0.0.1:8080:80']
-    depends_on: [signaling, cloud]
+    depends_on:
+      signaling: {condition: service_healthy}
+      cloud: {condition: service_healthy}
   signaling:
     build:
       context: .
       dockerfile: infrastructure/docker/backend.Dockerfile
     environment:
-      FLOWDROP_ORIGINS: http://localhost:8080,http://127.0.0.1:8080
+      REDIS_URL: redis://:${REDIS_PASSWORD:?Set REDIS_PASSWORD}@redis:6379/0
+      FLOWDROP_ORIGINS: ${FLOWDROP_ORIGINS:-http://localhost:8080,http://127.0.0.1:8080}
       FLOWDROP_STUN_URL: ${FLOWDROP_STUN_URL:-}
       FLOWDROP_TURN_URL: ${FLOWDROP_TURN_URL:-}
       FLOWDROP_TURN_SECRET: ${TURN_SECRET:-}
+      FLOWDROP_TRUSTED_PROXIES: ${FLOWDROP_TRUSTED_PROXIES:-}
+    depends_on:
+      redis: {condition: service_healthy}
     healthcheck:
       test: ['CMD', 'python', '-c', "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
       interval: 30s
@@ -21,17 +27,24 @@ services:
     build:
       context: .
       dockerfile: infrastructure/docker/backend.Dockerfile
-    command: ['uvicorn', 'services.cloud_api.app:create_app', '--factory', '--host', '0.0.0.0', '--port', '8000', '--no-access-log']
+    command: ['uvicorn', 'services.cloud_api.app:create_app', '--factory', '--host', '0.0.0.0', '--port', '8000', '--no-access-log', '--no-proxy-headers', '--limit-concurrency', '256']
     environment:
       DATABASE_URL: postgresql+psycopg://flowdrop:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}@postgres/flowdrop
-      S3_ENDPOINT: http://minio:9000
+      REDIS_URL: redis://:${REDIS_PASSWORD:?Set REDIS_PASSWORD}@redis:6379/0
+      S3_ENDPOINT: ${S3_ENDPOINT:-http://garage:3900}
       S3_BUCKET: flowdrop
-      AWS_ACCESS_KEY_ID: ${S3_ROOT_USER:?Set S3_ROOT_USER}
-      AWS_SECRET_ACCESS_KEY: ${S3_ROOT_PASSWORD:?Set S3_ROOT_PASSWORD}
-      AWS_DEFAULT_REGION: us-east-1
+      AWS_ACCESS_KEY_ID: ${S3_ACCESS_KEY:?Set S3_ACCESS_KEY}
+      AWS_SECRET_ACCESS_KEY: ${S3_SECRET_KEY:?Set S3_SECRET_KEY}
+      AWS_DEFAULT_REGION: ${S3_REGION:-garage}
+      FLOWDROP_TRUSTED_PROXIES: ${FLOWDROP_TRUSTED_PROXIES:-}
+      FLOWDROP_PUBLIC_ORIGIN: ${FLOWDROP_PUBLIC_ORIGIN:-}
+    healthcheck:
+      test: ['CMD', 'python', '-c', "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 30s
     depends_on:
       postgres: {condition: service_healthy}
-      bucket: {condition: service_completed_successfully}
+      garage: {condition: service_healthy}
+      redis: {condition: service_healthy}
       migration: {condition: service_completed_successfully}
   migration:
     build:
@@ -43,7 +56,7 @@ services:
     depends_on:
       postgres: {condition: service_healthy}
   postgres:
-    image: postgres:17-alpine
+    image: postgres:17-alpine@sha256:b0f9560a2de083e2cc7382e75f808c7381a32852a7ec49117deedb300e552b24
     environment:
       POSTGRES_USER: flowdrop
       POSTGRES_DB: flowdrop
@@ -54,29 +67,57 @@ services:
       interval: 5s
       retries: 20
   minio:
+    profiles: [legacy-minio]
     image: minio/minio:latest
-    command: server /data
     environment:
-      MINIO_ROOT_USER: ${S3_ROOT_USER:?Set S3_ROOT_USER}
-      MINIO_ROOT_PASSWORD: ${S3_ROOT_PASSWORD:?Set S3_ROOT_PASSWORD}
+      MINIO_ROOT_USER: ${S3_ROOT_USER:-}
+      MINIO_ROOT_PASSWORD: ${S3_ROOT_PASSWORD:-}
+    entrypoint: ['/bin/sh', '-c']
+    command: [': "$${MINIO_ROOT_USER:?Legacy profile requires S3_ROOT_USER}"; : "$${MINIO_ROOT_PASSWORD:?Legacy profile requires S3_ROOT_PASSWORD}"; exec minio server /data']
     volumes: ['objects:/data']
   bucket:
+    profiles: [legacy-minio]
     image: minio/mc:latest
     depends_on: [minio]
     environment:
-      S3_ROOT_USER: ${S3_ROOT_USER:?Set S3_ROOT_USER}
-      S3_ROOT_PASSWORD: ${S3_ROOT_PASSWORD:?Set S3_ROOT_PASSWORD}
+      S3_ROOT_USER: ${S3_ROOT_USER:-}
+      S3_ROOT_PASSWORD: ${S3_ROOT_PASSWORD:-}
     entrypoint: ['/bin/sh','-c']
-    command: ['until mc alias set local http://minio:9000 "$$S3_ROOT_USER" "$$S3_ROOT_PASSWORD"; do sleep 2; done; mc mb --ignore-existing local/flowdrop; mc anonymous set none local/flowdrop']
+    command: [': "$${S3_ROOT_USER:?Legacy profile requires S3_ROOT_USER}"; : "$${S3_ROOT_PASSWORD:?Legacy profile requires S3_ROOT_PASSWORD}"; until mc alias set local http://minio:9000 "$$S3_ROOT_USER" "$$S3_ROOT_PASSWORD"; do sleep 2; done; mc mb --ignore-existing local/flowdrop; mc anonymous set none local/flowdrop']
   turn:
-    image: coturn/coturn:latest
+    image: coturn/coturn:4.18.0-r0@sha256:bbefd3e1fdfdc0d58770fe01b581fd8b00d9f3a5580d00acb77cf719a6bc78e3
     profiles: [turn]
     entrypoint: ['/bin/sh','/start.sh']
     volumes: ['./infrastructure/coturn/start.sh:/start.sh:ro']
     environment:
-      TURN_SECRET: ${TURN_SECRET:?Set TURN_SECRET}
+      TURN_SECRET: ${TURN_SECRET:-}
       TURN_REALM: ${TURN_REALM:-localhost}
     ports: ['3478:3478/udp','3478:3478/tcp','49160-49200:49160-49200/udp']
+  redis:
+    image: redis:8.0.5-alpine@sha256:6c8e66693fa71bad36ae06c75c990446ad01dbd4b081dd847eb9869f20d7c6ee
+    command: ['redis-server', '--appendonly', 'yes', '--requirepass', '${REDIS_PASSWORD:?Set REDIS_PASSWORD}', '--maxmemory', '128mb', '--maxmemory-policy', 'noeviction']
+    volumes: ['redis:/data']
+    environment:
+      REDISCLI_AUTH: ${REDIS_PASSWORD:?Set REDIS_PASSWORD}
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      retries: 20
+  garage:
+    image: dxflrs/garage:v2.4.1@sha256:9c96caa2612d3411acc5b0e6701fb238dbfba33e533a6d7d3d811a4b12d0d020
+    command: ['/garage', 'server', '--single-node', '--default-bucket']
+    environment:
+      GARAGE_RPC_SECRET: ${GARAGE_RPC_SECRET:?Set GARAGE_RPC_SECRET}
+      GARAGE_DEFAULT_ACCESS_KEY: ${S3_ACCESS_KEY:?Set S3_ACCESS_KEY}
+      GARAGE_DEFAULT_SECRET_KEY: ${S3_SECRET_KEY:?Set S3_SECRET_KEY}
+      GARAGE_DEFAULT_BUCKET: flowdrop
+    volumes: ['garage:/data', './infrastructure/deployment/garage.toml:/etc/garage.toml:ro']
+    healthcheck:
+      test: ['CMD', '/garage', 'status']
+      interval: 5s
+      retries: 20
 volumes:
   postgres:
   objects:
+  redis:
+  garage:

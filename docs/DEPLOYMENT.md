@@ -4,11 +4,11 @@ No hosted resources have been provisioned, and nothing has been pushed or publis
 
 ## Local container stack
 
-Copy `.env.example` to `.env` and set strong independently generated PostgreSQL, S3 and TURN secrets. `docker compose up --build` serves the web application at localhost:8080 and creates local PostgreSQL and private MinIO storage. The database migration runs before the cloud service starts. Bucket initialization explicitly disables anonymous access. Database and object storage ports are not published.
+Copy `.env.example` to `.env` and set independent PostgreSQL/Redis passwords, Garage RPC secret and bucket credentials. `docker compose up --build` serves localhost:8080 with PostgreSQL, Redis and private Garage S3-compatible development storage. Migration 0002 runs before the cloud service starts; web startup waits for backend health. Database, Redis and storage ports are not published. This single-node storage configuration is for development; no data redundancy is claimed. The MinIO configuration remains only under an unsupported `legacy-minio` profile; no prior object volumes are migrated or removed.
 
 `docker compose --profile turn up --build` also exposes TURN ports. This materially changes network exposure: review firewall and NAT settings before using it. Never use example or placeholder credentials. Do not run this profile on an untrusted host without reviewing access protections.
 
-Compose syntax was validated. Docker engine startup/integration is pending. Images use floating upstream tags in development configuration; pin audited image digests before any production release.
+Both Compose files were syntax validated. Supported images are digest-pinned with public manifest evidence in CONTAINER_PINS.json. The engine remains unavailable here, so container builds/runs and CI are unverified. Actual native PostgreSQL/WSL Redis/Garage/coturn checks are documented in INFRASTRUCTURE_VERIFICATION.md; they do not prove the container deployment.
 
 ## Hosted deployment
 
@@ -16,9 +16,11 @@ Serve the frontend with HTTPS. Proxy `/signal/` to the signaling service and `/c
 
 The example Caddyfile provides a TLS terminator; it is not yet integrated into a tested production Compose profile. Configure trusted proxy addresses explicitly and preserve the external scheme/host so origin checks work behind TLS. Do not blindly trust arbitrary forwarded headers. Do not bypass browser certificate validation.
 
-Run signaling with one worker: room membership is in memory. Redis-backed multi-instance signaling is not implemented. Storage quota and upload coordination currently rely partly on application process state; distributed cloud abuse controls require hardening before public exposure. PostgreSQL row/transaction isolation and multi-instance race tests remain pending.
+Set REDIS_URL for multi-instance signaling and distributed rates. Configured outages fail closed. Room updates use optimistic transactions; Pub/Sub routes messages to generation-checked sockets. Memory mode is single-instance development only. PostgreSQL quota/session issuance races were verified locally; global row coordination complements bounded per-process upload admission. Redis HA/failover, scale and production abuse acceptance are still required.
 
-S3 requires a private bucket and narrowly scoped service credentials (object read/write/delete for the FlowDrop namespace). Development Compose uses MinIO administrative credentials and must not be copied directly to production. Apply initial Alembic migration 0001 before starting cloud service. Retention cleanup runs every minute and must be monitored; storage failure retry and orphan reconciliation are not complete.
+S3 requires private storage and narrowly scoped credentials for object read/write/delete and prefix listing for cleanup. Apply Alembic migrations through 0002 before cloud startup. Actual Garage signed reads/writes, private access, expired-prefix/orphan cleanup and storage failure retry were tested. Production IAM, retention monitoring, replicated deletion guarantees and provider-specific behavior still need acceptance. Cloud upload concurrency, share capacity and SDK timeouts/retries are bounded.
+
+Set FLOWDROP_PUBLIC_ORIGIN to the exact external TLS frontend origin and FLOWDROP_TRUSTED_PROXIES to the actual immediate trusted proxy IPs/CIDRs. The provided proxy overwrites X-Forwarded-For and backend commands disable Uvicorn implicit proxy-header trust. Keep the origins/proxy settings consistent with the deployment; do not enable broad trust for internet peers.
 
 Use `--tls-cert` and `--tls-key` on the desktop launcher with a certificate trusted by the connecting devices for untrusted local networks. Certificate distribution, hostname matching, and actual TLS device testing remain operator requirements.
 

@@ -26,3 +26,7 @@ flowchart LR
 ```
 
 Current API schemas are discoverable at `/openapi.json`. Authentication capabilities are never placed in API query strings. The host launcher provides its initial capability in a URL fragment, which the UI removes and stores in tab session storage.
+
+In Redis mode, signaling instances share room state through optimistic transactions and route SDP/ICE over Pub/Sub. Connection generations invalidate replaced sockets; TTLs and owner revocation invalidate capabilities across instances. Cloud rate counters use Redis when configured and fail closed on outage. Memory mode remains for single-instance development. PostgreSQL serializes quota reservation and download-session issuance; file contents remain private S3 ciphertext.
+
+Browser queues use capability-scoped IndexedDB source Files, verified against source hashes after recovery. LAN chunk admission is round-robin with two active transfers and one request per transfer. Interrupted WebRTC files restart after renegotiation/approval; encrypted links resume server-confirmed chunk indexes. Browser save handoff and explicit receiver confirmation are separate states.

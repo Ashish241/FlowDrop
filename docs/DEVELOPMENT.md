@@ -18,6 +18,8 @@ Frontend development: `cd apps/web; npm run dev`. Vite alone has no backend prox
 
 Backend checks: `python -m pytest -q`, `python -m ruff check services tests scripts apps/desktop`. Frontend: `npm test`, `npm run build`, `npx playwright install chromium`, `npx playwright test`.
 
+Real-service checks: `python -m scripts.integration_check` after starting the disposable resources described in INFRASTRUCTURE_VERIFICATION.md. By default these six tests are explicitly skipped; a reported baseline pass is not integration evidence. `FLOWDROP_E2E_INFRA=1` selects real PostgreSQL/S3 in the browser fixture only with a disposable loopback database. The final run verified browser encryption/decryption/revocation against real PostgreSQL/Garage separately from the full Redis+local-adapter browser regression run.
+
 Database migration: set DATABASE_URL for the intended database and run `python -m alembic upgrade head`. Do not run migrations against external databases without authorization and a backup/recovery plan. Development SQLite fixtures automatically create their own schema.
 
 Generated storage, node dependencies, build folders, screenshots/test results, and executables are ignored by Git. Do not commit `.env` or session capabilities.

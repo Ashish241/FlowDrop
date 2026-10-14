@@ -1,4 +1,35 @@
-# Release readiness — 0.2.0 development checkpoint
+# Release readiness — 0.3.0 engineering checkpoint
+
+**Not a verified public release candidate. Not production ready.** Implementation and local automated verification advanced; mandatory external gates remain open.
+
+| Area | IMPLEMENTED | AUTOMATED TESTED | PHYSICALLY VERIFIED | Release gate |
+|---|---|---|---|---|
+| Distributed signaling/session expiry/revocation/rates | Redis authority, optimistic room transactions, Pub/Sub, generation checks, bounded counters, capacity and fail-closed behavior | Two independent instances against real Redis; live socket revocation, worker restart and expiry | No separate-device deployment | HA/failover/load acceptance pending |
+| Database/storage | Migrations, atomic quota/session transactions, private S3 adapter, cleanup and bounded failures | Native PostgreSQL 18 + Garage 2.4.1; browser encryption/decryption/recovery/revocation against them | No hosted deployment | Docker/production IAM/TLS/HA pending |
+| TURN | Time-limited credentials, quotas/private-peer denial; current image digest | Coturn 4.18.0 real allocation/auth/expired-invalid refusal/loopback permission denial | No Internet relay | Actual browser relay/NAT/TLS acceptance pending |
+| Transfer management | Capability-scoped persistent source queues, LAN round-robin, byte progress, rates/ETA, receiver reports and retry/backoff | LAN refresh/retry/privacy, WebRTC refresh/resend, encrypted refresh/backoff; 1 GiB HTTP loopback benchmark | No physical devices | Mobile/long streams and real network performance pending |
+| Windows | Portable bundle and diagnostic graceful stop | Version/API/frontend/worker/start/zero-exit shutdown outside checkout | Same development Windows machine only | Native GUI and clean target PC pending |
+| Infrastructure packaging | Supported manifests digest-pinned, private ports, health checks, disposable integration CI | Registry digests and Compose syntax | Containers not run | Docker engine absent; remote CI not run |
+
+Current evidence: **21 baseline Pytest + 6 real-service integration tests, 9 Vitest, 13 Playwright passed**. The two cloud browser scenarios were also rerun against real PostgreSQL/Garage/Redis; those are repeat scenarios, not extra unique tests. Lint, strict build, dependency audits and Windows smoke passed. See TEST_REPORT.md and INFRASTRUCTURE_VERIFICATION.md.
+
+## External blockers
+
+- Separate PCs/phones, disconnected LAN/hotspot, firewall/mDNS, physical QR camera, real mobile browser saves and native GUI interaction.
+- Clean Windows target without Python/Node/Git.
+- Internet peers on different networks and actual authenticated browser TURN relay/fallback, long sessions and deployed TLS/proxy trust.
+- Docker runtime/build execution and GitHub CI execution; local native service evidence does not substitute for container acceptance.
+- Production storage/database/Redis HA, least-privilege credentials/lifecycle monitoring and independent security review.
+
+## Remaining product limits
+
+WebRTC restarts interrupted files rather than resuming arbitrary byte offsets. User queue reordering and cross-worker bandwidth fairness are not implemented. Send Later manages one share per tab and loses secret management capabilities when the tab closes. Browser site quota can prevent source persistence; explicit reselect recovery remains supported. Comprehensive filesystem race, long-worker/mobile and relay abuse acceptance remains open. See KNOWN_LIMITATIONS.md.
+
+No public deployment, remote push, paid provisioning or release publication occurred. Physical acceptance instructions remain NOT VERIFIED in PHYSICAL_ACCEPTANCE.md. The previous source/ZIP checkpoint is preserved; see ROLLBACK.md.
+
+---
+
+## Historical v0.2.0 evidence (superseded by the current matrix above)
 
 **Not production ready. The full project definition of done remains unmet.**
 

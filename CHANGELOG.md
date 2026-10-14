@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.3.0 engineering checkpoint — 2026-10-13
+
+- Redis distributed signaling/session authority, atomic membership, expiry/live revocation, cross-instance routing and shared abuse controls.
+- Real disposable PostgreSQL/Garage/coturn checks and browser cloud-provider integration; pinned supported manifests and isolated integration CI harness.
+- Persistent source queues for LAN/online/encrypted sharing, fair LAN admission, cached-file retry, byte progress, rates/ETA and explicit receiver save reports.
+- Fresh-peer renegotiation and serialized signaling after sender/receiver refresh; bounded idempotent backoff and S3 wrapped-error recovery.
+- Windows version reporting and graceful-exit diagnostic/smoke; 1 GiB and concurrent loopback HTTP measurements.
+- Not a verified public RC: physical, clean-PC, Internet relay/TLS, Docker/remote CI and production security/HA acceptance remain open.
+
 ## 0.2.0 development checkpoint — 2026-10-13
 
 - Preserve online sessions during navigation; explicit room refresh/reconnect and correct relay diagnostics.

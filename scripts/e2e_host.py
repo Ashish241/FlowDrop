@@ -1,6 +1,7 @@
 """Disposable loopback test host. Never deploy this fixture."""
 
 import os
+from contextlib import AsyncExitStack, asynccontextmanager
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
@@ -8,22 +9,44 @@ os.environ["FLOWDROP_ORIGINS"] = "http://127.0.0.1:8765"
 import uvicorn
 from fastapi import FastAPI
 
-from services.cloud_api.app import LocalStore
+from services.cloud_api.app import LocalStore, S3Store
 from services.cloud_api.app import create_app as create_cloud
 from services.lan_server.app import create_app
 from services.signaling.app import create_app as create_signal
 
 temporary = TemporaryDirectory()
 lan = create_app(Path(temporary.name), "e2e-host-only")
-app = FastAPI()
-app.mount("/signal", create_signal())
-app.mount(
-    "/cloud",
-    create_cloud(
+signaling = create_signal()
+if os.getenv("FLOWDROP_E2E_INFRA") == "1":
+    from sqlalchemy.engine import make_url
+
+    database = os.environ["DATABASE_URL"]
+    url = make_url(database)
+    if url.host not in ("127.0.0.1", "localhost") or not url.database.endswith(
+        "_integration"
+    ):
+        raise ValueError(
+            "Browser integration fixture requires a disposable loopback database"
+        )
+    cloud = create_cloud(database, S3Store())
+else:
+    cloud = create_cloud(
         "sqlite:///" + str(Path(temporary.name) / "cloud.db"),
         LocalStore(Path(temporary.name) / "ciphertext"),
-    ),
-)
+    )
+
+
+@asynccontextmanager
+async def lifespan(app):
+    async with AsyncExitStack() as stack:
+        for child in (lan, signaling, cloud):
+            await stack.enter_async_context(child.router.lifespan_context(child))
+        yield
+
+
+app = FastAPI(lifespan=lifespan)
+app.mount("/signal", signaling)
+app.mount("/cloud", cloud)
 app.mount("/", lan)
 if __name__ == "__main__":
     try:

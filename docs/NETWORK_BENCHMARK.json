@@ -1,0 +1,39 @@
+{
+  "scope": "Loopback TCP HTTP upload + assembly + streamed download + hashing + cleanup; generated 1 MiB block, not physical LAN or browser measurements; RSS sampled every 20ms",
+  "platform": "Windows-11-10.0.26200-SP0",
+  "python": "3.14.6",
+  "results": [
+    {
+      "mib_per_file": 1024,
+      "concurrency": 1,
+      "seconds": 32.174,
+      "round_trip_mib_per_second": 63.65,
+      "server_cpu_seconds": 18.9844,
+      "peak_rss_mib": {
+        "server": 57.78,
+        "client": 47.35
+      },
+      "rss_growth_mib": {
+        "server": 2.1,
+        "client": 2.21
+      },
+      "download_stream_sha256_match": true
+    },
+    {
+      "mib_per_file": 128,
+      "concurrency": 4,
+      "seconds": 24.3962,
+      "round_trip_mib_per_second": 41.97,
+      "server_cpu_seconds": 12.0,
+      "peak_rss_mib": {
+        "server": 60.82,
+        "client": 51.86
+      },
+      "rss_growth_mib": {
+        "server": 3.02,
+        "client": 4.6
+      },
+      "download_stream_sha256_match": true
+    }
+  ]
+}

@@ -110,6 +110,25 @@ class LANTests(unittest.TestCase):
         r = self.client.get(f"/api/transfers/{tid}/download", headers=self.phone)
         self.assertEqual(r.content, data)
         self.assertIn("hello.bin", r.headers["content-disposition"])
+        path = f"/api/transfers/{tid}/save-outcome"
+        self.assertEqual(
+            self.client.post(
+                path, headers=self.host, json={"outcome": "saved"}
+            ).status_code,
+            403,
+        )
+        self.assertEqual(
+            self.client.post(
+                path, headers=self.phone, json={"outcome": "saved"}
+            ).json()["source"],
+            "receiver-report",
+        )
+        self.assertEqual(
+            self.client.get(f"/api/transfers/{tid}", headers=self.phone).json()[
+                "state"
+            ],
+            "COMPLETED",
+        )
         self.assertEqual(
             self.client.get(f"/api/transfers/{tid}/download").status_code, 401
         )

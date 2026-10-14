@@ -38,6 +38,10 @@ test("LAN approval, binary file, and text across isolated browser contexts", asy
   await b.getByRole("button", { name: "Save file", exact: true }).click();
   const download = await downloading;
   expect(await readFile((await download.path())!)).toEqual(bytes);
+  await b
+    .getByRole("button", { name: "I checked the saved file", exact: true })
+    .click();
+  await expect(b.getByText("Receiver reported: saved")).toBeVisible();
   await a.getByRole("button", { name: "Share Text", exact: true }).click();
   await b.getByRole("button", { name: "Share Text", exact: true }).click();
   await a.locator("select").selectOption({ label: "Test phone" });
@@ -112,6 +116,42 @@ test("real WebRTC DataChannel approval, file integrity, and text", async ({
   await a.getByPlaceholder("Share text with your peer").fill("rejoined peer");
   await a.getByRole("button", { name: "Send text", exact: true }).click();
   await expect(b.locator("pre")).toContainText("rejoined peer");
+  await a.locator("input[type=file]").setInputFiles({
+    name: "cancel.bin",
+    mimeType: "application/octet-stream",
+    buffer: Buffer.alloc(131073, 11),
+  });
+  await expect(
+    b.getByRole("button", { name: "Accept file", exact: true }),
+  ).toBeVisible();
+  await a.getByRole("button", { name: "Cancel transfer", exact: true }).click();
+  await expect(
+    b.getByRole("button", { name: "Accept file", exact: true }),
+  ).toHaveCount(0);
+  await a.locator("input[type=file]").setInputFiles({
+    name: "pending-after-refresh.bin",
+    mimeType: "application/octet-stream",
+    buffer: Buffer.alloc(262145, 37),
+  });
+  await expect(
+    b.getByRole("button", { name: "Accept file", exact: true }),
+  ).toBeVisible();
+  await a.reload();
+  await a.getByRole("button", { name: "Online Share", exact: true }).click();
+  await a
+    .getByRole("button", { name: "Reconnect saved room", exact: true })
+    .click();
+  await expect(a.getByRole("status")).toContainText("Connected.");
+  await a
+    .getByRole("button", { name: "Resume pending sends", exact: true })
+    .click();
+  const resumed = b.waitForEvent("download");
+  await b.getByRole("button", { name: "Accept file", exact: true }).click();
+  expect(await readFile((await (await resumed).path())!)).toEqual(
+    Buffer.alloc(262145, 37),
+  );
+  await a.getByRole("button", { name: "End room", exact: true }).click();
+  await expect(b.getByRole("status")).toContainText("Room expired or revoked");
   await left.close();
   await right.close();
 });
@@ -169,11 +209,19 @@ test("interrupted encrypted upload resumes after refresh and refuses a changed f
 }) => {
   await page.goto("/");
   await page.getByRole("button", { name: "Send Later", exact: true }).click();
-  let interrupted = false;
+  let interruptionPhase = 0;
   await page.route("**/cloud/shares/*/chunks/1", async (route) => {
-    if (!interrupted) {
-      interrupted = true;
+    if (interruptionPhase === 0) {
+      interruptionPhase++;
       await route.abort("connectionfailed");
+    } else if (interruptionPhase === 1) {
+      interruptionPhase++;
+      await route.fulfill({
+        status: 429,
+        contentType: "application/json",
+        headers: { "Retry-After": "1" },
+        body: JSON.stringify({ detail: "Busy; retry safely" }),
+      });
     } else await route.continue();
   });
   const file = {
@@ -188,6 +236,9 @@ test("interrupted encrypted upload resumes after refresh and refuses a changed f
   await expect(page.getByRole("status")).toContainText("Failed to fetch");
   await page.reload();
   await page.getByRole("button", { name: "Send Later", exact: true }).click();
+  await expect(
+    page.getByRole("button", { name: "Encrypt & upload", exact: true }),
+  ).toBeEnabled();
   await page
     .locator("input[type=file]")
     .setInputFiles({ ...file, buffer: Buffer.alloc(1048593, 43) });

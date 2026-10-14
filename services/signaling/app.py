@@ -12,8 +12,16 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 
+from services.version import VERSION
+
 
 def create_app():
+    if os.getenv("REDIS_URL"):
+        from services.signaling.distributed import create_distributed_app
+
+        return create_distributed_app(
+            prefix=os.getenv("FLOWDROP_REDIS_NAMESPACE", "") + "flowdrop:signal:"
+        )
     rooms = {}
     limits = {}
     allowed = set(
@@ -28,7 +36,7 @@ def create_app():
             for rid, room in list(rooms.items()):
                 if room["expires"] < time.time():
                     for ws in list(room["sockets"].values()):
-                        await ws.close(code=1000)
+                        await ws.close(code=1008)
                     rooms.pop(rid, None)
 
     @asynccontextmanager
@@ -42,11 +50,11 @@ def create_app():
         except asyncio.CancelledError:
             pass
 
-    app = FastAPI(title="FlowDrop signaling", lifespan=lifespan)
+    app = FastAPI(title="FlowDrop signaling", version=VERSION, lifespan=lifespan)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=list(allowed),
-        allow_methods=["GET", "POST"],
+        allow_methods=["GET", "POST", "DELETE"],
         allow_headers=["Content-Type", "Authorization"],
     )
 
@@ -146,6 +154,21 @@ def create_app():
             config.append({"urls": url, "username": username, "credential": credential})
         return {"iceServers": config}
 
+    @app.delete("/rooms/{rid}")
+    async def revoke(rid: str, request: Request):
+        rate(request)
+        room = room_for(rid)
+        token = request.headers.get("authorization", "").removeprefix("Bearer ")
+        if not hmac.compare_digest(
+            room["members"]["owner"]["token"],
+            hashlib.sha256(token.encode()).hexdigest(),
+        ):
+            raise HTTPException(403, "Owner required")
+        rooms.pop(rid, None)
+        for socket in list(room["sockets"].values()):
+            await socket.close(code=1008)
+        return {"status": "revoked"}
+
     @app.websocket("/rooms/{rid}/ws")
     async def signaling(ws: WebSocket, rid: str):
         origin = ws.headers.get("origin")
@@ -200,6 +223,7 @@ def create_app():
                 member == "owner"
                 and "receiver" in room["members"]
                 and not room["members"]["receiver"]["approved"]
+                and "receiver" in room["sockets"]
             ):
                 await ws.send_json({"type": "join-request", "member": "receiver"})
             timestamps = []
@@ -230,7 +254,7 @@ def create_app():
                     room["members"]["receiver"]["approved"] = True
                     if target:
                         await target.send_json({"type": "approved"})
-                    await ws.send_json({"type": "ready"})
+                        await ws.send_json({"type": "ready"})
                 elif (
                     data.get("type") in ("offer", "answer", "ice")
                     and all(m["approved"] for m in room["members"].values())

@@ -1,0 +1,43 @@
+# Disposable test-only project. Never run against production volumes.
+services:
+  postgres:
+    image: postgres:17-alpine@sha256:b0f9560a2de083e2cc7382e75f808c7381a32852a7ec49117deedb300e552b24
+    ports: ['127.0.0.1:55432:5432']
+    environment:
+      POSTGRES_USER: flowdrop_test
+      POSTGRES_DB: flowdrop_integration
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?}
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U flowdrop_test -d flowdrop_integration']
+      interval: 2s
+      retries: 30
+  redis:
+    image: redis:8.0.5-alpine@sha256:6c8e66693fa71bad36ae06c75c990446ad01dbd4b081dd847eb9869f20d7c6ee
+    ports: ['127.0.0.1:56379:6379']
+    command: ['redis-server', '--requirepass', '${REDIS_PASSWORD:?}', '--maxmemory', '64mb', '--maxmemory-policy', 'noeviction']
+    environment:
+      REDISCLI_AUTH: ${REDIS_PASSWORD:?}
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 2s
+      retries: 30
+  garage:
+    image: dxflrs/garage:v2.4.1@sha256:9c96caa2612d3411acc5b0e6701fb238dbfba33e533a6d7d3d811a4b12d0d020
+    ports: ['127.0.0.1:53900:3900']
+    command: ['/garage', 'server', '--single-node', '--default-bucket']
+    environment:
+      GARAGE_RPC_SECRET: ${GARAGE_RPC_SECRET:?}
+      GARAGE_DEFAULT_ACCESS_KEY: ${S3_ACCESS_KEY:?}
+      GARAGE_DEFAULT_SECRET_KEY: ${S3_SECRET_KEY:?}
+      GARAGE_DEFAULT_BUCKET: flowdrop-integration
+    volumes: ['./infrastructure/deployment/garage.toml:/etc/garage.toml:ro']
+    healthcheck:
+      test: ['CMD', '/garage', 'status']
+      interval: 2s
+      retries: 30
+  turn:
+    image: coturn/coturn:4.18.0-r0@sha256:bbefd3e1fdfdc0d58770fe01b581fd8b00d9f3a5580d00acb77cf719a6bc78e3
+    ports: ['127.0.0.1:53578:53578/tcp']
+    entrypoint: ['turnserver']
+    command: ['-c', '/etc/turnserver.conf', '--log-file=stdout', '--pidfile=/tmp/flowdrop-test.pid']
+    volumes: ['./.flowdrop/tools/turn.conf:/etc/turnserver.conf:ro']

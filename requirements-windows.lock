@@ -33,6 +33,7 @@ pyinstaller-hooks-contrib==2026.8
 pytest==9.1.1
 python-dateutil==2.9.0.post0
 pywin32-ctypes==0.2.3
+redis==7.4.1
 ruff==0.17.0
 s3transfer==0.19.2
 setuptools==84.0.0

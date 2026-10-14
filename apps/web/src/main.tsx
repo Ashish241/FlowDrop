@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef } from "react";
 import { createRoot } from "react-dom/client";
 import { hashFile } from "./hash";
+import { FairScheduler, persistFile, recoverFiles, forgetFile } from "./queue";
 import QRCode from "qrcode";
 import { ArrowUpRight, Upload, Shield, Zap, Laptop, Moon } from "lucide-react";
 import "./style.css";
@@ -21,8 +22,10 @@ type Transfer = {
   sha256: string;
   received?: number;
   speed?: number;
+  save_outcome?: string;
 };
 function App() {
+  const [preparing, setPreparing] = useState("");
   const [visited, setVisited] = useState<string[]>([]);
   const [token, setToken] = useState(sessionStorage.getItem("token") || ""),
     [me, setMe] = useState<{ id: string; pairing_code?: string }>(),
@@ -46,11 +49,73 @@ function App() {
     files = useRef(new Map<string, File>()),
     busy = useRef(new Set<string>()),
     failed = useRef(new Set<string>());
+  const scheduler = useRef(new FairScheduler(2));
+  const activeToken = useRef(token);
+  const requests = useRef(new Set<AbortController>());
+  useEffect(() => {
+    activeToken.current = token;
+    return () => {
+      for (const request of requests.current) request.abort();
+      requests.current.clear();
+    };
+  }, [token]);
+  const scope = useRef("");
+  useEffect(() => {
+    let active = true;
+    files.current.clear();
+    busy.current.clear();
+    failed.current.clear();
+    setTransfers([]);
+    setPreparing("");
+    setHistory([]);
+    setProgress({});
+    if (token && me)
+      void (async () => {
+        const identity = await hashFile(new Blob([token]));
+        scope.current = identity;
+        const saved = await recoverFiles(identity);
+        const authorized = (await api("/transfers")) as Transfer[];
+        for (const item of saved) {
+          const transfer = authorized.find(
+            (t) =>
+              t.id === item.id &&
+              t.sender === me.id &&
+              ["PENDING", "ACCEPTED", "TRANSFERRING", "PAUSED"].includes(
+                t.state,
+              ),
+          );
+          if (
+            transfer &&
+            transfer.sha256 === item.sha256 &&
+            item.file.size === transfer.size &&
+            (await hashFile(item.file)) === transfer.sha256 &&
+            active
+          )
+            files.current.set(item.id, item.file);
+        }
+        if (active) await refresh();
+      })().catch(report);
+    return () => {
+      active = false;
+    };
+  }, [token, me?.id]);
   async function api(path: string, options: RequestInit = {}) {
-    const r = await fetch("/api" + path, {
-      ...options,
-      headers: { Authorization: "Bearer " + token, ...options.headers },
-    });
+    if (activeToken.current !== token)
+      throw new Error("Session changed; reconnect before retrying");
+    const controller = new AbortController();
+    requests.current.add(controller);
+    let r: Response;
+    try {
+      r = await fetch("/api" + path, {
+        ...options,
+        signal: controller.signal,
+        headers: { Authorization: "Bearer " + token, ...options.headers },
+      });
+    } finally {
+      requests.current.delete(controller);
+    }
+    if (activeToken.current !== token)
+      throw new Error("Session changed; reconnect before retrying");
     if (!r.ok) {
       const body = await r
         .json()
@@ -62,7 +127,12 @@ function App() {
         status: r.status,
       });
     }
-    return r.headers.get("content-type")?.includes("json") ? r.json() : r;
+    const result = r.headers.get("content-type")?.includes("json")
+      ? await r.json()
+      : r;
+    if (activeToken.current !== token)
+      throw new Error("Session changed; reconnect before retrying");
+    return result;
   }
   function report(e: unknown) {
     setError(e instanceof Error ? e.message : String(e));
@@ -74,6 +144,7 @@ function App() {
       setTransfers(await api("/transfers"));
       setError((e) => (e === "Session expired or unauthorized" ? "" : e));
     } catch (e) {
+      if (activeToken.current !== token) return;
       if ((e as { status?: number }).status === 401) setMe(undefined);
       report(e);
     }
@@ -136,8 +207,7 @@ function App() {
         ["ACCEPTED", "TRANSFERRING"].includes(t.state) &&
         files.current.has(t.id) &&
         !busy.current.has(t.id) &&
-        !failed.current.has(t.id) &&
-        busy.current.size < 2
+        !failed.current.has(t.id)
       )
         void upload(t);
     }
@@ -150,19 +220,29 @@ function App() {
       const done = new Set<number>(checkpoint.completed_chunks);
       const size = t.chunk_size || 1048576;
       const count = Math.ceil(f.size / size);
+      let acknowledged = [...done]
+        .filter(
+          (index) => Number.isInteger(index) && index >= 0 && index < count,
+        )
+        .reduce((sum, index) => sum + Math.min(size, f.size - index * size), 0);
       for (let i = 0; i < count; i++) {
-        if (!done.has(i))
-          await api(`/transfers/${t.id}/chunks/${i}`, {
-            method: "PUT",
-            body: f.slice(i * size, (i + 1) * size),
-          });
+        if (!done.has(i)) {
+          await scheduler.current.run(t.id, () =>
+            api(`/transfers/${t.id}/chunks/${i}`, {
+              method: "PUT",
+              body: f.slice(i * size, (i + 1) * size),
+            }),
+          );
+          acknowledged += Math.min(size, f.size - i * size);
+        }
         setProgress((p) => ({
           ...p,
-          [t.id]: Math.round(((i + 1) / count) * 100),
+          [t.id]: f.size ? Math.round((acknowledged / f.size) * 100) : 100,
         }));
       }
       await api(`/transfers/${t.id}/finish`, { method: "POST" });
       files.current.delete(t.id);
+      await forgetFile(t.id);
       await refresh();
     } catch (e) {
       failed.current.add(t.id);
@@ -179,6 +259,7 @@ function App() {
     }
     try {
       for (const file of Array.from(selected)) {
+        setPreparing("Checking SHA-256 before offering " + file.name);
         const digest = await hashFile(file);
         const recipients =
           recipient === "*"
@@ -200,11 +281,26 @@ function App() {
             }),
           });
           files.current.set(t.id, file);
+          try {
+            const identity = await hashFile(new Blob([token]));
+            await persistFile({
+              id: t.id,
+              scope: identity,
+              file,
+              sha256: digest,
+            });
+          } catch {
+            setError(
+              "Browser storage is unavailable or full. Transfer can continue; reselect the original file after refresh.",
+            );
+          }
         }
       }
       await refresh();
     } catch (e) {
       report(e);
+    } finally {
+      setPreparing("");
     }
   }
   async function download(t: Transfer) {
@@ -364,6 +460,7 @@ function App() {
                 <div className="section-title">
                   <h2>Send something good</h2>
                   <span>LAN TRANSFER</span>
+                  {preparing && <p aria-live="polite">{preparing}</p>}
                 </div>
                 <label>
                   Send to
@@ -447,8 +544,8 @@ function App() {
                             : `${Math.round(t.size ? ((t.received || 0) / t.size) * 100 : 0)}%`}{" "}
                           ·{" "}
                           {t.sender === me.id
-                            ? "You → recipient"
-                            : "Sender → you"}{" "}
+                            ? `You → ${devices.find((d) => d.id === t.recipient)?.name || "Recipient"}`
+                            : `${devices.find((d) => d.id === t.sender)?.name || "Sender"} → you`}{" "}
                           · LAN
                         </small>
                         {t.state === "TRANSFERRING" && !!t.speed && (
@@ -472,9 +569,29 @@ function App() {
                         </button>
                       )}
                       {t.state === "COMPLETED" && t.recipient === me.id && (
-                        <button onClick={() => void download(t)}>
-                          Save file
-                        </button>
+                        <>
+                          <button onClick={() => void download(t)}>
+                            Save file
+                          </button>
+                          <small>
+                            {t.save_outcome
+                              ? `Receiver reported: ${t.save_outcome}`
+                              : "Verified on host; browser save not confirmed"}
+                          </small>
+                          <button
+                            onClick={() =>
+                              void api(`/transfers/${t.id}/save-outcome`, {
+                                method: "POST",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({ outcome: "saved" }),
+                              })
+                                .then(refresh)
+                                .catch(report)
+                            }
+                          >
+                            I checked the saved file
+                          </button>
+                        </>
                       )}
                       {["ACCEPTED", "TRANSFERRING"].includes(t.state) && (
                         <button
@@ -505,15 +622,27 @@ function App() {
                         ["ACCEPTED", "TRANSFERRING", "PAUSED"].includes(
                           t.state,
                         ) && (
-                          <label>
-                            Reselect original file / retry
-                            <input
-                              type="file"
-                              onChange={(e) =>
-                                void restore(t, e.target.files?.[0])
-                              }
-                            />
-                          </label>
+                          <>
+                            <label>
+                              Reselect original file / retry
+                              <input
+                                type="file"
+                                onChange={(e) =>
+                                  void restore(t, e.target.files?.[0])
+                                }
+                              />
+                            </label>
+                            {failed.current.has(t.id) &&
+                              files.current.has(t.id) && (
+                                <button
+                                  onClick={() =>
+                                    void restore(t, files.current.get(t.id))
+                                  }
+                                >
+                                  Retry queued file
+                                </button>
+                              )}
+                          </>
                         )}
                       {t.state !== "CANCELLED" && (
                         <button
@@ -678,7 +807,7 @@ function App() {
         )}
         <footer>
           <Shield size={14} /> Your files belong to you.
-          <span>FLOWDROP / 0.1.0 DEVELOPMENT</span>
+          <span>FLOWDROP / 0.3.0 DEVELOPMENT</span>
         </footer>
       </main>
     </div>

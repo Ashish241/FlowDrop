@@ -1,5 +1,6 @@
 """Bounded abuse controls; forwarding headers are ignored unless explicitly trusted."""
 
+import hashlib
 import ipaddress
 import os
 import threading
@@ -47,3 +48,26 @@ class RateLimit:
                 return False
             self.entries[identity] = values + [now]
             return True
+
+
+class RedisRateLimit:
+    def __init__(self, url, namespace, count=300, seconds=60):
+        from redis import Redis
+
+        self.redis = Redis.from_url(url, socket_connect_timeout=3, socket_timeout=3)
+        self.namespace, self.count, self.seconds = namespace, count, seconds
+
+    def allow(self, identity):
+        key = self.namespace + hashlib.sha256(identity.encode()).hexdigest()
+        script = "local n=redis.call('INCR',KEYS[1]); if n==1 then redis.call('EXPIRE',KEYS[1],ARGV[1]) end; return n"
+        return self.redis.eval(script, 1, key, self.seconds) <= self.count
+
+
+def rate_limiter(namespace, count=300, seconds=60):
+    namespace = os.getenv("FLOWDROP_REDIS_NAMESPACE", "") + namespace
+    url = os.getenv("REDIS_URL")
+    return (
+        RedisRateLimit(url, namespace, count, seconds)
+        if url
+        else RateLimit(count, seconds)
+    )

@@ -16,6 +16,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
+from services.version import VERSION
 from services.web_security import CSP
 
 
@@ -29,6 +30,10 @@ class Offer(BaseModel):
     size: int = Field(ge=0, le=20 * 1024**3)
     recipient: str
     sha256: str = Field(pattern=r"^[a-f0-9]{64}$")
+
+
+class SaveOutcome(BaseModel):
+    outcome: str = Field(pattern=r"^(saved|failed)$")
 
 
 def create_app(storage: Path | None = None, host_token: str | None = None):
@@ -89,6 +94,10 @@ def create_app(storage: Path | None = None, host_token: str | None = None):
             value = json.loads(metadata.read_text())
             if value["state"] == "VERIFYING":
                 value["state"] = "TRANSFERRING"
+            if value["state"] in ("ACCEPTED", "TRANSFERRING", "PAUSED"):
+                value.pop("started", None)
+                value["rate_base"] = value.get("received", 0)
+                value["speed"] = 0
             transfers[value["id"]] = value
         except (ValueError, KeyError):
             pass
@@ -132,7 +141,7 @@ def create_app(storage: Path | None = None, host_token: str | None = None):
 
     app = FastAPI(
         title="FlowDrop LAN",
-        version="0.1.0",
+        version=VERSION,
         lifespan=lifespan,
         docs_url=None,
         redoc_url=None,
@@ -373,6 +382,9 @@ def create_app(storage: Path | None = None, host_token: str | None = None):
             if t["state"] != "PAUSED":
                 raise HTTPException(409)
             t["state"] = "TRANSFERRING"
+            t.pop("started", None)
+            t["rate_base"] = t.get("received", 0)
+            t["speed"] = 0
             save(t)
         await notify()
         return t
@@ -414,7 +426,9 @@ def create_app(storage: Path | None = None, host_token: str | None = None):
                 t["received"] = sum(
                     min(size, t["size"] - int(i) * size) for i in t["chunks"]
                 )
-                t["speed"] = t["received"] / max(0.001, time.time() - t["started"])
+                t["speed"] = max(0, t["received"] - t.get("rate_base", 0)) / max(
+                    0.001, time.time() - t["started"]
+                )
                 t["state"] = "TRANSFERRING"
                 save(t)
             except TimeoutError as exc:
@@ -511,6 +525,18 @@ def create_app(storage: Path | None = None, host_token: str | None = None):
             secure=request.url.scheme == "https",
         )
         return response
+
+    @app.post("/api/transfers/{tid}/save-outcome")
+    async def save_outcome(tid: str, body: SaveOutcome, request: Request):
+        s = auth(request)
+        t = owned(tid, s)
+        if t["recipient"] != s["id"] or t["state"] != "COMPLETED":
+            raise HTTPException(403)
+        t["save_outcome"] = body.outcome
+        t["save_reported_at"] = time.time()
+        save(t)
+        await notify()
+        return {"outcome": body.outcome, "source": "receiver-report"}
 
     @app.get("/api/transfers/{tid}/download")
     async def download(tid: str, request: Request):

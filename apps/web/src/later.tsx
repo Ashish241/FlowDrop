@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { recordTransfer } from "./transfer-history";
 import { hashFile } from "./hash";
+import { persistFile, recoverFiles, forgetFile } from "./queue";
 import { createStreamSink } from "./stream-sink";
 import { CHUNK_SIZE, encode, decode, importKey, seal, open } from "./crypto";
 type Share = {
@@ -56,6 +57,33 @@ export function LaterPanel() {
     [operation, setOperation] = useState<"send" | "receive">("send");
   const base = "/cloud";
   useEffect(() => {
+    let active = true;
+    const saved = managed.current;
+    if (saved && saved.state !== "Ready")
+      void (async () => {
+        const files = await recoverFiles(
+          await hashFile(new Blob([saved.upload_token])),
+        );
+        const original = files.find((item) => item.id === saved.id);
+        if (
+          original &&
+          original.sha256 === saved.hash &&
+          (await hashFile(original.file)) === saved.hash &&
+          active
+        ) {
+          setFile(original.file);
+          setStatus(
+            "Original file recovered from this browser. Resume with Encrypt & upload.",
+          );
+        }
+      })().catch(() =>
+        setStatus("Browser recovery unavailable; reselect the original file."),
+      );
+    return () => {
+      active = false;
+    };
+  }, [share?.id]);
+  useEffect(() => {
     if (share && managed.current)
       recordTransfer({
         id: share.id,
@@ -68,14 +96,41 @@ export function LaterPanel() {
       });
   }, [share, progress]);
   async function api(path: string, token?: string, options: RequestInit = {}) {
-    const r = await fetch(base + path, {
-      ...options,
-      signal: controller.current?.signal,
-      headers: {
-        ...(token ? { Authorization: "Bearer " + token } : {}),
-        ...options.headers,
-      },
-    });
+    let r: Response;
+    for (let attempt = 0; ; attempt++) {
+      r = await fetch(base + path, {
+        ...options,
+        signal: controller.current?.signal,
+        headers: {
+          ...(token ? { Authorization: "Bearer " + token } : {}),
+          ...options.headers,
+        },
+      });
+      if (
+        attempt >= 3 ||
+        ![429, 503].includes(r.status) ||
+        !["GET", "PUT"].includes(options.method || "GET")
+      )
+        break;
+      const delay = Math.min(
+        60,
+        Math.max(1, Number(r.headers.get("Retry-After")) || 2 ** attempt),
+      );
+      setStatus(`Service busy; retrying safely in ${delay} seconds.`);
+      const signal = controller.current?.signal;
+      await new Promise<void>((resolve, reject) => {
+        const abort = () => {
+          clearTimeout(timer);
+          reject(new Error("Upload paused"));
+        };
+        const timer = setTimeout(() => {
+          signal?.removeEventListener("abort", abort);
+          resolve();
+        }, delay * 1000);
+        if (signal?.aborted) abort();
+        else signal?.addEventListener("abort", abort, { once: true });
+      });
+    }
     if (!r.ok) {
       let detail = "Storage service unavailable";
       try {
@@ -90,6 +145,7 @@ export function LaterPanel() {
   async function send() {
     if (!file) return;
     setOperation("send");
+    setProgress(0);
     setBusy(true);
     controller.current = new AbortController();
     try {
@@ -141,11 +197,33 @@ export function LaterPanel() {
           state: "Uploading",
         };
         remember(record);
+        try {
+          await persistFile({
+            id: record.id,
+            scope: await hashFile(new Blob([record.upload_token])),
+            file,
+            sha256: fileHash,
+          });
+        } catch {
+          setStatus(
+            "Browser source persistence unavailable; reselect the original file after refresh.",
+          );
+        }
       }
       const checkpoint = await (
         await api(`/shares/${s.id}/upload-status`, s.upload_token)
       ).json();
       const completed = new Set<number>(checkpoint.completed_chunks);
+      let uploaded = [...completed]
+        .filter(
+          (index) => Number.isInteger(index) && index > 0 && index < chunks,
+        )
+        .reduce(
+          (sum, index) =>
+            sum + Math.min(CHUNK_SIZE, file.size - (index - 1) * CHUNK_SIZE),
+          0,
+        );
+      setProgress(file.size ? (uploaded / file.size) * 100 : 0);
       const metadata = new TextEncoder().encode(
         JSON.stringify({
           version: 1,
@@ -161,7 +239,6 @@ export function LaterPanel() {
         });
       for (let index = 1; index < chunks; index++) {
         if (completed.has(index)) {
-          setProgress((index / (chunks - 1)) * 100);
           continue;
         }
         const bytes = await file
@@ -171,7 +248,8 @@ export function LaterPanel() {
           method: "PUT",
           body: await seal(key, prefix, s.id, index, chunks, bytes),
         });
-        setProgress((index / (chunks - 1)) * 100);
+        uploaded += bytes.byteLength;
+        setProgress(file.size ? (uploaded / file.size) * 100 : 100);
       }
       if (!checkpoint.ready)
         await api(`/shares/${s.id}/finish`, s.upload_token, { method: "POST" });
@@ -184,6 +262,8 @@ export function LaterPanel() {
       const secretLink = location.origin + "/#" + fragment;
       remember({ ...record, link: secretLink, state: "Ready" });
       setLink(secretLink);
+      setProgress(100);
+      await forgetFile(s.id).catch(() => undefined);
       setStatus(
         "Encrypted upload complete. Link expires " +
           new Date(s.expires * 1000).toLocaleString(),
@@ -202,6 +282,7 @@ export function LaterPanel() {
   }
   async function receive() {
     setOperation("receive");
+    setProgress(0);
     setBusy(true);
     try {
       const params = new URLSearchParams(new URL(input).hash.slice(1));
@@ -240,7 +321,9 @@ export function LaterPanel() {
         !Number.isSafeInteger(metadata.size) ||
         metadata.size < 0 ||
         Math.ceil(metadata.size / CHUNK_SIZE) + 1 !== info.chunks ||
-        typeof metadata.name !== "string"
+        typeof metadata.name !== "string" ||
+        metadata.name.length < 1 ||
+        metadata.name.length > 255
       )
         throw new Error("Invalid encrypted metadata");
       const sink = await createStreamSink(metadata.name, metadata.size);
@@ -267,7 +350,7 @@ export function LaterPanel() {
           if (plain.byteLength !== expected) throw new Error("Incomplete file");
           size += plain.byteLength;
           await sink.write(new Uint8Array(plain));
-          setProgress((index / (info.chunks - 1)) * 100);
+          setProgress(metadata.size ? (size / metadata.size) * 100 : 100);
         }
         if (size !== metadata.size) throw new Error("Incomplete file");
         const blob = await sink.close();
@@ -295,6 +378,7 @@ export function LaterPanel() {
         state: "Authenticated; handed to browser downloads",
         progress: 100,
       });
+      setProgress(100);
     } catch (e) {
       setStatus(String(e));
     } finally {
@@ -364,6 +448,7 @@ export function LaterPanel() {
               method: "DELETE",
             })
               .then(() => {
+                void forgetFile(share.id).catch(() => undefined);
                 if (managed.current)
                   recordTransfer({
                     id: managed.current.id,

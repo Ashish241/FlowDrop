@@ -1,6 +1,24 @@
 name: checks
 on: [push, pull_request]
 jobs:
+  integration:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -e ".[dev,cloud]"
+      - run: mkdir -p .flowdrop/tools
+      - run: python -m scripts.prepare_test_s3
+      - run: python -m scripts.prepare_test_turn
+        env:
+          FLOWDROP_TEST_TURN_BIND: 0.0.0.0
+      - run: python -m scripts.prepare_ci_integration
+      - run: docker compose --env-file .flowdrop/integration.env -f compose.integration.yaml -p flowdrop-ci up -d --wait --wait-timeout 120
+      - run: python -m scripts.integration_check
+      - if: always()
+        run: docker compose --env-file .flowdrop/integration.env -f compose.integration.yaml -p flowdrop-ci down --volumes
   backend:
     runs-on: windows-latest
     steps:

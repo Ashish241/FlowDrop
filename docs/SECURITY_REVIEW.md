@@ -1,4 +1,22 @@
-# Internal security review — v0.2.0
+# Internal security review — v0.3.0
+
+Internal implementation review only; no independent certification. Current additions:
+
+- Redis is the configured authority for room membership/approval/expiry and socket generations. Optimistic updates reject concurrent extra receivers; revocation denies future ICE and closes live sockets across instances. Configured Redis outages fail closed. Global room capacity and expiring distributed rate counters bound state growth; backend WS/concurrency limits are explicit.
+- Async uploads stage bounded request bodies before opening locked transactions; database locks and S3 operations run together in bounded workers, preserving event-loop responsiveness and admission slots through request cancellation. Duplicate concurrent uploads are idempotent and covered against PostgreSQL.
+- Signaling waits for the Redis subscription acknowledgement and connected receiver before readiness notices; frontend approval checks reject obsolete asynchronous offers, and explicit cancellation clears pending sinks/waiters.
+- PostgreSQL download session issuance now locks before reading counters, avoiding stale identity-map state in concurrent transactions. Actual simultaneous quota and download-limit tests passed.
+- S3 writes can raise boto3's wrapped upload exception; it is now caught and returns a generic retryable 503. Missing-object read, unavailable bucket write, unchanged checkpoints and successful retry are real-service tested. Upload bodies, concurrency, share count, storage quota and SDK network retries/timeouts are bounded. Control/create/chunk rates are separate and distributed when Redis is configured.
+- Proxies overwrite forwarding headers; Uvicorn implicit proxy trust is disabled in backend containers. Public origins and immediate trusted peers must be explicitly configured. Trusted TLS/proxy deployment still needs external acceptance.
+- Browser requests are aborted/scoped on LAN session changes; history and pending source recovery are scoped to the capability/session. Hash checks prevent changed-file recovery. Plaintext source Files intentionally persist locally for recovery and are not protected from local-profile or same-origin-script adversaries; see PRIVACY.md.
+- Current coturn 4.18.0 is pinned, validates secrets, limits allocations/bandwidth and denies private/link-local/multicast peers. Valid/invalid/expired allocation credentials and loopback permission denial were tested locally. Internet relay, IPv6 deployment ACLs and TLS acceptance remain open.
+- Supported image digests were independently checked against downloaded registry manifests. This is integrity pinning, not a native/container vulnerability audit. Python/npm audits report no known findings at this checkpoint.
+
+Open gates: filesystem/reparse-point race coverage, worker/storage/network fault saturation, long/mobile streams, Redis/storage HA/failover, deployed proxy/TLS/relay abuse and independent review. LAN HTTP remains appropriate only for trusted networks or trusted-certificate TLS. Review physical acceptance and known limitations before public release.
+
+---
+
+## Historical v0.2.0 review
 
 Reviewed 2026-10-13. This is an implementation review and automated regression evidence, not independent security certification.
 

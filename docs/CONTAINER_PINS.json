@@ -1,0 +1,17 @@
+{
+  "resolved_utc": "2026-10-13T18:02:17.266389+00:00",
+  "scope": "Public manifest digest verification only; container builds/runs blocked by missing engine. Legacy MinIO profile unsupported.",
+  "images": {
+    "postgres:17-alpine": "postgres:17-alpine@sha256:b0f9560a2de083e2cc7382e75f808c7381a32852a7ec49117deedb300e552b24",
+    "coturn/coturn:4.18.0-r0": "coturn/coturn:4.18.0-r0@sha256:bbefd3e1fdfdc0d58770fe01b581fd8b00d9f3a5580d00acb77cf719a6bc78e3",
+    "redis:8.0.5-alpine": "redis:8.0.5-alpine@sha256:6c8e66693fa71bad36ae06c75c990446ad01dbd4b081dd847eb9869f20d7c6ee",
+    "dxflrs/garage:v2.4.1": "dxflrs/garage:v2.4.1@sha256:9c96caa2612d3411acc5b0e6701fb238dbfba33e533a6d7d3d811a4b12d0d020",
+    "python:3.12-slim": "python:3.12-slim@sha256:a6e34c598f2467ed0e9a8d349809fcd8b5c603269512df273a0bb1784edc11b1",
+    "node:22-alpine": "node:22-alpine@sha256:0a7108bf6c7bf5de370ffb1a3ed6be93d405b43ff159f681a8d18c0e2bc2e402",
+    "nginx:stable-alpine": "nginx:stable-alpine@sha256:0985e772fb9f729e6fa0980da05fca5d9c468e870eed43071545afa9d2e27d94"
+  },
+  "blocked_legacy_images": {
+    "minio/minio:latest": "Legacy-only profile: official community downloads unavailable and public registry rejected access; not release supported",
+    "minio/mc:latest": "Legacy-only profile: official community downloads unavailable and public registry rejected access; not release supported"
+  }
+}

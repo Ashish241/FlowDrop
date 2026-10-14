@@ -1,5 +1,7 @@
 # Physical acceptance plan
 
+v0.3.0 engineering checkpoint, 2026-10-13. The 1 GiB loopback benchmark and browser contexts do not satisfy any separate-device case below. Record receiver-reported save outcome separately from verified network delivery; inspect the actual saved file and hash it. Repeat refresh/resume with browser storage both available and quota-denied.
+
 All cases below are **NOT VERIFIED**. Use disposable non-sensitive files and record devices, OS/browser versions, network topology, file hashes, logs without capabilities, elapsed time and pass/fail. Compare SHA-256 of source and saved copy (`Get-FileHash -Algorithm SHA256` on Windows). A matching server hash alone is insufficient.
 
 | Case | Procedure and acceptance |

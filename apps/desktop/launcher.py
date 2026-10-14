@@ -12,10 +12,17 @@ from pathlib import Path
 import uvicorn
 
 from services.lan_server.app import create_app
+from services.version import VERSION
 
 
 def main(argv=None, on_ready=None):
     parser = argparse.ArgumentParser(description="FlowDrop private LAN host")
+    parser.add_argument("--version", action="version", version="FlowDrop " + VERSION)
+    parser.add_argument(
+        "--shutdown-after",
+        type=int,
+        help="Stop gracefully after this many seconds (diagnostic runs)",
+    )
     parser.add_argument(
         "--bind",
         default="127.0.0.1",
@@ -34,6 +41,8 @@ def main(argv=None, on_ready=None):
     args = parser.parse_args(argv)
     if not 0 <= args.port <= 65535:
         parser.error("Port must be between 0 and 65535")
+    if args.shutdown_after is not None and not 1 <= args.shutdown_after <= 86400:
+        parser.error("Shutdown delay must be between 1 and 86400 seconds")
     if args.gui or (argv is None and len(sys.argv) == 1):
         from apps.desktop.panel import run_panel
 
@@ -99,6 +108,16 @@ def main(argv=None, on_ready=None):
     )
     if on_ready:
         on_ready(app, server, base)
+    if args.shutdown_after:
+
+        def stop_when_ready():
+            while not server.started and not server.should_exit:
+                time.sleep(0.1)
+            if not server.should_exit:
+                time.sleep(args.shutdown_after)
+                server.should_exit = True
+
+        threading.Thread(target=stop_when_ready, daemon=True).start()
     if not args.no_browser:
 
         def open_when_ready():
@@ -122,7 +141,7 @@ def main(argv=None, on_ready=None):
                 "FlowDrop._flowdrop._tcp.local.",
                 addresses=[socket.inet_aton(args.bind)],
                 port=sock.getsockname()[1],
-                properties={"path": "/", "version": "0.1.0"},
+                properties={"path": "/", "version": VERSION},
                 server=f"flowdrop-{secrets.token_hex(4)}.local.",
             )
             zeroconf.register_service(service, allow_name_change=True)

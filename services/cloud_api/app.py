@@ -5,12 +5,12 @@ import hashlib
 import logging
 import os
 import secrets
-import threading
 import time
 from contextlib import asynccontextmanager
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 
+from boto3.exceptions import S3UploadFailedError
 from botocore.exceptions import BotoCoreError, ClientError
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, StreamingResponse
@@ -29,7 +29,8 @@ from sqlalchemy import (
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, sessionmaker
 
-from services.request_security import RateLimit, client_ip
+from services.request_security import client_ip, rate_limiter
+from services.version import VERSION
 
 
 class Base(DeclarativeBase):
@@ -111,8 +112,17 @@ class LocalStore:
 class S3Store:
     def __init__(self):
         import boto3
+        from botocore.config import Config
 
-        self.client = boto3.client("s3", endpoint_url=os.getenv("S3_ENDPOINT"))
+        self.client = boto3.client(
+            "s3",
+            endpoint_url=os.getenv("S3_ENDPOINT"),
+            config=Config(
+                connect_timeout=5,
+                read_timeout=30,
+                retries={"mode": "standard", "max_attempts": 3},
+            ),
+        )
         self.bucket = os.environ["S3_BUCKET"]
 
     def put(self, key, path):
@@ -166,13 +176,14 @@ def create_app(database: str | None = None, store=None, quota_bytes: int | None 
             raise RuntimeError(
                 "Apply database migrations before starting: python -m alembic upgrade head"
             )
-    elif not {"shares", "chunks", "download_leases"}.issubset(set(inspect(engine).get_table_names())):
+    elif not {"shares", "chunks", "download_leases"}.issubset(
+        set(inspect(engine).get_table_names())
+    ):
         raise RuntimeError(
             "Apply cloud database migrations before starting: python -m alembic upgrade head"
         )
     factory = sessionmaker(engine, expire_on_commit=False)
     store = store or S3Store()
-    attempts = {}
     quota_bytes = (
         quota_bytes
         if quota_bytes is not None
@@ -180,9 +191,14 @@ def create_app(database: str | None = None, store=None, quota_bytes: int | None 
     )
     if quota_bytes < 16:
         raise ValueError("Cloud quota must allow at least one authentication tag")
-    rate_lock = threading.Lock()
     locks = {}
-    request_limit = RateLimit(300)
+    concurrency = int(os.getenv("FLOWDROP_CLOUD_UPLOAD_CONCURRENCY", "4"))
+    if not 1 <= concurrency <= 16:
+        raise ValueError("Cloud upload concurrency must be between 1 and 16")
+    upload_gate = asyncio.Semaphore(concurrency)
+    request_limit = rate_limiter("flowdrop:cloud:requests:", 300)
+    chunk_limit = rate_limiter("flowdrop:cloud:chunks:", 1200)
+    share_limit = rate_limiter("flowdrop:cloud:create:", 10, 3600)
 
     def key(sid, index):
         return f"{sid}-{index}"
@@ -190,9 +206,15 @@ def create_app(database: str | None = None, store=None, quota_bytes: int | None 
     def digest(token):
         return hashlib.sha256(token.encode()).hexdigest()
 
-    def authorize(db, sid, request, upload=False, expired=False):
+    def authorize(
+        db, sid, request, upload=False, expired=False, lock=False, read_only=False
+    ):
         statement = select(Share).where(Share.id == sid)
-        share = db.scalar(statement.with_for_update() if upload else statement)
+        share = db.scalar(
+            statement.with_for_update()
+            if (upload or lock) and not read_only
+            else statement
+        )
         supplied = request.headers.get("authorization", "").removeprefix("Bearer ")
         expected = (
             share.upload_hash
@@ -252,14 +274,27 @@ def create_app(database: str | None = None, store=None, quota_bytes: int | None 
         except asyncio.CancelledError:
             pass
 
-    app = FastAPI(title="FlowDrop encrypted Send Later", lifespan=lifespan)
+    app = FastAPI(
+        title="FlowDrop encrypted Send Later", version=VERSION, lifespan=lifespan
+    )
 
     @app.middleware("http")
     async def protect(request, call_next):
         from starlette.responses import JSONResponse
 
         origin = request.headers.get("origin")
-        if not request_limit.allow(client_ip(request)):
+        from redis.exceptions import RedisError
+
+        try:
+            limiter = (
+                chunk_limit
+                if "/chunks/" in request.url.path and request.method in ("GET", "PUT")
+                else request_limit
+            )
+            allowed = await asyncio.to_thread(limiter.allow, client_ip(request))
+        except RedisError:
+            return JSONResponse({"detail": "Abuse-control service unavailable"}, 503)
+        if not allowed:
             return JSONResponse(
                 {"detail": "Request rate exceeded; retry later"},
                 429,
@@ -272,31 +307,38 @@ def create_app(database: str | None = None, store=None, quota_bytes: int | None 
                 return JSONResponse({"detail": "Content-Length required"}, 411)
             if int(length) > maximum:
                 return JSONResponse({"detail": "Request too large"}, 413)
-        if origin and origin != str(request.base_url).rstrip("/"):
+        expected_origin = os.getenv("FLOWDROP_PUBLIC_ORIGIN") or str(
+            request.base_url
+        ).rstrip("/")
+        if origin and origin != expected_origin:
             return JSONResponse({"detail": "Origin denied"}, 403)
-        response = await call_next(request)
+        try:
+            response = await call_next(request)
+        except SQLAlchemyError:
+            return JSONResponse(
+                {"detail": "Metadata service unavailable; retry later"}, 503
+            )
         response.headers["Cache-Control"] = "no-store"
         response.headers["Referrer-Policy"] = "no-referrer"
         return response
 
     @app.get("/health")
     def health():
+        with factory() as db:
+            db.execute(text("SELECT 1"))
         return {"status": "ok", "service": "encrypted-storage"}
 
     @app.post("/shares")
     def create(body: Create, request: Request):
         ip = client_ip(request)
         now = time.time()
-        with rate_lock:
-            entries = [t for t in attempts.get(ip, []) if t > now - 3600]
-            if len(entries) >= 10:
+        from redis.exceptions import RedisError
+
+        try:
+            if not share_limit.allow(ip):
                 raise HTTPException(429, "Hourly share limit reached")
-            for identity in list(attempts):
-                if attempts[identity][-1] < now - 3600:
-                    del attempts[identity]
-            if ip not in attempts and len(attempts) >= 10000:
-                raise HTTPException(429, "Rate-limit capacity reached")
-            attempts[ip] = entries + [now]
+        except RedisError as exc:
+            raise HTTPException(503, "Abuse-control service unavailable") from exc
         with factory() as db:
             from sqlalchemy import func
 
@@ -306,6 +348,8 @@ def create_app(database: str | None = None, store=None, quota_bytes: int | None 
                 db.execute(text("BEGIN IMMEDIATE"))
 
             reserved = db.scalar(select(func.sum(Share.bytes_limit))) or 0
+            if (db.scalar(select(func.count(Share.id))) or 0) >= 10000:
+                raise HTTPException(507, "Share capacity reached; retry after cleanup")
             if reserved + body.bytes_limit > quota_bytes:
                 raise HTTPException(507, "Storage quota exceeded")
             sid = secrets.token_hex(24)
@@ -335,62 +379,98 @@ def create_app(database: str | None = None, store=None, quota_bytes: int | None 
 
     @app.put("/shares/{sid}/chunks/{index}")
     async def upload(sid: str, index: int, request: Request):
-        # Authenticate before allocating a lock for an attacker-controlled identifier.
-        with factory() as db:
-            authorize(db, sid, request, True)
-        async with locks.setdefault(sid, asyncio.Lock()):
+        def check_upload():
             with factory() as db:
-                share = authorize(db, sid, request, True)
+                share = authorize(db, sid, request, True, read_only=True)
                 if share.ready or index < 0 or index >= share.chunks:
                     raise HTTPException(409, "Upload closed or invalid index")
-                size = 0
-                hasher = hashlib.sha256()
-                with NamedTemporaryFile(delete=False) as temporary:
-                    path = Path(temporary.name)
-                    try:
-                        async with asyncio.timeout(60):
-                            async for data in request.stream():
-                                size += len(data)
-                                if size > 1048576 + 16:
-                                    raise HTTPException(
-                                        413, "Ciphertext chunk too large"
-                                    )
-                                temporary.write(data)
-                                hasher.update(data)
-                    except TimeoutError as exc:
-                        temporary.close()
-                        path.unlink(missing_ok=True)
-                        raise HTTPException(408, "Chunk upload timed out; retry") from exc
-                    except BaseException:
-                        temporary.close()
-                        path.unlink(missing_ok=True)
-                        raise
+
+        # Do not hold a database lock while awaiting a request body or worker.
+        await asyncio.to_thread(check_upload)
+        async with locks.setdefault(sid, asyncio.Lock()), upload_gate:
+            await asyncio.to_thread(check_upload)
+            size = 0
+            hasher = hashlib.sha256()
+            with NamedTemporaryFile(delete=False) as temporary:
+                path = Path(temporary.name)
                 try:
-                    if size < 16:
-                        raise HTTPException(400, "Missing authentication tag")
-                    checksum = hasher.hexdigest()
-                    old = db.get(Chunk, (sid, index))
-                    if old and old.digest != checksum:
-                        raise HTTPException(409, "Conflicting duplicate ciphertext")
-                    total = sum(
-                        c.size
-                        for c in db.scalars(select(Chunk).where(Chunk.share_id == sid))
-                    )
-                    if total + size - (old.size if old else 0) > share.bytes_limit:
-                        raise HTTPException(413, "Upload quota exceeded")
-                    if not old:
-                        await asyncio.to_thread(store.put, key(sid, index), path)
-                        db.add(
-                            Chunk(share_id=sid, index=index, size=size, digest=checksum)
+                    async with asyncio.timeout(60):
+                        async for data in request.stream():
+                            size += len(data)
+                            if size > 1048576 + 16:
+                                raise HTTPException(413, "Ciphertext chunk too large")
+                            temporary.write(data)
+                            hasher.update(data)
+                except BaseException as exc:
+                    temporary.close()
+                    path.unlink(missing_ok=True)
+                    if isinstance(exc, TimeoutError):
+                        raise HTTPException(
+                            408, "Chunk upload timed out; retry"
+                        ) from exc
+                    raise
+            if size < 16:
+                path.unlink(missing_ok=True)
+                raise HTTPException(400, "Missing authentication tag")
+            checksum = hasher.hexdigest()
+
+            def commit_chunk():
+                try:
+                    # The worker owns both the row lock and S3 operation. Another
+                    # instance can wait for this transaction without blocking ASGI.
+                    with factory() as db:
+                        share = authorize(db, sid, request, True)
+                        if share.ready or index < 0 or index >= share.chunks:
+                            raise HTTPException(409, "Upload closed or invalid index")
+                        old = db.get(Chunk, (sid, index))
+                        if old and old.digest != checksum:
+                            raise HTTPException(409, "Conflicting duplicate ciphertext")
+                        total = sum(
+                            c.size
+                            for c in db.scalars(
+                                select(Chunk).where(Chunk.share_id == sid)
+                            )
                         )
-                        db.commit()
-                    return {"index": index, "sha256": checksum}
-                except (OSError, BotoCoreError, ClientError) as exc:
+                        if total + size - (old.size if old else 0) > share.bytes_limit:
+                            raise HTTPException(413, "Upload quota exceeded")
+                        if not old:
+                            store.put(key(sid, index), path)
+                            db.add(
+                                Chunk(
+                                    share_id=sid,
+                                    index=index,
+                                    size=size,
+                                    digest=checksum,
+                                )
+                            )
+                            db.commit()
+                        return {"index": index, "sha256": checksum}
+                except (
+                    OSError,
+                    BotoCoreError,
+                    ClientError,
+                    S3UploadFailedError,
+                ) as exc:
                     raise HTTPException(
                         503, "Storage unavailable; retry this chunk"
                     ) from exc
                 finally:
                     path.unlink(missing_ok=True)
+
+            # Let an in-flight SDK operation finish and clean its own temporary
+            # file even if the HTTP request is cancelled during shutdown.
+            task = asyncio.create_task(asyncio.to_thread(commit_chunk))
+            task.add_done_callback(
+                lambda done: done.exception() if not done.cancelled() else None
+            )
+            try:
+                return await asyncio.shield(task)
+            except asyncio.CancelledError:
+                # Retain the admission slot until the bounded SDK operation ends.
+                try:
+                    await asyncio.shield(task)
+                finally:
+                    raise
 
     @app.post("/shares/{sid}/finish")
     def finish(sid: str, request: Request):
@@ -448,11 +528,7 @@ def create_app(database: str | None = None, store=None, quota_bytes: int | None 
         with factory() as db:
             if engine.dialect.name == "sqlite":
                 db.execute(text("BEGIN IMMEDIATE"))
-            share = authorize(db, sid, request)
-            if engine.dialect.name == "postgresql":
-                share = db.scalar(
-                    select(Share).where(Share.id == sid).with_for_update()
-                )
+            share = authorize(db, sid, request, lock=True)
             if not share.ready:
                 raise HTTPException(409, "Upload incomplete")
             if (

@@ -1,5 +1,7 @@
 # Test report
 
+Current v0.3.0 evidence is in TEST_REPORT.md: 21 baseline + 6 configured infrastructure Pytest, 9 Vitest, 13 Playwright, plus two repeated cloud scenarios against real PostgreSQL/Garage/Redis. Older counts below are historical. See INFRASTRUCTURE_VERIFICATION.md for disposable service setup and exact provider scope.
+
 This page preserves v0.1.0 evidence below. Current v0.2.0 results are in [TEST_REPORT.md](TEST_REPORT.md): 21 Pytest, 7 Vitest and 12 Playwright passed, plus lint/build, scoped dependency audits, SQLite migration 0002 and Windows executable smoke. Disk-full assembly recovery is now automated-tested; physical filesystem races remain unverified.
 
 Tests run on Windows on 2026-10-12. Commands and latest checkpoint results:
