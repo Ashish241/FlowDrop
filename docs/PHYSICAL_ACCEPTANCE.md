@@ -1,3 +1,9 @@
+# 0.4.0 acceptance
+
+Follow [INTERNET_ACCEPTANCE.md](INTERNET_ACCEPTANCE.md) for broadband PC ↔ phone on mobile data, with Wi-Fi disabled. The website must load independently when the personal desktop host is off. No new physical phone, camera scan, clean Windows or cross-network Internet test was performed. Existing user-reported LAN success belongs to the earlier build. See SPLIT_VERIFICATION.md for local native and browser evidence.
+
+---
+
 # 0.3.2 physical acceptance boundary
 
 The user reports working PC/phone Offline LAN with the previous 0.3.1 build. This is user-reported baseline evidence only. The rebuilt 0.3.2 native panel, socket bindings, QR generation and authenticated LAN payload checks used clients on the same Windows PC; no new physical phone/camera test was performed.

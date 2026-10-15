@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.4.0 — SPLIT-20261015.1 — 2026-10-15
+
+- Separate offline desktop, dedicated online website and minimal public signaling targets while retaining existing transfer code and combined regressions.
+- Remove online/cloud resources and navigation from desktop packaging; add responsive online home/sharing/progress/diagnostics/privacy views and supported folder-file selection.
+- Prepare Pages/Render free hosting, exact HTTPS/WSS origin/CSP controls, visible cold-start retries and temporary single-worker room-state policy.
+- Verify bidirectional/multiple files, text, cancellation, reconnect and corrupted-stream failure; preserve Windows checkpoints and add independent product/CI checks. Public launch and real Internet acceptance remain blocked by authorization/infrastructure.
+
 ## 0.3.2 — ONLINE-20261015.1 — 2026-10-15
 
 - Fix packaged Online Sharing targeting an absent local `/signal`: explicit host-authorized HTTPS endpoint settings, bounded health checks, hosted handoff and honest unavailable/errors.

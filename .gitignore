@@ -13,3 +13,5 @@ playwright-report/
 
 # Operator-provided TURN TLS material; never commit private keys.
 infrastructure/coturn/certs/
+dist-desktop/
+dist-online/

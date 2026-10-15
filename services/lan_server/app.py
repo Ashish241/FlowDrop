@@ -44,6 +44,7 @@ def create_app(
     allowed_hosts: list[str] | None = None,
     lan_enabled: bool | None = None,
     online_service=None,
+    frontend: Path | None = None,
 ):
     root = storage or Path(os.getenv("FLOWDROP_STORAGE", ".flowdrop"))
     if root.is_symlink():
@@ -656,7 +657,7 @@ def create_app(
             if device and sockets.get(device) is ws:
                 sockets.pop(device, None)
 
-    dist = (
+    dist = frontend or (
         Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parents[2]))
         / "apps/web/dist"
     )

@@ -1,0 +1,135 @@
+{
+  "version": "0.4.0",
+  "build": "SPLIT-20261015.1",
+  "date": "2026-10-15",
+  "starting_commit": "13ec1e7",
+  "status": "IMPLEMENTED / LOCALLY TESTED; NOT DEPLOYED; NOT INTERNET VERIFIED",
+  "artifacts": [
+    {
+      "path": "C:\\My Projects\\flowdrop\\dist\\FlowDrop-windows.zip",
+      "bytes": 25303760,
+      "sha256": "998522DE5F60AB484096026F53BC99EBFBB516F094C8B241C2A6C337C5E5D0DC"
+    },
+    {
+      "path": "C:\\My Projects\\flowdrop\\dist\\FlowDrop-online-static.zip",
+      "bytes": 103814,
+      "sha256": "87D70E209680D3EB5945D3ED6A69BD01B44575ECBABD2E6B024893A6433B80CD"
+    },
+    {
+      "path": "C:\\My Projects\\flowdrop\\dist\\FlowDrop-signaling-source.zip",
+      "bytes": 14105,
+      "sha256": "B39F448D7E1B1E1A78609D6D1FCE39C44C24C07414A36CEDFDD70BC713813A73"
+    }
+  ],
+  "desktop_manifest": {
+    "version": "0.4.0",
+    "build": "SPLIT-20261015.1",
+    "executable": "FlowDrop.exe",
+    "executable_sha256": "F66D615C9001F9C3079091E01D8A875230A8367290BA194D6DFEEA6BAF691E45",
+    "frontend_sha256": "BC37B87D064C29008CA3685B2DFF605525939083337051FBE4E881529697DEA4"
+  },
+  "extracted_executable": "C:\\My Projects\\flowdrop\\dist\\FlowDrop-desktop-0.4.0\\FlowDrop.exe",
+  "checkpoint": {
+    "path": "dist/checkpoints/FlowDrop-0.3.2-online-working.zip",
+    "sha256": "A1D23B7BB38785F7302280AA00D1848C8439FCE73A76EFC2D681381BFD8E685F",
+    "older_0.3.1_and_extractions_preserved": true
+  },
+  "tests": {
+    "pytest_passed": 74,
+    "pytest_provider_skipped": 6,
+    "provider_integrations_rerun": false,
+    "vitest_passed": 9,
+    "combined_browser_passed": 20,
+    "combined_conditional_relay_skipped": 1,
+    "online_product_browser_passed": 3,
+    "desktop_product_browser_passed": 5,
+    "note": "Desktop product suite repeats four previous LAN scenarios. Combined suite has actual two-process 16MiB+17 byte transfer. No Internet/physical inference.",
+    "corrupted_stream": "Hash failure and browser download failure confirmed, no verified success",
+    "ruff": "passed",
+    "eslint": "passed",
+    "strict_typescript_all_builds": "passed",
+    "bundle_boundaries": "passed",
+    "windows_package_smoke": "passed",
+    "standalone_signaling_artifact_smoke": "passed",
+    "remote_ci": "not run",
+    "docker_runtime": "not run"
+  },
+  "native_same_pc": {
+    "build": "SPLIT-20261015.1",
+    "adapter": "Wi-Fi",
+    "lan": "http://192.168.1.7:8000",
+    "host": "http://127.0.0.1:8000",
+    "native_qr": true,
+    "authenticated_transfer": "Passed: 256 KiB hash-matched LAN download and authenticated WebSocket echo; clients on same PC",
+    "diagnostics": {
+      "Host Dashboard URL": "http://127.0.0.1:8000",
+      "Phone URL": "http://192.168.1.7:8000",
+      "Phone connectivity": "Not verified \u2014 local checks cannot establish phone reachability",
+      "Local HTTP / frontend / authorization": "Passed",
+      "LAN IP HTTP (same PC)": "Passed; physical phone not verified",
+      "Socket check": "Passed",
+      "WebSocket authorization": "Passed: denied (1008)",
+      "URL check": "Passed",
+      "Current network state": "Connected",
+      "Selected adapter": "Wi-Fi",
+      "LAN IPv4 / subnet": "192.168.1.7 / 192.168.1.0/24",
+      "Gateway": "192.168.1.1",
+      "Firewall profile": "Public",
+      "Adapter source": "Windows networking APIs",
+      "Firewall policy": "Domain firewall enabled: True; default inbound: Block\nPrivate firewall enabled: True; default inbound: Block\nPublic firewall enabled: True; default inbound: Block\nNo FlowDrop managed rule for this executable/IP/port. Inbound may be blocked; other rules and policy require review."
+    },
+    "network_change": "mocked DHCP notification detected; rebind requested",
+    "restart": "passed",
+    "shutdown": "passed"
+  },
+  "tcp_bindings": [
+    {
+      "mode": "lan-auto-public",
+      "result": "correctly requires explicit trusted-network selection; no silent exposure"
+    },
+    {
+      "mode": "loopback",
+      "listening_address": "127.0.0.1",
+      "port": 4932,
+      "connection_url": "http://127.0.0.1:4932",
+      "http_frontend_ws_auth": "passed"
+    },
+    {
+      "mode": "lan-selected",
+      "listening_address": "192.168.1.7",
+      "port": 4948,
+      "connection_url": "http://192.168.1.7:4948",
+      "http_frontend_ws_auth": "passed"
+    },
+    {
+      "mode": "lan-all",
+      "listening_address": "0.0.0.0",
+      "port": 4956,
+      "connection_url": "http://192.168.1.7:4956",
+      "http_frontend_ws_auth": "passed"
+    }
+  ],
+  "website_api_dependency": "No local desktop /api calls, tested",
+  "hosting": {
+    "frontend": "Prepared Cloudflare Pages static target; not deployed",
+    "signaling": "Prepared Render free one-worker memory target; not deployed",
+    "public_urls": null,
+    "permission": "Explicit deployment and any remote push approval still required",
+    "terms_verified_on": "2026-10-15",
+    "sources": [
+      "https://developers.cloudflare.com/pages/platform/limits/",
+      "https://render.com/docs/free",
+      "https://render.com/docs/websocket",
+      "https://render.com/docs/blueprint-spec",
+      "https://developers.cloudflare.com/realtime/turn/faq/"
+    ]
+  },
+  "turn": {
+    "internet_relay_verified": false,
+    "previous_wsl_udp_failure": "Operation not permitted in forwarding path; unresolved; no firewall bypass",
+    "direct_first_mvp": "STUN configured in deployment blueprint, no TURN entitlement/secret embedded"
+  },
+  "physical_phone_or_clean_windows_test": false,
+  "internet_verified": false,
+  "no_push_public_deploy_paid_resources_or_publish": true
+}

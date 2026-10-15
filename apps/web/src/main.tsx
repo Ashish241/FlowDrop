@@ -1,3 +1,4 @@
+declare const __DESKTOP__: boolean;
 import { useEffect, useState, useRef } from "react";
 import { createRoot } from "react-dom/client";
 import { hashFile } from "./hash";
@@ -161,8 +162,8 @@ function App() {
       location.hash = "";
     }
     if (fragment.has("code")) setCode(fragment.get("code")!);
-    if (fragment.has("share")) setPage("Send Later");
-    if (fragment.has("online") || fragment.has("online-room"))
+    if (!__DESKTOP__ && fragment.has("share")) setPage("Send Later");
+    if (!__DESKTOP__ && (fragment.has("online") || fragment.has("online-room")))
       setPage("Online Share");
   }, []);
   useEffect(() => {
@@ -347,7 +348,9 @@ function App() {
     "Transfer Dashboard",
     "Settings",
     "Optical Text",
-  ];
+  ].filter(
+    (item) => !__DESKTOP__ || !["Online Share", "Send Later"].includes(item),
+  );
   return (
     <div className="shell">
       <aside>
@@ -410,18 +413,28 @@ function App() {
             {error}
           </div>
         )}
-        {page === "Home" && <ModeCards onSelect={setPage} />}
-        {page === "Transfer Dashboard" && <TransferHistory onMode={setPage} />}
-        <div hidden={page !== "Send Later"}>
-          {(page === "Send Later" || visited.includes("Send Later")) && (
-            <LaterPanel />
-          )}
-        </div>
-        <div hidden={page !== "Online Share"}>
-          {(page === "Online Share" || visited.includes("Online Share")) && (
-            <OnlinePanel desktopToken={me?.id === "host" ? token : undefined} />
-          )}
-        </div>
+        {page === "Home" && (
+          <ModeCards onSelect={setPage} offlineOnly={__DESKTOP__} />
+        )}
+        {!__DESKTOP__ && page === "Transfer Dashboard" && (
+          <TransferHistory onMode={setPage} />
+        )}
+        {!__DESKTOP__ && (
+          <div hidden={page !== "Send Later"}>
+            {(page === "Send Later" || visited.includes("Send Later")) && (
+              <LaterPanel />
+            )}
+          </div>
+        )}
+        {!__DESKTOP__ && (
+          <div hidden={page !== "Online Share"}>
+            {(page === "Online Share" || visited.includes("Online Share")) && (
+              <OnlinePanel
+                desktopToken={me?.id === "host" ? token : undefined}
+              />
+            )}
+          </div>
+        )}
         {page === "Send Later" || page === "Online Share" ? null : page ===
           "Optical Text" ? (
           <OpticalPanel />
@@ -823,7 +836,7 @@ function App() {
         )}
         <footer>
           <Shield size={14} /> Your files belong to you.
-          <span>FLOWDROP / 0.3.2 DEVELOPMENT</span>
+          <span>FLOWDROP / 0.4.0 DEVELOPMENT</span>
         </footer>
       </main>
     </div>

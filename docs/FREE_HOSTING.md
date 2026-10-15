@@ -1,0 +1,31 @@
+# Prepared free hosting — no deployment performed
+
+The public website and signaling are independent of the user's PC. Deploy only after explicit owner authorization and hosting-account access. No public URLs are assigned or invented here. No push, public deployment, paid infrastructure or release publication was performed.
+
+## Current provider evidence
+
+Checked 2026-10-15 against primary provider documentation:
+
+- [Cloudflare Pages limits](https://developers.cloudflare.com/pages/platform/limits/): the Free plan documents 500 builds per month, 20,000 files per site and a 25 MiB single-asset limit. This static frontend fits those asset limits; no file payload is uploaded to Pages. Plan/usage eligibility must still be checked in the account.
+- [Render Free](https://render.com/docs/free): Free web services sleep after 15 idle minutes, wake on HTTP/WebSocket activity in about a minute, share 750 instance hours per workspace/month, and can restart. In-memory rooms disappear on process restart. Free hosting is presented as an MVP/preview, not production availability.
+- [Render WebSockets](https://render.com/docs/websocket): public WebSockets are supported; reconnect is required around restarts. Use exactly one worker for memory state.
+- [Cloudflare STUN](https://developers.cloudflare.com/realtime/turn/faq/) is documented as free at `stun.cloudflare.com`; [credential examples](https://developers.cloudflare.com/realtime/turn/generate-credentials/) use `stun:stun.cloudflare.com:3478`. This is STUN, not a free authenticated TURN entitlement or guaranteed connection.
+
+Render outbound bandwidth and build minutes also have quotas. Depending on account/payment settings, overages can be billed or service/builds suspended. Do not attach a payment method, enable chargeable features, upgrade plans or accept billable overages for this task. Review current account quotas, spend controls and plan terms before authorizing deployment. TURN has separate pricing and credentials; it is deliberately absent from the free MVP configuration.
+
+## Exact deployment sequence after authorization
+
+1. Review the prepared local commit. Authorize any required remote push separately; no remote changes have been made. In an authorized Render account, create the free Python web service from this repository or review `render.yaml`. Keep automatic deployment off. Use a currently supported Python 3.13/3.14 runtime; direct dependency versions are in `infrastructure/deployment/signaling-requirements.txt`.
+2. Build: `pip install -r infrastructure/deployment/signaling-requirements.txt`. Start: `uvicorn services.signaling.public:create_app --factory --host 0.0.0.0 --port $PORT --workers 1 --no-access-log --no-proxy-headers --ws-max-size 65536 --limit-concurrency 256`. The platform supplies `PORT`. Health path: `/signal/health`.
+3. Set `FLOWDROP_ORIGINS` to the exact intended HTTPS website origin, without a trailing slash; after Pages assigns its URL, update this value to the actual URL. Do not use `*` or a guessed public domain. Leave `REDIS_URL`, database/S3 and TURN credentials unset for memory/direct-first MVP. Set `FLOWDROP_STUN_URLS=["stun:stun.cloudflare.com:3478"]` and `FLOWDROP_ICE_POLICY=all`. The blueprint requests the exact website origin from the operator and will not default to an open origin.
+4. Record the actual Render HTTPS service URL. Configure the Pages static project with root directory `apps/web`, build command `npm ci && npm run build:online`, output `dist-online`, and public build variable `VITE_SIGNAL_URL` equal to the actual Render URL plus `/signal` (no trailing slash). This yields HTTPS RPC and WSS sockets, with that exact destination in generated `_headers`. No secret belongs in `VITE_*`. Do not publish the unconfigured same-origin artifact to Pages expecting it to find a remote backend automatically.
+5. Alternatively, after explicit deployment authorization upload the built `dist-online` folder using Pages Direct Upload. The supplied static ZIP defaults to same-origin `/signal` and is suitable for the existing HTTPS proxy deployment or local testing; rebuild with the real endpoint for separate Render hosting. Static `_headers` must be included in Pages deployment. Other hosts must apply equivalent headers themselves.
+6. Record the assigned Pages HTTPS URL and update Render's exact `FLOWDROP_ORIGINS`. Authorize only intended production origins; add a particular preview origin only when intentionally testing it, never a wildcard. Verify unauthorized origins fail. Render public signaling exposes no desktop/cloud API.
+7. Verify deployed `/signal/health`, website CSP, cross-origin preflight, WSS upgrade, room approval, expiry/rate refusal and service-restart recovery. Configure trusted proxy addresses only with verified provider policy: the default ignores forwarded IPs and may aggregate rate limits at a shared proxy address. Do not trust arbitrary `X-Forwarded-For` or use unrestricted proxy trust to increase capacity.
+8. Perform [actual Internet acceptance](INTERNET_ACCEPTANCE.md) before describing Online Sharing as Internet verified. Keep the user's desktop off during website availability testing, then use an independent browser/device if the sender PC is required for the transfer itself.
+
+No login is needed for sharing; hosting accounts are operator-only. File payloads do not cross Render signaling. Standard provider request metadata/logging policies still apply. For future Redis/multi-instance or authenticated TURN deployment, retain the existing infrastructure configuration, review costs/credentials explicitly and run fresh acceptance; do not assume free services supply those resources.
+
+## Authorization still needed
+
+The prepared configuration is reviewable locally. To proceed, the owner must explicitly authorize public deployment to the chosen free hosting projects, provide access through an authorized account/session, approve any separately required Git push, and confirm no chargeable resources/overages. Until then public website URL, signaling URL and real Internet result remain **NOT DEPLOYED / NOT VERIFIED**.

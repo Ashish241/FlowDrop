@@ -1,0 +1,63 @@
+import { defineConfig, loadEnv } from "vite";
+import { rmSync } from "node:fs";
+import { resolve } from "node:path";
+
+export default defineConfig(({ mode }) => {
+  const online = mode === "online";
+  const env = loadEnv(mode, process.cwd(), "VITE_");
+  let origin = "";
+  if (online && env.VITE_SIGNAL_URL) {
+    const url = new URL(env.VITE_SIGNAL_URL);
+    if (
+      url.protocol !== "https:" ||
+      url.username ||
+      url.password ||
+      url.search ||
+      url.hash
+    )
+      throw new Error(
+        "Online build requires an absolute HTTPS VITE_SIGNAL_URL without credentials/query/fragment",
+      );
+    origin = url.origin;
+  }
+  return {
+    define: { __DESKTOP__: JSON.stringify(mode === "desktop") },
+    build: {
+      outDir: online
+        ? "dist-online"
+        : mode === "desktop"
+          ? "dist-desktop"
+          : "dist",
+    },
+    plugins: [
+      {
+        name: "flowdrop-product",
+        transformIndexHtml: {
+          order: "pre",
+          handler(html) {
+            return online
+              ? html
+                  .replace("/src/main.tsx", "/src/online-main.tsx")
+                  .replace("FlowDrop</title>", "FlowDrop Online</title>")
+              : html;
+          },
+        },
+        closeBundle() {
+          if (mode === "desktop")
+            rmSync(resolve("dist-desktop/stream-sw.js"), { force: true });
+        },
+        generateBundle() {
+          if (!online) return;
+          const connect = origin
+            ? ` ${origin} ${origin.replace(/^https:/, "wss:")}`
+            : "";
+          this.emitFile({
+            type: "asset",
+            fileName: "_headers",
+            source: `/*\n  Content-Security-Policy: default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'${connect}; worker-src 'self'; object-src 'none'; frame-ancestors 'none'; base-uri 'self'\n  Referrer-Policy: no-referrer\n  X-Content-Type-Options: nosniff\n  X-Frame-Options: DENY\n`,
+          });
+        },
+      },
+    ],
+  };
+});

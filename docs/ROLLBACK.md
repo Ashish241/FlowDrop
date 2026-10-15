@@ -1,3 +1,9 @@
+# 0.4.0 rollback
+
+Previous source: `13ec1e7` (0.3.2). Preserved ZIP: `dist/checkpoints/FlowDrop-0.3.2-online-working.zip`, SHA-256 `A1D23B7BB38785F7302280AA00D1848C8439FCE73A76EFC2D681381BFD8E685F`. The 0.3.1 ZIP and existing `dist/FlowDrop-windows`/`dist/FlowDrop-online-0.3.2` extractions remain intact. Stop the host, back up user data and extract the chosen version into a fresh folder before updating shortcuts. No data/schema migration was introduced. New desktop omits online/cloud navigation; legacy combined source remains available.
+
+---
+
 # 0.3.2 online checkpoint rollback
 
 Previous working source: `febcc95` (0.3.1 / LAN-20261015.2). Preserved working ZIP: `dist/checkpoints/FlowDrop-0.3.1-LAN-working.zip`, SHA-256 `46AFB58F60D56ADC9BAE58DD7B77757D5290483A7A59F53CC499B1E5EC5BA4D5`. The existing `dist/FlowDrop-windows` extraction is retained; the new 0.3.2 extraction is `dist/FlowDrop-online-0.3.2`.

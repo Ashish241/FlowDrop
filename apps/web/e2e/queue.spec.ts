@@ -3,12 +3,13 @@ import { readFile } from "node:fs/promises";
 
 test("LAN queue automatically recovers stored files after refresh and remains session scoped", async ({
   browser,
+  baseURL,
 }) => {
   const sender = await browser.newContext(),
     receiver = await browser.newContext();
   const a = await sender.newPage(),
     b = await receiver.newPage();
-  const api = "http://127.0.0.1:8765/api";
+  const api = baseURL + "/api";
   const host = { Authorization: "Bearer e2e-host-only" };
   const session = await (
     await sender.request.get(api + "/session", { headers: host })

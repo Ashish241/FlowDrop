@@ -4,9 +4,11 @@
 
 FlowDrop is under active implementation. Working browser-tested flows include approved LAN file/text sharing, resumable chunk uploads, native streamed downloads, WebRTC file/text sharing, and browser-encrypted Send Later through the development storage adapter. Optical text sharing is experimental. No account is required.
 
-Current engineering checkpoint: **0.3.2 / ONLINE-20261015.1**. Redis-backed signaling/rate controls, persisted file queues, fair LAN scheduling and dashboard analytics are implemented. Real PostgreSQL, S3-compatible storage and coturn allocation tests passed locally. See [verification record](docs/TEST_REPORT.md), [infrastructure evidence](docs/INFRASTRUCTURE_VERIFICATION.md), [known limitations](docs/KNOWN_LIMITATIONS.md), [release gates](docs/RELEASE_READINESS.md) and [rollback](docs/ROLLBACK.md). Cloud databases require Alembic migration 0002. Source files can be retained in browser IndexedDB for recovery; secret capabilities remain tab-scoped. **Not a verified public release candidate or production release.**
+Current engineering checkpoint: **0.4.0 / SPLIT-20261015.1**. Desktop Offline LAN and Online Web now have independent build targets; see [product boundaries](docs/PRODUCT_SEPARATION.md) and [current verification](docs/SPLIT_VERIFICATION.md). Redis-backed signaling/rate controls, persisted file queues, fair LAN scheduling and dashboard analytics are implemented. Real PostgreSQL, S3-compatible storage and coturn allocation tests passed locally. See [verification record](docs/TEST_REPORT.md), [infrastructure evidence](docs/INFRASTRUCTURE_VERIFICATION.md), [known limitations](docs/KNOWN_LIMITATIONS.md), [release gates](docs/RELEASE_READINESS.md) and [rollback](docs/ROLLBACK.md). Cloud databases require Alembic migration 0002. Source files can be retained in browser IndexedDB for recovery; secret capabilities remain tab-scoped. **Not a verified public release candidate or production release.**
 
-Online Sharing now requires an explicitly configured, healthy public HTTPS website/signaling service; the packaged LAN host does not contain an Internet signaling server. Configure it in the authenticated Online tab, then open the hosted site. Without configuration it clearly reports unavailable. See the [online setup guide](docs/ONLINE_SHARING_GUIDE.md) and [verification/blockers](docs/ONLINE_SHARING_VERIFICATION.md). No public service was deployed; real Internet and successful browser TURN relay remain unverified. Offline LAN works independently.
+**Desktop:** offline LAN only; build with `npm run build:desktop`, then use the existing launcher. Online/Send Later navigation and runtime service dependencies are absent from the desktop distribution. The previous working ZIP is preserved.
+
+**Online Web:** build with `npm run build:online`. A dedicated HTTPS website uses an independently hosted signaling service; the user's PC is not its server. [Free hosting configuration](docs/FREE_HOSTING.md) is prepared, but public deployment requires owner authorization. No public URL or Internet verification exists yet. Direct P2P is network-dependent; authenticated TURN remains optional and unverified.
 
 ## Run locally
 
@@ -14,7 +16,7 @@ Online Sharing now requires an explicitly configured, healthy public HTTPS websi
 python -m pip install -e ".[dev,cloud]"
 cd apps/web
 npm ci
-npm run build
+npm run build:desktop
 cd ../..
 python -m apps.desktop.launcher
 ```

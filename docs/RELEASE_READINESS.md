@@ -1,3 +1,9 @@
+# 0.4.0 product separation — SPLIT-20261015.1
+
+Desktop Offline LAN, Online Web and public signaling have independent targets. Implementation/local tests advance, but the website is NOT DEPLOYED or INTERNET VERIFIED. Free hosting authorization/account access, actual cross-network phone acceptance and successful public TURN relay remain external gates. See [current evidence](SPLIT_VERIFICATION.md), [boundaries](PRODUCT_SEPARATION.md) and [hosting steps](FREE_HOSTING.md). Do not describe this checkpoint as a production release.
+
+---
+
 # 0.3.2 Online Sharing — ONLINE-20261015.1
 
 **IMPLEMENTED and LOCALLY TESTED; NOT INTERNET VERIFIED or production ready.** The desktop now requires an explicitly configured, healthy hosted HTTPS service instead of attempting its absent local `/signal`. Public room invitations/QR, shared authenticated multi-transport TURN configuration, relay-only controls, route/error diagnostics and an optional HTTPS deployment overlay are implemented. Offline LAN is preserved and the rebuilt executable passes native LAN checks.

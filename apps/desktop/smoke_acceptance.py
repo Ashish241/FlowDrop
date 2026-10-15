@@ -25,12 +25,6 @@ def verify_lan_transfer(app, host_url, lan_url):
         ) as response:
             return response.read()
 
-    online = json.loads(request(host_url, "/api/online/config"))
-    assert online["available"] is False
-    assert (
-        online["message"]
-        == "Online Sharing is unavailable: signaling server not configured."
-    )
     owner = app.state.host_token
     paired = json.loads(
         request(

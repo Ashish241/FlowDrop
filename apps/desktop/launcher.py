@@ -15,7 +15,6 @@ import uvicorn
 from apps.desktop.diagnostics import bind_listeners, readiness
 from apps.desktop.network import inventory_json, lan_adapters, startup_network
 from services.lan_server.app import create_app
-from services.online_config import OnlineService
 from services.version import BUILD_ID, VERSION
 
 
@@ -45,18 +44,6 @@ def main(argv=None, on_ready=None):
         action="store_true",
         help="Enable Offline LAN on an active Wi-Fi/Ethernet IPv4 adapter",
     )
-    parser.add_argument(
-        "--online-url", help="Public HTTPS FlowDrop website (online handoff)"
-    )
-    parser.add_argument(
-        "--signal-url",
-        help="Public HTTPS signaling endpoint; defaults to website/signal",
-    )
-    parser.add_argument(
-        "--online-dev",
-        action="store_true",
-        help="Explicit localhost-only online development configuration",
-    )
     parser.add_argument("--port", type=int, default=8000)
     parser.add_argument("--no-browser", action="store_true")
     parser.add_argument("--list-adapters", action="store_true")
@@ -78,14 +65,6 @@ def main(argv=None, on_ready=None):
     )
     parser.add_argument("--tls-key", help="TLS private key PEM file")
     args = parser.parse_args(argv)
-    import os
-
-    if args.online_url is not None:
-        os.environ["FLOWDROP_ONLINE_URL"] = args.online_url
-    if args.signal_url is not None:
-        os.environ["FLOWDROP_SIGNAL_URL"] = args.signal_url
-    if args.online_dev:
-        os.environ["FLOWDROP_ONLINE_DEV"] = "1"
     if not 0 <= args.port <= 65535:
         parser.error("Port must be between 0 and 65535")
     if args.shutdown_after is not None and not 1 <= args.shutdown_after <= 86400:
@@ -159,7 +138,11 @@ def main(argv=None, on_ready=None):
         connection_url=base if not address.is_loopback else None,
         allowed_hosts=allowed_hosts,
         lan_enabled=not address.is_loopback,
-        online_service=OnlineService(),
+        frontend=(
+            None
+            if getattr(sys, "frozen", False)
+            else Path(__file__).resolve().parents[2] / "apps/web/dist-desktop"
+        ),
     )
     app.state.host_dashboard_url = host_url
     app.state.connection_url = base if not address.is_loopback else None

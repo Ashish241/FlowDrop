@@ -1,0 +1,40 @@
+.online-shell .cards {
+  margin-bottom: 24px;
+}
+.online-shell .card {
+  text-align: left;
+  min-height: 180px;
+}
+.online-shell .card h2 {
+  font-size: 24px;
+}
+.online-health {
+  border: 1px solid #bacabd;
+  border-radius: 14px;
+  padding: 16px 22px;
+  margin-bottom: 24px;
+}
+.online-shell .panel img {
+  max-width: 200px;
+  width: 100%;
+}
+.online-shell textarea {
+  min-height: 100px;
+}
+.online-shell a {
+  overflow-wrap: anywhere;
+}
+.online-shell .panel input[type="checkbox"] {
+  width: auto;
+}
+.online-shell .panel progress {
+  width: 100%;
+}
+@media (max-width: 700px) {
+  .online-shell main {
+    min-width: 0;
+  }
+  .online-shell .panel {
+    padding: 20px;
+  }
+}

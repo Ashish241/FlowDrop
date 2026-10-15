@@ -19,7 +19,7 @@ type Meta = {
   size: number;
   sha256: string;
 };
-export function OnlinePanel() {
+export function OnlinePanel({ folders = false }: { folders?: boolean } = {}) {
   const [recovered, setRecovered] = useState<
     Array<{ id: string; file: File; sha256: string }>
   >([]);
@@ -747,6 +747,13 @@ export function OnlinePanel() {
       sending.current = false;
     }
   }
+  async function selectFiles(files: File[]) {
+    cancelled.current = false;
+    for (const file of files) {
+      if (cancelled.current) break;
+      await send(file);
+    }
+  }
   return (
     <section className="panel">
       <h2>Online peer-to-peer</h2>
@@ -862,14 +869,29 @@ export function OnlinePanel() {
           onChange={async (e) => {
             const selected = Array.from(e.target.files || []);
             e.currentTarget.value = "";
-            cancelled.current = false;
-            for (const file of selected) {
-              if (cancelled.current) break;
-              await send(file);
-            }
+            await selectFiles(selected);
           }}
         />
       </label>
+      {folders && "webkitdirectory" in document.createElement("input") && (
+        <label>
+          Choose folder contents (files are saved separately)
+          <input
+            type="file"
+            multiple
+            {...{ webkitdirectory: "" }}
+            onChange={async (event) => {
+              const selected = Array.from(event.target.files || []);
+              event.currentTarget.value = "";
+              cancelled.current = false;
+              for (const file of selected) {
+                if (cancelled.current) break;
+                await send(file);
+              }
+            }}
+          />
+        </label>
+      )}
       <progress max={100} value={percent} />
       {offer && (
         <p>

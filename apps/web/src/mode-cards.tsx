@@ -1,5 +1,11 @@
 import { ArrowUpRight, Radio, Zap, Upload } from "lucide-react";
-export function ModeCards({ onSelect }: { onSelect: (page: string) => void }) {
+export function ModeCards({
+  onSelect,
+  offlineOnly = false,
+}: {
+  onSelect: (page: string) => void;
+  offlineOnly?: boolean;
+}) {
   const modes = [
     {
       name: "Offline LAN",
@@ -22,20 +28,22 @@ export function ModeCards({ onSelect }: { onSelect: (page: string) => void }) {
   ];
   return (
     <div className="cards">
-      {modes.map(({ name, description, caption, Icon }) => (
-        <button
-          type="button"
-          key={name}
-          className="card"
-          onClick={() => onSelect(name)}
-        >
-          <Icon size={26} />
-          <ArrowUpRight className="arrow" />
-          <h3>{name}</h3>
-          <p>{description}</p>
-          <small>{caption}</small>
-        </button>
-      ))}
+      {modes
+        .filter((mode) => !offlineOnly || mode.name === "Offline LAN")
+        .map(({ name, description, caption, Icon }) => (
+          <button
+            type="button"
+            key={name}
+            className="card"
+            onClick={() => onSelect(name)}
+          >
+            <Icon size={26} />
+            <ArrowUpRight className="arrow" />
+            <h3>{name}</h3>
+            <p>{description}</p>
+            <small>{caption}</small>
+          </button>
+        ))}
     </div>
   );
 }

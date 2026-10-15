@@ -1,13 +1,17 @@
 {
   "name": "flowdrop-web",
   "private": true,
-  "version": "0.3.2",
+  "version": "0.4.0",
   "type": "module",
   "scripts": {
     "lint": "eslint .",
     "test": "vitest run",
     "dev": "vite --host 127.0.0.1",
-    "build": "tsc && vite build"
+    "build": "tsc && vite build",
+    "build:desktop": "tsc && vite build --mode desktop",
+    "build:online": "tsc && vite build --mode online",
+    "test:desktop": "playwright test --config playwright.products.config.ts --project desktop",
+    "test:online": "playwright test --config playwright.products.config.ts --project online"
   },
   "dependencies": {
     "hash-wasm": "^4.12.0",

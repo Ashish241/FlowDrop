@@ -1,3 +1,9 @@
+# 0.4.0 independent applications
+
+Separate desktop/online Vite targets, artifact boundary checks, offline-only launcher resources, dedicated responsive online website, minimal one-worker public signaling, exact-origin cross-service policy and prepared free hosting are implemented. Existing transfer/LAN/cloud source and regression fixture are preserved. See PRODUCT_SEPARATION.md and SPLIT_VERIFICATION.md. Internet deployment/physical acceptance remain unverified.
+
+---
+
 # 0.3.2 Online Sharing implementation
 
 Explicit desktop URL settings, host authorization, bounded cached health probes, HTTPS handoff and unavailable/error UI replace the packaged localhost signaling assumption. The hosted client retains its existing WebRTC protocol and adds room invitation links/QR, validated endpoint-scoped recovery, authenticated multi-URL STUN/TURN, relay-only controls and selected-candidate route diagnostics. Signaling responses cannot cache credentials. The public HTTPS edge overlay preserves exact-origin/proxy trust rather than broadening CORS/CSP.

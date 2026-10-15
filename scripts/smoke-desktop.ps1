@@ -9,7 +9,7 @@ $taskHelp = & $taskExe --help
 if ($LASTEXITCODE -ne 0) { throw 'Executable help failed' }
 if (-not ($taskHelp -match '--lan')) { throw 'Packaged executable lacks --lan; stale build' }
 $taskInfo = & $taskExe --build-info | ConvertFrom-Json
-if ($LASTEXITCODE -ne 0 -or $taskInfo.build -ne 'ONLINE-20261015.1') { throw 'Executable build identifier mismatch' }
+if ($LASTEXITCODE -ne 0 -or $taskInfo.build -ne 'SPLIT-20261015.1') { throw 'Executable build identifier mismatch' }
 if ((Get-FileHash -LiteralPath $taskExe -Algorithm SHA256).Hash -ne (Get-Content (Join-Path (Split-Path $taskExe -Parent) 'BUILD_INFO.json') -Raw | ConvertFrom-Json).executable_sha256) { throw 'Executable/manifest hash mismatch' }
 & $taskExe --version
 if ($LASTEXITCODE -ne 0) { throw 'Executable version failed' }
@@ -20,17 +20,13 @@ try {
         if ($taskProcess.HasExited) { throw 'Executable exited before health check' }
         try { $taskHealth = Invoke-RestMethod 'http://127.0.0.1:8766/api/health' -TimeoutSec 1; break } catch { Start-Sleep -Milliseconds 100 }
     }
-    $taskOnline=Invoke-RestMethod 'http://127.0.0.1:8766/api/online/config' -TimeoutSec 2
-    if ($taskOnline.available -or $taskOnline.message -ne 'Online Sharing is unavailable: signaling server not configured.') { throw 'Unconfigured online status is incorrect' }
     if ($taskHealth.status -ne 'ok') { throw 'Health failed' }
     $taskPage = Invoke-WebRequest 'http://127.0.0.1:8766/' -UseBasicParsing
     if (-not $taskPage.Content.Contains('FlowDrop')) { throw 'Bundled frontend missing' }
-    $taskWorker = Invoke-WebRequest 'http://127.0.0.1:8766/stream-sw.js' -UseBasicParsing
-    if ($taskWorker.StatusCode -ne 200) { throw 'Bundled download worker missing' }
     if (-not $taskProcess.WaitForExit(20000)) { throw 'Host failed to stop gracefully' }
     $taskProcess.Refresh()
     if ($taskProcess.ExitCode -ne 0) { throw "Host graceful exit failed: $($taskProcess.ExitCode)" }
-    Write-Output 'PASS: Windows executable/version, loopback API, compiled frontend, download worker and graceful shutdown from outside the source checkout.'
+    Write-Output 'PASS: Windows executable/version, loopback API, offline compiled frontend and graceful shutdown from outside the source checkout.'
 } finally {
     if (-not $taskProcess.HasExited) { Stop-Process -Id $taskProcess.Id }
 }

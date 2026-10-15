@@ -48,5 +48,10 @@ jobs:
       - run: npm test
       - run: npm run lint
       - run: npm run build
+      - run: npm run build:desktop
+      - run: npm run build:online
+      - run: python -m scripts.check_products
+        working-directory: .
       - run: npx playwright install --with-deps chromium
       - run: npx playwright test
+      - run: npx playwright test --config playwright.products.config.ts

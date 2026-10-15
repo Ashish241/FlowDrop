@@ -1,0 +1,200 @@
+import { test, expect, type Page } from "@playwright/test";
+import { readFile } from "node:fs/promises";
+import AxeBuilder from "@axe-core/playwright";
+async function controls(page: Page, action = "Send Files") {
+  await page.goto("/");
+  await page
+    .getByRole("navigation")
+    .getByRole("button", { name: action, exact: true })
+    .click();
+  return page.locator("section.panel").filter({
+    has: page.getByRole("heading", { name: "Online peer-to-peer" }),
+  });
+}
+test("dedicated website works without any desktop API and stays responsive", async ({
+  page,
+}) => {
+  const localApis: string[] = [];
+  page.on("request", (req) => {
+    if (new URL(req.url()).pathname.startsWith("/api/"))
+      localApis.push(req.url());
+  });
+  await page.goto("/");
+  await expect(page.getByRole("heading", { level: 1 })).toContainText(
+    "Across the distance",
+  );
+  expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+  for (const width of [360, 390, 768, 1024, 1440]) {
+    await page.setViewportSize({ width, height: 900 });
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= innerWidth,
+      ),
+    ).toBe(true);
+  }
+  await page.screenshot({
+    path: "../../.flowdrop/online-home.png",
+    fullPage: true,
+  });
+  await controls(page);
+  expect(localApis).toEqual([]);
+});
+test("standalone website transfers multiple files both ways, text, cancellation and reconnect", async ({
+  browser,
+}) => {
+  const l = await browser.newContext(),
+    r = await browser.newContext();
+  try {
+    await l.addInitScript(() => {
+      const send = RTCDataChannel.prototype.send;
+      RTCDataChannel.prototype.send = function (data) {
+        const flag = window as unknown as { corruptNext?: boolean };
+        if (flag.corruptNext && data instanceof ArrayBuffer) {
+          const changed = data.slice(0);
+          new Uint8Array(changed)[0] ^= 1;
+          flag.corruptNext = false;
+          return Reflect.apply(send, this, [changed]);
+        }
+        return Reflect.apply(send, this, [data]);
+      };
+    });
+    const a = await l.newPage(),
+      b = await r.newPage();
+    const left = await controls(a),
+      right = await controls(b, "Receive Files");
+    await left
+      .getByRole("button", { name: "Create room", exact: true })
+      .click();
+    await expect(left.getByLabel("Room invitation")).toHaveValue(
+      /[a-f0-9]{32}/,
+    );
+    const room = await left.getByLabel("Room invitation").inputValue();
+    await right.getByLabel("Room invitation").fill(room);
+    await right.getByRole("button", { name: "Join room", exact: true }).click();
+    await left
+      .getByRole("button", { name: "Approve receiver", exact: true })
+      .click();
+    await expect(right.getByRole("status")).toContainText("Connected.");
+    const bytes = [
+      Buffer.alloc(2 * 1048576 + 17, 51),
+      Buffer.alloc(131089, 99),
+    ];
+    await left
+      .locator("input[type=file]")
+      .first()
+      .setInputFiles(
+        bytes.map((buffer, i) => ({
+          name: `online-${i}.bin`,
+          mimeType: "application/octet-stream",
+          buffer,
+        })),
+      );
+    for (const payload of bytes) {
+      const downloaded = b.waitForEvent("download");
+      await right
+        .getByRole("button", { name: "Accept file", exact: true })
+        .click();
+      expect(await readFile((await (await downloaded).path())!)).toEqual(
+        payload,
+      );
+    }
+    const reverse = Buffer.from("standalone website reverse file");
+    await right.locator("input[type=file]").first().setInputFiles({
+      name: "reverse.txt",
+      mimeType: "text/plain",
+      buffer: reverse,
+    });
+    const reverseDownload = a.waitForEvent("download");
+    await left
+      .getByRole("button", { name: "Accept file", exact: true })
+      .click();
+    expect(await readFile((await (await reverseDownload).path())!)).toEqual(
+      reverse,
+    );
+    await left
+      .getByPlaceholder("Share text with your peer")
+      .fill("https://example.com — code and text");
+    await left.getByRole("button", { name: "Send text", exact: true }).click();
+    await expect(right.locator("pre")).toContainText("code and text");
+    await left
+      .locator("input[type=file]")
+      .first()
+      .setInputFiles({
+        name: "cancel.bin",
+        mimeType: "application/octet-stream",
+        buffer: Buffer.alloc(1024),
+      });
+    await expect(
+      right.getByRole("button", { name: "Accept file", exact: true }),
+    ).toBeVisible();
+    await left
+      .getByRole("button", { name: "Cancel transfer", exact: true })
+      .click();
+    await expect(right.getByRole("status")).toContainText("cancelled");
+    await b.reload();
+    await b
+      .getByRole("navigation")
+      .getByRole("button", { name: "Receive Files", exact: true })
+      .click();
+    await right
+      .getByRole("button", { name: "Reconnect saved room", exact: true })
+      .click();
+    await expect(right.getByRole("status")).toContainText("Connected.");
+    await a.evaluate(() => {
+      (window as unknown as { corruptNext: boolean }).corruptNext = true;
+    });
+    await left
+      .locator("input[type=file]")
+      .first()
+      .setInputFiles({
+        name: "corrupt.bin",
+        mimeType: "application/octet-stream",
+        buffer: Buffer.alloc(1024, 7),
+      });
+    const corruptDownload = b.waitForEvent("download");
+    await right
+      .getByRole("button", { name: "Accept file", exact: true })
+      .click();
+    await expect(right.getByRole("status")).toContainText(
+      "Integrity verification failed",
+    );
+    expect(await (await corruptDownload).failure()).not.toBeNull();
+    await left
+      .getByRole("button", { name: "Cancel transfer", exact: true })
+      .click();
+    await left.getByRole("button", { name: "End room", exact: true }).click();
+  } finally {
+    for (const context of [l, r])
+      for (const page of context.pages())
+        await page
+          .getByRole("button", { name: "Disconnect", exact: true })
+          .click({ timeout: 1000 })
+          .catch(() => undefined);
+    await Promise.all([l.close(), r.close()]);
+  }
+});
+test("cold-start timeout/outage and retry are visible without fake connection", async ({
+  page,
+}) => {
+  await page.route("**/signal/health", (route) =>
+    route.fulfill({ status: 503, body: "waking" }),
+  );
+  await page.goto("/");
+  await expect(page.getByRole("status")).toContainText(
+    "Unable to reach signaling",
+  );
+  await page
+    .getByRole("navigation")
+    .getByRole("button", { name: "Send Files", exact: true })
+    .click();
+  await expect(
+    page.getByRole("button", { name: "Create room", exact: true }),
+  ).toHaveCount(0);
+  await page.unroute("**/signal/health");
+  await page
+    .getByRole("button", { name: "Retry signaling connection" })
+    .click();
+  await expect(
+    page.getByRole("button", { name: "Create room", exact: true }),
+  ).toBeVisible();
+});

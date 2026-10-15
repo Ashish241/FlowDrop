@@ -111,7 +111,7 @@ def main():
                     ) as client:
                         assert client.get("/api/health").status_code == 200
                         assert "FlowDrop" in client.get("/").text
-                        assert client.get("/stream-sw.js").status_code == 200
+                        assert client.get("/stream-sw.js").status_code == 404
                         assert client.get("/api/transfers").status_code == 401
                         assert (
                             client.get(

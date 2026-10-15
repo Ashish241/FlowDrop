@@ -1,3 +1,9 @@
+# 0.4.0 security boundary
+
+Desktop ships no online/cloud frontend implementation, URL probe or signaling service. The website calls no local desktop APIs. Exact HTTPS public frontend origins are required by the dedicated backend; the static build generates narrowly scoped HTTPS/WSS CSP for the operator-configured destination. Participant capability auth, receiver approval, one-hour rooms, bounded signaling/rates, encrypted DataChannels, hashing and per-file acceptance are preserved. Corrupted streamed downloads are explicitly aborted rather than closed successfully; browsers may expose an incomplete download and users should remove partial files. No new blanket CORS/proxy/firewall permission was added. Public deployment, provider identity/logging policy, real relay and independent security review remain acceptance gates; local test success is not production security certification.
+
+---
+
 # 0.3.2 online security review
 
 Confirmed packaged local-signaling mismatch is fixed with explicit host-authorized endpoint configuration and public HTTPS handoff. Local LAN capability tokens are not placed in external URLs or requests; external links use `noreferrer`. Public settings reject private/loopback addresses except explicitly labeled loopback development mode. Probes disable environment proxies and redirects, retain TLS verification, cap reads/timeouts and use a nonblocking cached probe lock so an online outage does not occupy all LAN workers. Only the trusted local host can change settings; automatic public provisioning is absent.

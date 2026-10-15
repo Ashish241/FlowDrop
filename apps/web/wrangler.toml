@@ -1,0 +1,4 @@
+# Static Pages upload target, prepared only. Requires explicit deployment approval.
+name = "flowdrop-online"
+pages_build_output_dir = "./dist-online"
+compatibility_date = "2026-10-15"

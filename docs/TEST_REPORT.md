@@ -1,3 +1,13 @@
+# 0.4.0 / SPLIT-20261015.1 — 2026-10-15
+
+74 Pytest passed; six unconfigured provider tests skipped (not rerun for this memory-only product split). Nine Vitest passed. Preserved combined browser suite: 20 passed, one conditional relay skipped (1.6 min). Dedicated Online website: three passed (12.9s); Desktop offline target: five passed (14.6s), including repeated existing LAN scenarios. Ruff check/format, ESLint, strict TypeScript, all three production builds and bundle-boundary checks passed. Website screenshot/layout inspected; five responsive widths and automated accessibility passed.
+
+Windows executable/ZIP rebuilt with offline resources only; exact extracted build manifest/version, API/frontend/shutdown, native QR/256 KiB hash-matched LAN download/authenticated socket/restart and loopback/selected/Wildcard bindings passed. A previous baseline diagnostic safely refused automatic selection when Windows routing/profile inventory temporarily failed; subsequent final native checks passed without changing network architecture or policy. Extracted minimal signaling artifact passed a separate real-process HTTP/room/CORS/no-desktop smoke. Remote CI, Docker runtime, provider deployment, public Internet, new physical phone and clean Windows were not tested.
+
+The dedicated online test verifies actual multiple and reverse files, text, cancellation, refresh/reconnect and deliberately corrupted bytes causing hash failure and an aborted browser download. Earlier test-harness room-code race/variable/port assumptions were corrected; final runs passed. Positive browser TURN remains unresolved, not counted as success. See [complete scope](SPLIT_VERIFICATION.md), [artifact/binding evidence](SPLIT_0.4.0_EVIDENCE.json), and [deployment authorization/steps](FREE_HOSTING.md). Expected Starlette/TestClient and Windows socket-closure warnings are documented there.
+
+---
+
 # 0.3.2 / ONLINE-20261015.1 — 2026-10-15
 
 | Check | Actual result | Scope |

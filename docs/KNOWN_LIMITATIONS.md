@@ -1,3 +1,9 @@
+# 0.4.0 limits
+
+The Online Web target needs separately authorized hosting; it is not currently public. The free memory backend loses rooms on sleep/restart, cannot be scaled beyond one worker, and may aggregate anonymous rate limits behind an untrusted provider proxy. Default STUN is direct-first, not guaranteed NAT traversal; successful TURN relay remains blocked. Folder selection saves individual files, not directory trees. WebRTC retry resends the full file; streaming/download/browser quotas still apply. The combined Send Later interface is retained for development/regression but omitted from both shipping product navigations. See FREE_HOSTING.md and SPLIT_VERIFICATION.md.
+
+---
+
 # 0.3.2 online limitations
 
 Online Sharing requires an operator-configured public HTTPS frontend and WSS signaling service. None is provisioned/configured by default; the desktop clearly reports unavailable and Offline LAN remains usable. Restricted NATs need a reachable authenticated TURN relay. Local allocation/auth tests passed, but the actual browser relay fixture fails when coturn forwards UDP (`Operation not permitted`); no Internet relay/file transfer claim is made.
