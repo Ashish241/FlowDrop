@@ -8,6 +8,7 @@ export default defineConfig({
   testDir: "e2e",
   testMatch: [
     "consumer-online.spec.ts",
+    "post-connection.spec.ts",
     "online-product.spec.ts",
     "integration-product.spec.ts",
   ],

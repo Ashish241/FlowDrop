@@ -62,6 +62,7 @@ for (const fallback of [false, true])
       await left
         .getByRole("button", { name: "Approve receiver", exact: true })
         .click();
+      await left.getByRole("button", { name: "Send", exact: true }).click();
       for (const [i, bytes] of payloads.entries()) {
         await expect(right.locator(".incoming")).toContainText(
           `queued-${i}.bin`,
@@ -88,14 +89,14 @@ for (const fallback of [false, true])
       }
       await expect(left.getByRole("status")).toHaveText("Completed");
       await expect(right.getByRole("status")).toHaveText("Completed");
-      await left.getByText("Share text", { exact: true }).click();
+      await left.getByText("Share Text", { exact: true }).click();
       await left
         .getByLabel("Message", { exact: true })
         .fill("Consumer text after queued files");
       await left
         .getByRole("button", { name: "Send text", exact: true })
         .click();
-      await right.getByText("Share text", { exact: true }).click();
+      await right.getByText("Share Text", { exact: true }).click();
       await expect(right.locator(".text-share pre")).toContainText(
         "Consumer text after queued files",
       );

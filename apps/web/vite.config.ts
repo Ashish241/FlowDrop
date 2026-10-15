@@ -68,6 +68,7 @@ export default defineConfig(({ mode }) => {
               {
                 product: "FlowDrop Online",
                 version: "0.4.1",
+                revision: "session-controls-20261016",
                 signaling: env.VITE_SIGNAL_URL || "/signal",
                 pagesRelease,
                 publicEndpointValidated: pagesRelease,

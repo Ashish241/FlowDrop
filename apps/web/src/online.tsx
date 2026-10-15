@@ -5,6 +5,18 @@ import { hashFile } from "./hash";
 import { recordTransfer } from "./transfer-history";
 import { persistFile, recoverFiles, forgetFile } from "./queue";
 import { createStreamSink, type StreamSink } from "./stream-sink";
+type ConnectionPhase =
+  | "IDLE"
+  | "ROOM_CREATED"
+  | "WAITING_FOR_PEER"
+  | "APPROVAL_PENDING"
+  | "PEER_APPROVED"
+  | "WEBRTC_CONNECTING"
+  | "DATA_CHANNEL_OPEN"
+  | "READY_TO_TRANSFER"
+  | "DISCONNECTED"
+  | "FAILED"
+  | "EXPIRED";
 type Session = {
   room: string;
   token: string;
@@ -27,6 +39,7 @@ export function OnlinePanel({
   consumer = false,
   mode = "Send Files",
 }: { folders?: boolean; consumer?: boolean; mode?: string } = {}) {
+  const [phase, setPhase] = useState<ConnectionPhase>("IDLE");
   const [downloads, setDownloads] = useState<
     Array<{ name: string; blob: Blob }>
   >([]);
@@ -206,6 +219,7 @@ export function OnlinePanel({
   function close() {
     clearTimeout(connectionTimer.current);
     setConnected(false);
+    setPhase("DISCONNECTED");
     setConnecting(false);
     clearTimeout(expiryTimer.current);
     localPaused.current = remotePaused.current = false;
@@ -241,14 +255,17 @@ export function OnlinePanel({
       if (channel.current !== dc) return;
       clearTimeout(connectionTimer.current);
       cancelled.current = false;
+      setPhase("DATA_CHANNEL_OPEN");
       setConnected(true);
+      setPhase("READY_TO_TRANSFER");
       setConnecting(false);
       setStatus("Connected. Files require receiver approval.");
-      void drainQueue();
+      if (!consumer) void drainQueue();
     };
     dc.onclose = () => {
       if (channel.current !== dc) return;
       setConnected(false);
+      setPhase("DISCONNECTED");
       cancelled.current = true;
       accept.current?.();
       verified.current?.(new Error("Peer disconnected"));
@@ -497,6 +514,11 @@ export function OnlinePanel({
       }
       sessionStorage.setItem("flowdrop.online.v2", JSON.stringify(data));
       session.current = data;
+      setPhase(
+        join || data.member === "receiver"
+          ? "APPROVAL_PENDING"
+          : "ROOM_CREATED",
+      );
       expiryTimer.current = setTimeout(
         () => {
           if (session.current !== data) return;
@@ -504,6 +526,7 @@ export function OnlinePanel({
           session.current = undefined;
           sessionStorage.removeItem("flowdrop.online.v2");
           setRecovered([]);
+          setPhase("EXPIRED");
           setStatus("Room expired; transfers stopped.");
         },
         Math.max(0, data.expires * 1000 - Date.now()),
@@ -603,7 +626,22 @@ export function OnlinePanel({
         };
         pc.onconnectionstatechange = () => {
           if (peer.current !== instance) return;
+          if (
+            pc.connectionState === "disconnected" ||
+            pc.connectionState === "closed"
+          ) {
+            setConnected(false);
+            setPhase("DISCONNECTED");
+          }
+          if (
+            pc.connectionState === "connected" &&
+            channel.current?.readyState === "open"
+          ) {
+            setConnected(true);
+            setPhase("READY_TO_TRANSFER");
+          }
           if (pc.connectionState === "connecting") {
+            setPhase("WEBRTC_CONNECTING");
             clearTimeout(connectionTimer.current);
             connectionTimer.current = setTimeout(() => {
               if (
@@ -618,6 +656,7 @@ export function OnlinePanel({
             }, 45000);
           }
           if (pc.connectionState === "failed") {
+            setPhase("FAILED");
             setConnected(false);
             setConnecting(false);
             setStatus(
@@ -663,6 +702,9 @@ export function OnlinePanel({
         if (socket.current !== ws) return;
         clearTimeout(connectionTimer.current);
         setConnecting(false);
+        setPhase(
+          data.member === "owner" ? "WAITING_FOR_PEER" : "APPROVAL_PENDING",
+        );
         ws.send(data.token);
         setStatus(
           join
@@ -676,8 +718,13 @@ export function OnlinePanel({
           .then(async () => {
             if (socket.current !== ws) return;
             const msg = JSON.parse(e.data);
-            if (msg.type === "join-request") setPending(true);
+            if (msg.type === "join-request") {
+              setPending(true);
+              setPhase("APPROVAL_PENDING");
+            }
+            if (msg.type === "approved") setPhase("PEER_APPROVED");
             if (msg.type === "ready") {
+              setPhase("PEER_APPROVED");
               ice = await api("/ice", "GET", data.token);
               resetPeer();
               candidates.current = [];
@@ -688,6 +735,7 @@ export function OnlinePanel({
               ws.send(JSON.stringify({ type: "offer", sdp: offer.sdp }));
             }
             if (msg.type === "offer") {
+              setPhase("WEBRTC_CONNECTING");
               ice = await api("/ice", "GET", data.token);
               resetPeer();
               await pc.setRemoteDescription({ type: "offer", sdp: msg.sdp });
@@ -736,6 +784,7 @@ export function OnlinePanel({
           session.current = undefined;
           sessionStorage.removeItem("flowdrop.online.v2");
           setRecovered([]);
+          setPhase("EXPIRED");
           setStatus("Room expired or revoked; transfers stopped.");
           return;
         }
@@ -744,6 +793,7 @@ export function OnlinePanel({
         );
       };
     } catch (e) {
+      setPhase("FAILED");
       setConnecting(false);
       setStatus(String(e));
     }
@@ -937,10 +987,10 @@ export function OnlinePanel({
       draining.current = false;
     }
   }
-  async function selectFiles(files: File[]) {
+  async function selectFiles(files: File[], automatic = false) {
     fileQueue.current.push(...files);
     setSelectedFiles([...fileQueue.current]);
-    if (channel.current?.readyState === "open") {
+    if (channel.current?.readyState === "open" && (!consumer || automatic)) {
       cancelled.current = false;
       await drainQueue();
     } else setStatus("Ready to share. Your files are selected.");
@@ -1043,6 +1093,7 @@ export function OnlinePanel({
       setPercent(0);
       setInvitation("");
       setPairingCode("");
+      setPhase("IDLE");
       setStatus("Ready to share");
     } catch {
       setStatus(
@@ -1172,7 +1223,7 @@ export function OnlinePanel({
           onChange={async (e) => {
             const selected = Array.from(e.target.files || []);
             e.currentTarget.value = "";
-            await selectFiles(selected);
+            await selectFiles(selected, true);
           }}
         />
       </label>
@@ -1317,40 +1368,58 @@ export function OnlinePanel({
     status,
   );
   const completed = /Completed|Delivered/.test(status);
-  const label = /cancelled|rejected/.test(status)
-    ? "Transfer cancelled"
-    : status === "File declined"
-      ? "File declined"
+  const label =
+    failure && !connected
+      ? phase === "EXPIRED"
+        ? "Share expired"
+        : "Connection failed"
       : completed
         ? "Completed"
-        : paused
-          ? "Paused"
-          : busy && !status.includes("approval")
-            ? "Sending"
-            : incoming.current && !offer
-              ? "Receiving"
-              : offer
-                ? "Incoming file"
-                : status.includes("approval")
-                  ? "Waiting for approval"
+        : /cancelled|rejected/.test(status)
+          ? "Transfer cancelled"
+          : paused
+            ? "Paused"
+            : offer
+              ? "Incoming file"
+              : incoming.current
+                ? "Receiving"
+                : busy
+                  ? status.includes("approval")
+                    ? "Waiting for file acceptance"
+                    : "Sending"
                   : connected
                     ? "Connected"
-                    : failure
-                      ? "Connection failed"
-                      : sharing
-                        ? session.current?.member === "owner"
-                          ? "Waiting for receiver"
-                          : "Connecting"
-                        : "Ready to share";
+                    : phase === "APPROVAL_PENDING"
+                      ? "Waiting for approval"
+                      : phase === "PEER_APPROVED" ||
+                          phase === "WEBRTC_CONNECTING"
+                        ? "Connecting securely..."
+                        : sharing
+                          ? session.current?.member === "owner"
+                            ? "Waiting for receiver"
+                            : "Connecting securely..."
+                          : "Ready to share";
   return (
-    <section className="panel share-flow" aria-label="File sharing">
+    <section
+      className="panel share-flow"
+      aria-label="File sharing"
+      data-connection-phase={phase}
+      data-channel-state={channel.current?.readyState || "none"}
+      data-member={session.current?.member || "none"}
+    >
       <p role="status" className={failure ? "flow-state error" : "flow-state"}>
         {label}
       </p>
-      {mode !== "Receive Files" && (
+      {sharing && !connected && (
+        <p>
+          Connecting securely... Keep both pages open. File and text sending
+          will become available automatically.
+        </p>
+      )}
+      {(mode !== "Receive Files" || sharing) && (
         <div
           className="dropzone"
-          hidden={sharing && (!completed || busy)}
+          hidden={false}
           onDragOver={(e) => e.preventDefault()}
           onDrop={(e) => {
             e.preventDefault();
@@ -1363,8 +1432,12 @@ export function OnlinePanel({
               : "Drop your files here"}
           </h2>
           <p>Private sharing, straight to the other device.</p>
-          <button className="primary" onClick={() => picker.current?.click()}>
-            Browse Files
+          <button
+            className="primary"
+            disabled={sharing && (!connected || busy || !!incoming.current)}
+            onClick={() => picker.current?.click()}
+          >
+            {sharing ? "Send Files" : "Browse Files"}
           </button>
           <input
             hidden
@@ -1381,6 +1454,7 @@ export function OnlinePanel({
             <>
               <button
                 className="secondary"
+                disabled={sharing && (!connected || busy || !!incoming.current)}
                 onClick={() => folderPicker.current?.click()}
               >
                 Select Folder
@@ -1443,7 +1517,7 @@ export function OnlinePanel({
             Join
           </button>
           <p>
-            Or open the sender·s invitation link. Scan their QR with your camera
+            Or open the sender's invitation link. Scan their QR with your camera
             app.
           </p>
         </div>
@@ -1593,25 +1667,26 @@ export function OnlinePanel({
           </button>
         </div>
       )}
-      {connected && !busy && selectedFiles.length > 0 && (
+      {sharing && selectedFiles.length > 0 && (
         <button
-          disabled={busy}
+          disabled={!connected || busy || !!incoming.current}
           onClick={() => {
             cancelled.current = false;
             void drainQueue();
           }}
         >
-          Retry selected files
+          Send
         </button>
       )}
-      {connected && (
+      {sharing && (
         <details className="text-share" open={mode === "Share Text"}>
-          <summary>Share text</summary>
+          <summary>Share Text</summary>
           <label>
             Message
             <textarea
               value={text}
               onChange={(e) => setText(e.target.value)}
+              disabled={!connected}
               maxLength={65536}
             />
           </label>
@@ -1624,8 +1699,27 @@ export function OnlinePanel({
           >
             Send text
           </button>
+          <button className="secondary" onClick={() => setMessages([])}>
+            Clear session history
+          </button>
           {messages.map((m, i) => (
-            <pre key={i}>{m}</pre>
+            <div key={i}>
+              <pre>{m}</pre>
+              <button
+                className="secondary"
+                onClick={() =>
+                  void navigator.clipboard
+                    ?.writeText(m)
+                    .catch(() =>
+                      setCopyStatus(
+                        "Copy unavailable; select the message to copy.",
+                      ),
+                    )
+                }
+              >
+                Copy received text
+              </button>
+            </div>
           ))}
         </details>
       )}

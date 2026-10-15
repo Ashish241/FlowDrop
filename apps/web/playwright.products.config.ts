@@ -17,6 +17,7 @@ export default defineConfig({
         "online-product.spec.ts",
         "integration-product.spec.ts",
         "consumer-online.spec.ts",
+        "post-connection.spec.ts",
       ],
       use: { baseURL: "http://127.0.0.1:8770" },
     },
