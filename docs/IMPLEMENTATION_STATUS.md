@@ -1,3 +1,9 @@
+# Public deployment preparation — 2026-10-16
+
+Guarded Pages builds and a deployment HTTP/WSS verifier are implemented. Latest local checks: 77 backend passed (7 provider skips), 13 frontend unit passed, 5 online and 8 desktop product browser tests passed; lint/TypeScript/build and preserved executable diagnostic passed. Windows ZIP unchanged. No public URLs, deployment, physical cross-network transfer or TURN success yet. See [current evidence and authorization gate](PUBLIC_DEPLOYMENT_READINESS.md) and [deployment procedure](FREE_HOSTING.md). Earlier records below are historical.
+
+---
+
 # Integrated 0.4.0 — INTEGRATED-20261016.1
 
 Current source starts at `b1a3ec2`; the earlier split and working LAN checkpoints are preserved. Desktop and Web now both expose Optical Share and Send Later — Coming Soon. Online adds six-digit temporary codes (10-minute TTL), existing strong room IDs/capabilities and owner approval, cooperative in-session pause/resume, safe text copy/clear/history controls, transfer metadata and measured speed/ETA. Progress stays below 100% until integrity verification. Interrupted WebRTC files still require whole-file resend; in-flight chunks may settle after pause. Resume on the device that paused.

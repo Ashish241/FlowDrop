@@ -11,7 +11,8 @@
     "build:desktop": "tsc && vite build --mode desktop",
     "build:online": "tsc && vite build --mode online",
     "test:desktop": "playwright test --config playwright.products.config.ts --project desktop",
-    "test:online": "playwright test --config playwright.products.config.ts --project online"
+    "test:online": "playwright test --config playwright.products.config.ts --project online",
+    "build:pages": "tsc && node build-pages.mjs"
   },
   "dependencies": {
     "hash-wasm": "^4.12.0",

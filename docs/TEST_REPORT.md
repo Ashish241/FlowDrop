@@ -1,3 +1,9 @@
+# Public deployment preparation — 2026-10-16
+
+Guarded Pages builds and a deployment HTTP/WSS verifier are implemented. Latest local checks: 77 backend passed (7 provider skips), 13 frontend unit passed, 5 online and 8 desktop product browser tests passed; lint/TypeScript/build and preserved executable diagnostic passed. Windows ZIP unchanged. No public URLs, deployment, physical cross-network transfer or TURN success yet. See [current evidence and authorization gate](PUBLIC_DEPLOYMENT_READINESS.md) and [deployment procedure](FREE_HOSTING.md). Earlier records below are historical.
+
+---
+
 # Integrated 0.4.0 / INTEGRATED-20261016.1 — 2026-10-16
 
 77 backend tests passed (7 unconfigured provider tests skipped); 4 real Redis integration tests passed separately. Eleven frontend unit tests, 13 product browser scenarios and 20 preserved combined browser scenarios passed; one positive relay case remains conditionally skipped/unverified. Lint, strict TypeScript, production builds, artifact boundaries, rebuilt Windows smoke/native LAN/binding checks and extracted backend smoke passed. Optical tests decode actual QR rasters/PNG frames offline and reconstruct bounded binary data; camera UI errors are simulated, not physical-camera evidence. No public deployment or cross-network Internet test occurred.

@@ -1,10 +1,14 @@
 import { defineConfig, loadEnv } from "vite";
 import { rmSync } from "node:fs";
 import { resolve } from "node:path";
+import { productionSignalingEndpoint } from "./src/deployment-config";
 
 export default defineConfig(({ mode }) => {
   const online = mode === "online";
   const env = loadEnv(mode, process.cwd(), "VITE_");
+  const pagesRelease = online && process.env.FLOWDROP_PAGES_RELEASE === "1";
+  if (pagesRelease)
+    env.VITE_SIGNAL_URL = productionSignalingEndpoint(env.VITE_SIGNAL_URL);
   let origin = "";
   if (online && env.VITE_SIGNAL_URL) {
     const url = new URL(env.VITE_SIGNAL_URL);
@@ -21,7 +25,16 @@ export default defineConfig(({ mode }) => {
     origin = url.origin;
   }
   return {
-    define: { __DESKTOP__: JSON.stringify(mode === "desktop") },
+    define: {
+      __DESKTOP__: JSON.stringify(mode === "desktop"),
+      ...(pagesRelease
+        ? {
+            "import.meta.env.VITE_SIGNAL_URL": JSON.stringify(
+              env.VITE_SIGNAL_URL,
+            ),
+          }
+        : {}),
+    },
     build: {
       outDir: online
         ? "dist-online"
@@ -48,6 +61,21 @@ export default defineConfig(({ mode }) => {
         },
         generateBundle() {
           if (!online) return;
+          this.emitFile({
+            type: "asset",
+            fileName: "DEPLOYMENT_INFO.json",
+            source: JSON.stringify(
+              {
+                product: "FlowDrop Online",
+                signaling: env.VITE_SIGNAL_URL || "/signal",
+                pagesRelease,
+                publicEndpointValidated: pagesRelease,
+                note: "Configuration validation is not deployment or Internet verification",
+              },
+              null,
+              2,
+            ),
+          });
           const connect = origin
             ? ` ${origin} ${origin.replace(/^https:/, "wss:")}`
             : "";
