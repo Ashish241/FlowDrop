@@ -1,3 +1,24 @@
+# 0.3.2 / ONLINE-20261015.1 — 2026-10-15
+
+| Check | Actual result | Scope |
+|---|---|---|
+| Backend regression | 72 passed, 6 unconfigured integration cases skipped | Full suite; provider cases run separately below. A sandbox-restricted attempt failed/hung on local socket access and was interrupted; the unrestricted final run passed. |
+| Disposable real infrastructure | 6 passed (10.23s) | Redis multi-instance signaling/expiry/revocation/rates, PostgreSQL migration/concurrency, Garage private S3 lifecycle/failures and coturn allocation/auth/ACL. |
+| Frontend unit | 9 passed | Existing hashing/encryption/optical/fair scheduling regressions. |
+| Browser full suite | 20 passed, 1 conditional positive relay case skipped (1.6 min) | LAN approval/privacy/queue/QR, online gating/outage/relay refusal, WebRTC files in both directions/reconnect/cancel, Send Later, accessibility and responsive widths. |
+| Separate browser processes | Passed | Two actual Chromium processes, 16 MiB + 17 byte saved file byte comparison and reverse URL sharing. Included in full suite, not an extra unique test. |
+| Exact packaged hosted handoff | Passed | Repeat separate-process scenario starting from the extracted executable, explicitly loopback development service. Not an Internet test. |
+| Positive browser relay attempt | FAILED / BLOCKED | Authenticated allocations and permissions succeed; coturn relay forwarding logs UDP `Operation not permitted` and ICE fails. Separate attempted gate, not a success or silently omitted test. |
+| Static and production | Passed | Ruff check/format, ESLint, strict TypeScript, Vite production build and Git whitespace checks. |
+| Deployment syntax | Passed; runtime blocked | Base + public HTTPS overlay + TURN profile parse, coturn `sh -n`, Caddy manifest digest recorded. Docker engine/runtime and public TLS not run. |
+| Windows exact package | Passed | PyInstaller rebuild, version/build/manifest hashes, startup/API/frontend/download worker/graceful shutdown; native hidden Tk/QR/LAN 256 KiB hash-matched file/socket/restart; TCP loopback/selected-LAN/wildcard plus Public-profile auto-selection refusal. |
+
+Current evidence: [ONLINE_SHARING_VERIFICATION.md](ONLINE_SHARING_VERIFICATION.md), [artifact/binding record](ONLINE_0.3.2_EVIDENCE.json), [setup](ONLINE_SHARING_GUIDE.md). Expected warnings remain: Starlette/httpx TestClient deprecation and PyInstaller optional-platform/import warnings; exercised packaged API/WebSocket/Tk paths pass. No dependency vulnerability audit was newly performed for this change (no dependency additions); earlier audit records retain their dates.
+
+No public signaling service or Internet TURN was configured/deployed. No physical phone, actual camera scan, clean Windows install or separate Internet networks were tested on 0.3.2. User-reported physical LAN success belongs to the 0.3.1 baseline. The local native DHCP notification is mocked and labeled as such; network bindings and downloaded payload checks are real same-PC operations. Test-only services were stopped after integration verification. No public deployment, push, publication or paid provisioning occurred.
+
+---
+
 # 0.3.1 / LAN-20261015.2 — 2026-10-15
 
 50 backend + 6 real provider integration + 9 frontend unit + 15 browser tests passed. Final extracted Windows native-panel, authenticated LAN file/socket, actual binding, restart and ordinary executable smoke also passed. See [LAN_CONNECTIVITY_VERIFICATION.md](LAN_CONNECTIVITY_VERIFICATION.md) for current artifact identity, scope, warnings and remaining physical/UAC gates. Earlier records below are retained as historical checkpoints.

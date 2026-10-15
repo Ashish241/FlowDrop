@@ -1,3 +1,9 @@
+# 0.3.2 optional public HTTPS deployment
+
+See [ONLINE_SHARING_GUIDE.md](ONLINE_SHARING_GUIDE.md) for the concrete `compose.yaml` + `compose.online.yaml` HTTPS/WSS edge, owned DNS, TURN public addressing/TLS/relay ports, strict proxy hop trust and desktop configuration. The overlay parses and its Caddy manifest digest is recorded in ONLINE_CONTAINER_PIN.json; Docker runtime, public deployment and Internet acceptance are NOT RUN. Deployment/provisioning still requires explicit authorization. Never expose the desktop LAN server as the public online backend.
+
+---
+
 # Deployment
 
 No hosted resources have been provisioned, and nothing has been pushed or published. Deployment configuration is provided for review; this is not a production-ready release.

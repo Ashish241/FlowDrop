@@ -1,3 +1,11 @@
+# 0.3.2 online checkpoint rollback
+
+Previous working source: `febcc95` (0.3.1 / LAN-20261015.2). Preserved working ZIP: `dist/checkpoints/FlowDrop-0.3.1-LAN-working.zip`, SHA-256 `46AFB58F60D56ADC9BAE58DD7B77757D5290483A7A59F53CC499B1E5EC5BA4D5`. The existing `dist/FlowDrop-windows` extraction is retained; the new 0.3.2 extraction is `dist/FlowDrop-online-0.3.2`.
+
+Stop the active application, back up user data and extract the chosen ZIP into a fresh folder before deliberately updating shortcuts. No schema change was introduced. `%LOCALAPPDATA%/FlowDrop/online.json` stores optional public endpoint settings only; remove it to reset Online Sharing, without changing LAN data/network preferences. Environment variables override saved settings. No older data, checkpoint or installed service was deleted.
+
+---
+
 # 0.3.1 LAN checkpoint rollback
 
 Previous source checkpoint: `7c1c487`. Previous working ZIP preserved at `dist/checkpoints/FlowDrop-0.3.0-lan-fix1.zip`, SHA-256 `9912DD2F4A53D0306166FB67CF5506B0F6EE0254A549E99B3C2E18F7E99138ED`. The confirmed older extraction that lacks `--lan` is preserved under `dist/checkpoints/stale-extracted-0.3.0-no-lan`; it is **not** the corrected application.

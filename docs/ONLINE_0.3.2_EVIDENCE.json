@@ -1,0 +1,137 @@
+{
+  "date": "2026-10-15",
+  "version": "0.3.2",
+  "build": "ONLINE-20261015.1",
+  "starting_commit": "febcc95",
+  "status": "IMPLEMENTED / LOCALLY TESTED; NOT INTERNET VERIFIED; external release gates BLOCKED",
+  "archive": {
+    "path": "C:\\My Projects\\flowdrop\\dist\\FlowDrop-windows.zip",
+    "bytes": 25325646,
+    "sha256": "A1D23B7BB38785F7302280AA00D1848C8439FCE73A76EFC2D681381BFD8E685F"
+  },
+  "extracted_executable": {
+    "path": "C:\\My Projects\\flowdrop\\dist\\FlowDrop-online-0.3.2\\FlowDrop.exe",
+    "sha256": "66683C2B969A68680257881AC5C6DF13ED2E93EA7192C5B7B5BB320E8704ED4C",
+    "frontend_sha256": "04677A7F6B9F1EB715F328617E6FA1FE1B9BCC21EEF676BF41CB864A8CF48519",
+    "manifest_verified": true,
+    "frozen_build_info_verified": true
+  },
+  "checkpoint": {
+    "source_commit": "febcc95",
+    "archive": "dist/checkpoints/FlowDrop-0.3.1-LAN-working.zip",
+    "sha256": "46AFB58F60D56ADC9BAE58DD7B77757D5290483A7A59F53CC499B1E5EC5BA4D5",
+    "previous_extraction_preserved": "dist/FlowDrop-windows"
+  },
+  "tests": {
+    "pytest": {
+      "passed": 72,
+      "skipped_unconfigured_integration": 6
+    },
+    "real_provider_integration": {
+      "passed": 6,
+      "seconds": 10.23
+    },
+    "vitest": {
+      "passed": 9
+    },
+    "playwright_full": {
+      "passed": 20,
+      "conditional_relay_skipped": 1,
+      "duration": "1.6 min"
+    },
+    "exact_packaged_development_handoff": {
+      "passed": 1,
+      "seconds": 26.6,
+      "note": "Repeat separate-browser scenario, not an additional unique test; local loopback development only"
+    },
+    "direct_file_bytes": 16777233,
+    "reverse_file_bytes": 131089,
+    "ruff": "passed",
+    "eslint": "passed",
+    "typescript_vite": "passed",
+    "compose_overlay_and_coturn_syntax": "passed",
+    "standard_executable_smoke": "passed"
+  },
+  "native_panel_same_pc": {
+    "build": "ONLINE-20261015.1",
+    "adapter": "Wi-Fi",
+    "lan": "http://192.168.1.7:8000",
+    "host": "http://127.0.0.1:8000",
+    "native_qr": true,
+    "authenticated_transfer": "Passed: 256 KiB hash-matched LAN download and authenticated WebSocket echo; clients on same PC",
+    "diagnostics": {
+      "Host Dashboard URL": "http://127.0.0.1:8000",
+      "Phone URL": "http://192.168.1.7:8000",
+      "Phone connectivity": "Not verified \u2014 local checks cannot establish phone reachability",
+      "Local HTTP / frontend / authorization": "Passed",
+      "LAN IP HTTP (same PC)": "Passed; physical phone not verified",
+      "Socket check": "Passed",
+      "WebSocket authorization": "Passed: denied (1008)",
+      "URL check": "Passed",
+      "Current network state": "Connected",
+      "Selected adapter": "Wi-Fi",
+      "LAN IPv4 / subnet": "192.168.1.7 / 192.168.1.0/24",
+      "Gateway": "192.168.1.1",
+      "Firewall profile": "Public",
+      "Adapter source": "Windows networking APIs",
+      "Firewall policy": "Domain firewall enabled: True; default inbound: Block\nPrivate firewall enabled: True; default inbound: Block\nPublic firewall enabled: True; default inbound: Block\nNo FlowDrop managed rule for this executable/IP/port. Inbound may be blocked; other rules and policy require review."
+    },
+    "network_change": "mocked DHCP notification detected; rebind requested",
+    "restart": "passed",
+    "shutdown": "passed"
+  },
+  "actual_tcp_bindings": [
+    {
+      "mode": "lan-auto-public",
+      "result": "correctly requires explicit trusted-network selection; no silent exposure"
+    },
+    {
+      "mode": "loopback",
+      "listening_address": "127.0.0.1",
+      "port": 10113,
+      "connection_url": "http://127.0.0.1:10113",
+      "http_frontend_ws_auth": "passed"
+    },
+    {
+      "mode": "lan-selected",
+      "listening_address": "192.168.1.7",
+      "port": 10125,
+      "connection_url": "http://192.168.1.7:10125",
+      "http_frontend_ws_auth": "passed"
+    },
+    {
+      "mode": "lan-all",
+      "listening_address": "0.0.0.0",
+      "port": 10134,
+      "connection_url": "http://192.168.1.7:10134",
+      "http_frontend_ws_auth": "passed"
+    }
+  ],
+  "positive_browser_relay": {
+    "status": "FAILED / BLOCKED",
+    "authenticated_allocations": "succeeded",
+    "permissions": "succeeded",
+    "relay_candidates": "gathered",
+    "file_relay": "failed ICE connectivity",
+    "coturn_error": "udp send: Operation not permitted",
+    "basic_wsl_udp_probe": "succeeded; no blanket UDP failure claim",
+    "production_private_peer_acl": "preserved"
+  },
+  "public_signaling": {
+    "status": "not configured or deployed",
+    "default_message": "Online Sharing is unavailable: signaling server not configured."
+  },
+  "internet_verified": false,
+  "physical_phone_verified_on_new_build": false,
+  "user_reported_baseline": "0.3.1 PC/phone Offline LAN works; not independent new-build verification",
+  "blockers": [
+    "Approved public server/domain/DNS/TLS/HTTPS frontend/WSS signaling",
+    "Reachable Internet authenticated TURN and successful actual browser relay",
+    "Physical peers on separate Internet networks, mobile QR and large saves",
+    "Clean Windows target",
+    "Docker engine/container runtime and remote CI",
+    "Production HA/IAM/proxy/TLS and independent security acceptance"
+  ],
+  "test_service_cleanup": "Dedicated PostgreSQL 55432, Redis 56379, Garage 53900, coturn 53578/53579 stopped; TCP close verified. Installed services/user hosts unchanged.",
+  "no_push_publish_public_deploy_or_paid_provisioning": true
+}

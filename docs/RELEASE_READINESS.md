@@ -1,3 +1,11 @@
+# 0.3.2 Online Sharing — ONLINE-20261015.1
+
+**IMPLEMENTED and LOCALLY TESTED; NOT INTERNET VERIFIED or production ready.** The desktop now requires an explicitly configured, healthy hosted HTTPS service instead of attempting its absent local `/signal`. Public room invitations/QR, shared authenticated multi-transport TURN configuration, relay-only controls, route/error diagnostics and an optional HTTPS deployment overlay are implemented. Offline LAN is preserved and the rebuilt executable passes native LAN checks.
+
+Current source, artifact evidence and remaining mandatory gates are in [ONLINE_SHARING_VERIFICATION.md](ONLINE_SHARING_VERIFICATION.md) and [ONLINE_0.3.2_EVIDENCE.json](ONLINE_0.3.2_EVIDENCE.json). Public DNS/TLS/WSS deployment, successful browser TURN relay, different Internet networks, new-build physical devices and clean Windows remain open. The local positive relay attempt fails with coturn UDP `Operation not permitted`; authenticated allocation alone is not a relay pass. The user reports prior 0.3.1 PC/phone LAN success, which is not new-build physical verification. Historical entries below retain their original scope.
+
+---
+
 # 0.3.1 LAN follow-up — LAN-20261015.2
 
 The adapter/startup/packaging fixes are implemented. Current evidence and remaining acceptance gates are maintained in [LAN_CONNECTIVITY_VERIFICATION.md](LAN_CONNECTIVITY_VERIFICATION.md). This follow-up adds actual native Tk lifecycle/QR tests and local authenticated LAN payload/socket checks; physical phone, router isolation, clean-PC and human GUI acceptance remain unverified. No production readiness claim is made.

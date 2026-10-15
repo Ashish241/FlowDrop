@@ -10,3 +10,6 @@ build/
 test-results/
 playwright-report/
 .env
+
+# Operator-provided TURN TLS material; never commit private keys.
+infrastructure/coturn/certs/

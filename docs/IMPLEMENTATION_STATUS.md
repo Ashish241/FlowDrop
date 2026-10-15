@@ -1,3 +1,11 @@
+# 0.3.2 Online Sharing implementation
+
+Explicit desktop URL settings, host authorization, bounded cached health probes, HTTPS handoff and unavailable/error UI replace the packaged localhost signaling assumption. The hosted client retains its existing WebRTC protocol and adds room invitation links/QR, validated endpoint-scoped recovery, authenticated multi-URL STUN/TURN, relay-only controls and selected-candidate route diagnostics. Signaling responses cannot cache credentials. The public HTTPS edge overlay preserves exact-origin/proxy trust rather than broadening CORS/CSP.
+
+Local browser transfers, exact packaged handoff, provider integrations and native LAN regression pass. Public service provisioning and Internet/mobile/working browser relay acceptance remain BLOCKED. See [verification](ONLINE_SHARING_VERIFICATION.md) and [operator guide](ONLINE_SHARING_GUIDE.md).
+
+---
+
 # 0.3.1 native LAN recovery
 
 Windows hardware/route/profile inventory, ambiguity handling, validated adapter identity preferences, dual local/LAN listeners, available-port recovery, readiness-gated host browser, native QR/diagnostics, explicit UAC firewall setup and build manifests are implemented. See [LAN_CONNECTIVITY_VERIFICATION.md](LAN_CONNECTIVITY_VERIFICATION.md) for actual tests and physical/UAC gates.

@@ -4,11 +4,12 @@ $taskExe = Join-Path $taskRoot 'dist/FlowDrop/FlowDrop.exe'
 $taskStorage = Join-Path $taskRoot '.flowdrop/exe-smoke'
 New-Item -ItemType Directory -Path $taskStorage -Force | Out-Null
 $env:FLOWDROP_STORAGE = $taskStorage
+$env:FLOWDROP_ONLINE_CONFIG = Join-Path $taskStorage "online-unconfigured.json"
 $taskHelp = & $taskExe --help
 if ($LASTEXITCODE -ne 0) { throw 'Executable help failed' }
 if (-not ($taskHelp -match '--lan')) { throw 'Packaged executable lacks --lan; stale build' }
 $taskInfo = & $taskExe --build-info | ConvertFrom-Json
-if ($LASTEXITCODE -ne 0 -or $taskInfo.build -ne 'LAN-20261015.2') { throw 'Executable build identifier mismatch' }
+if ($LASTEXITCODE -ne 0 -or $taskInfo.build -ne 'ONLINE-20261015.1') { throw 'Executable build identifier mismatch' }
 if ((Get-FileHash -LiteralPath $taskExe -Algorithm SHA256).Hash -ne (Get-Content (Join-Path (Split-Path $taskExe -Parent) 'BUILD_INFO.json') -Raw | ConvertFrom-Json).executable_sha256) { throw 'Executable/manifest hash mismatch' }
 & $taskExe --version
 if ($LASTEXITCODE -ne 0) { throw 'Executable version failed' }
@@ -19,6 +20,8 @@ try {
         if ($taskProcess.HasExited) { throw 'Executable exited before health check' }
         try { $taskHealth = Invoke-RestMethod 'http://127.0.0.1:8766/api/health' -TimeoutSec 1; break } catch { Start-Sleep -Milliseconds 100 }
     }
+    $taskOnline=Invoke-RestMethod 'http://127.0.0.1:8766/api/online/config' -TimeoutSec 2
+    if ($taskOnline.available -or $taskOnline.message -ne 'Online Sharing is unavailable: signaling server not configured.') { throw 'Unconfigured online status is incorrect' }
     if ($taskHealth.status -ne 'ok') { throw 'Health failed' }
     $taskPage = Invoke-WebRequest 'http://127.0.0.1:8766/' -UseBasicParsing
     if (-not $taskPage.Content.Contains('FlowDrop')) { throw 'Bundled frontend missing' }

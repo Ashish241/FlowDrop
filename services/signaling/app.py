@@ -12,10 +12,12 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 
+from services.signaling.ice import ice_configuration
 from services.version import VERSION
 
 
 def create_app():
+    ice_configuration()  # Reject incomplete/unsafe ICE configuration before serving.
     if os.getenv("REDIS_URL"):
         from services.signaling.distributed import create_distributed_app
 
@@ -51,6 +53,14 @@ def create_app():
             pass
 
     app = FastAPI(title="FlowDrop signaling", version=VERSION, lifespan=lifespan)
+
+    @app.middleware("http")
+    async def private_responses(request, call_next):
+        response = await call_next(request)
+        response.headers["Cache-Control"] = "no-store"
+        response.headers["Referrer-Policy"] = "no-referrer"
+        return response
+
     app.add_middleware(
         CORSMiddleware,
         allow_origins=list(allowed),
@@ -79,7 +89,14 @@ def create_app():
 
     @app.get("/health")
     def health():
-        return {"status": "ok", "service": "signaling"}
+        config = ice_configuration()
+        return {
+            "status": "ok",
+            "service": "signaling",
+            "protocol": 1,
+            "turnConfigured": config["turnConfigured"],
+            "stunConfigured": config["stunConfigured"],
+        }
 
     @app.post("/rooms")
     def create(request: Request):
@@ -138,21 +155,7 @@ def create_app():
             for room in rooms.values()
         ):
             raise HTTPException(401, "Room authorization required")
-        config = []
-        stun = os.getenv("FLOWDROP_STUN_URL")
-        if stun:
-            config.append({"urls": stun})
-        secret = os.getenv("FLOWDROP_TURN_SECRET")
-        url = os.getenv("FLOWDROP_TURN_URL")
-        if secret and url:
-            import base64
-
-            username = f"{int(time.time() + 600)}:{secrets.token_hex(8)}"
-            credential = base64.b64encode(
-                hmac.new(secret.encode(), username.encode(), hashlib.sha1).digest()
-            ).decode()
-            config.append({"urls": url, "username": username, "credential": credential})
-        return {"iceServers": config}
+        return ice_configuration()
 
     @app.delete("/rooms/{rid}")
     async def revoke(rid: str, request: Request):

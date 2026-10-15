@@ -1,3 +1,11 @@
+# 0.3.2 online limitations
+
+Online Sharing requires an operator-configured public HTTPS frontend and WSS signaling service. None is provisioned/configured by default; the desktop clearly reports unavailable and Offline LAN remains usable. Restricted NATs need a reachable authenticated TURN relay. Local allocation/auth tests passed, but the actual browser relay fixture fails when coturn forwards UDP (`Operation not permitted`); no Internet relay/file transfer claim is made.
+
+Desktop handoff opens the hosted site in a separate tab; it does not embed remote RPC inside the LAN origin. Browser source storage quotas, 128 MiB non-streaming fallback, whole-file WebRTC retry and room expiration limits remain. No new-build physical phone, separate Internet networks, clean Windows, production TLS/container or large mobile acceptance was performed. See [current evidence](ONLINE_SHARING_VERIFICATION.md).
+
+---
+
 # 0.3.1 network acceptance limits
 
 - Physical phone/second-PC reachability, camera QR scanning, clean Windows and human GUI usability remain UNVERIFIED. Automated Tk tests use hidden native widgets, and local LAN clients run on the host PC.

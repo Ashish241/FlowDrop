@@ -5,7 +5,10 @@ from contextlib import AsyncExitStack, asynccontextmanager
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-os.environ["FLOWDROP_ORIGINS"] = "http://127.0.0.1:8765"
+port = int(os.getenv("FLOWDROP_E2E_PORT", "8765"))
+if port not in (8765, 8768, 8769):
+    raise ValueError("Only fixed disposable loopback test ports are permitted")
+os.environ["FLOWDROP_ORIGINS"] = f"http://127.0.0.1:{port}"
 import uvicorn
 from fastapi import FastAPI
 
@@ -50,6 +53,6 @@ app.mount("/cloud", cloud)
 app.mount("/", lan)
 if __name__ == "__main__":
     try:
-        uvicorn.run(app, host="127.0.0.1", port=8765, log_level="warning")
+        uvicorn.run(app, host="127.0.0.1", port=port, log_level="warning")
     finally:
         temporary.cleanup()

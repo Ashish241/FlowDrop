@@ -1,14 +1,12 @@
 """Redis room authority and cross-worker routing. Redis failure is fail-closed."""
 
 import asyncio
-import base64
 import hashlib
 import hmac
 import json
 import logging
 import os
 import secrets
-import time
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
@@ -17,6 +15,7 @@ from redis.asyncio import Redis
 from redis.exceptions import RedisError, WatchError
 
 from services.request_security import client_ip
+from services.signaling.ice import ice_configuration
 from services.version import VERSION
 
 
@@ -93,6 +92,7 @@ class RoomStore:
 
 
 def create_distributed_app(redis=None, prefix="flowdrop:signal:"):
+    ice_configuration()
     owned = redis is None
     redis = redis or Redis.from_url(
         os.environ["REDIS_URL"],
@@ -160,7 +160,15 @@ def create_distributed_app(redis=None, prefix="flowdrop:signal:"):
     @app.get("/health")
     async def health():
         await redis.ping()
-        return {"status": "ok", "service": "signaling", "state": "redis"}
+        config = ice_configuration()
+        return {
+            "status": "ok",
+            "service": "signaling",
+            "state": "redis",
+            "protocol": 1,
+            "turnConfigured": config["turnConfigured"],
+            "stunConfigured": config["stunConfigured"],
+        }
 
     @app.post("/rooms")
     async def create():
@@ -237,19 +245,7 @@ def create_distributed_app(redis=None, prefix="flowdrop:signal:"):
         if not rid:
             raise HTTPException(401, "Room authorization required")
         await store.authorize(rid, token)
-        servers = []
-        if os.getenv("FLOWDROP_STUN_URL"):
-            servers.append({"urls": os.environ["FLOWDROP_STUN_URL"]})
-        secret, url = os.getenv("FLOWDROP_TURN_SECRET"), os.getenv("FLOWDROP_TURN_URL")
-        if secret and url:
-            username = f"{int(time.time() + 600)}:{secrets.token_hex(8)}"
-            credential = base64.b64encode(
-                hmac.new(secret.encode(), username.encode(), hashlib.sha1).digest()
-            ).decode()
-            servers.append(
-                {"urls": url, "username": username, "credential": credential}
-            )
-        return {"iceServers": servers}
+        return ice_configuration()
 
     @app.websocket("/rooms/{rid}/ws")
     async def websocket(ws: WebSocket, rid: str):

@@ -623,6 +623,8 @@ def panel_smoke():
         import os
 
         old_storage = os.environ.get("FLOWDROP_STORAGE")
+        old_online = os.environ.get("FLOWDROP_ONLINE_CONFIG")
+        os.environ["FLOWDROP_ONLINE_CONFIG"] = str(Path(directory) / "online.json")
         os.environ["FLOWDROP_STORAGE"] = directory
         root = tk.Tk()
         root.withdraw()
@@ -736,6 +738,10 @@ def panel_smoke():
             os.environ.pop("FLOWDROP_STORAGE", None)
         else:
             os.environ["FLOWDROP_STORAGE"] = old_storage
+        if old_online is None:
+            os.environ.pop("FLOWDROP_ONLINE_CONFIG", None)
+        else:
+            os.environ["FLOWDROP_ONLINE_CONFIG"] = old_online
         if error:
             raise RuntimeError(error[0])
         print(json.dumps(result), flush=True)

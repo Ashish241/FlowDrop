@@ -1,0 +1,41 @@
+# Explicit public HTTPS overlay. Do not run without deployment approval and owned DNS.
+services:
+  signaling:
+    environment:
+      FLOWDROP_ORIGINS: https://${FLOWDROP_DOMAIN:?Set the owned public DNS hostname}
+      FLOWDROP_TRUSTED_PROXIES: 172.31.251.2/32
+  cloud:
+    environment:
+      FLOWDROP_ORIGINS: https://${FLOWDROP_DOMAIN:?Set the owned public DNS hostname}
+      FLOWDROP_TRUSTED_PROXIES: 172.31.251.2/32
+      FLOWDROP_PUBLIC_ORIGIN: https://${FLOWDROP_DOMAIN:?Set the owned public DNS hostname}
+  web:
+    volumes:
+      - ./infrastructure/deployment/public-realip.conf:/etc/nginx/flowdrop-realip/trusted.conf:ro
+    networks:
+      default: {ipv4_address: 172.31.251.2}
+      online-edge: {ipv4_address: 172.31.252.3}
+  edge:
+    image: caddy:2-alpine@sha256:d8542f48d34a9cf4e4c11a478865229840e87e4c96ea3f439101f31a5d35f75f
+    ports: ['80:80', '443:443', '443:443/udp']
+    environment:
+      FLOWDROP_DOMAIN: ${FLOWDROP_DOMAIN:?Set the owned public DNS hostname}
+    volumes:
+      - ./infrastructure/deployment/Caddyfile:/etc/caddy/Caddyfile:ro
+      - edge-data:/data
+      - edge-config:/config
+    depends_on:
+      web: {condition: service_started}
+    restart: unless-stopped
+    networks:
+      online-edge: {ipv4_address: 172.31.252.2}
+networks:
+  default:
+    ipam:
+      config: [{subnet: 172.31.251.0/24}]
+  online-edge:
+    ipam:
+      config: [{subnet: 172.31.252.0/29}]
+volumes:
+  edge-data:
+  edge-config:

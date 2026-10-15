@@ -1,3 +1,13 @@
+# 0.3.2 online security review
+
+Confirmed packaged local-signaling mismatch is fixed with explicit host-authorized endpoint configuration and public HTTPS handoff. Local LAN capability tokens are not placed in external URLs or requests; external links use `noreferrer`. Public settings reject private/loopback addresses except explicitly labeled loopback development mode. Probes disable environment proxies and redirects, retain TLS verification, cap reads/timeouts and use a nonblocking cached probe lock so an online outage does not occupy all LAN workers. Only the trusted local host can change settings; automatic public provisioning is absent.
+
+Hosted signaling remains same-origin with exact-origin controls and participant authorization. Invitations contain room IDs only. TURN shared secrets stay server-side; derived credentials expire after 600 seconds and authenticated ICE responses are `no-store`. Invalid/incomplete ICE settings fail startup, and relay-only mode refuses missing TURN. Redis authority/rates and bounded queues/protocol validation remain. Production coturn retains peer ACLs/quotas. The optional edge overwrites client identity and trusts only fixed immediate proxy addresses. Domain ownership, TLS renewal, NAT/relay/firewall and real proxy abuse checks remain operator acceptance gates; this is not an independent security certification.
+
+Test fixtures with loopback TURN peer permission are ignored disposable local artifacts, never production configuration. No LAN exposure, firewall/profile mutation or CSP/CORS relaxation was introduced. See [online verification](ONLINE_SHARING_VERIFICATION.md).
+
+---
+
 # 0.3.1 desktop network review
 
 LAN remains explicit opt-in. Physical adapter discovery uses Windows hardware, route and profile information; automatic selection cannot fall back to WSL/virtual interfaces. Multiple physical candidates require explicit choice. Public/unknown networks require explicit trusted-interface confirmation in the GUI; CLI automatic Public selection is refused. No profile is changed. Restart revalidates adapter identity/IP and gives current port/URL information.

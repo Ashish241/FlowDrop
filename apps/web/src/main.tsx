@@ -5,7 +5,7 @@ import { FairScheduler, persistFile, recoverFiles, forgetFile } from "./queue";
 import QRCode from "qrcode";
 import { ArrowUpRight, Upload, Shield, Zap, Laptop, Moon } from "lucide-react";
 import "./style.css";
-import { OnlinePanel } from "./online";
+import { OnlinePanel } from "./online-entry";
 import { LaterPanel } from "./later";
 import { OpticalPanel } from "./optical";
 import { ModeCards } from "./mode-cards";
@@ -162,6 +162,8 @@ function App() {
     }
     if (fragment.has("code")) setCode(fragment.get("code")!);
     if (fragment.has("share")) setPage("Send Later");
+    if (fragment.has("online") || fragment.has("online-room"))
+      setPage("Online Share");
   }, []);
   useEffect(() => {
     if (!token) return;
@@ -417,7 +419,7 @@ function App() {
         </div>
         <div hidden={page !== "Online Share"}>
           {(page === "Online Share" || visited.includes("Online Share")) && (
-            <OnlinePanel />
+            <OnlinePanel desktopToken={me?.id === "host" ? token : undefined} />
           )}
         </div>
         {page === "Send Later" || page === "Online Share" ? null : page ===
@@ -821,7 +823,7 @@ function App() {
         )}
         <footer>
           <Shield size={14} /> Your files belong to you.
-          <span>FLOWDROP / 0.3.1 DEVELOPMENT</span>
+          <span>FLOWDROP / 0.3.2 DEVELOPMENT</span>
         </footer>
       </main>
     </div>

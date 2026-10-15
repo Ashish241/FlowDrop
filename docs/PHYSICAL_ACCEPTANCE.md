@@ -1,3 +1,11 @@
+# 0.3.2 physical acceptance boundary
+
+The user reports working PC/phone Offline LAN with the previous 0.3.1 build. This is user-reported baseline evidence only. The rebuilt 0.3.2 native panel, socket bindings, QR generation and authenticated LAN payload checks used clients on the same Windows PC; no new physical phone/camera test was performed.
+
+For Online Sharing, use two devices on separate Internet networks and the approved public HTTPS service. Verify invitation QR camera scan, pending join/approval, file acceptance, bidirectional hash-matched files, text/URLs, multiple/large files, cancel/retry/refresh/reconnect and room revocation. Repeat with relay-only and confirm TURN route rather than merely configured TURN. Test UDP/TCP/TLS relay paths, locked-down firewalls and mobile background/save behavior. Record device/browser/network, byte counts, hashes and actual selected candidate pair. These checks are currently BLOCKED/NOT VERIFIED; localhost automation is not physical or Internet acceptance. The existing LAN/clean-Windows checklist below remains applicable.
+
+---
+
 # Physical acceptance plan
 
 v0.3.0 engineering checkpoint, 2026-10-13. The 1 GiB loopback benchmark and browser contexts do not satisfy any separate-device case below. Record receiver-reported save outcome separately from verified network delivery; inspect the actual saved file and hash it. Repeat refresh/resume with browser storage both available and quota-denied.

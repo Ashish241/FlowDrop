@@ -43,6 +43,7 @@ def create_app(
     connection_url: str | None = None,
     allowed_hosts: list[str] | None = None,
     lan_enabled: bool | None = None,
+    online_service=None,
 ):
     root = storage or Path(os.getenv("FLOWDROP_STORAGE", ".flowdrop"))
     if root.is_symlink():
@@ -202,6 +203,25 @@ def create_app(
         response.headers["Content-Security-Policy"] = CSP
         response.headers["Cache-Control"] = "no-store"
         return response
+
+    if online_service is not None:
+
+        class OnlineSettings(BaseModel):
+            website: str = Field(max_length=512)
+            signaling: str = Field(default="", max_length=512)
+
+        @app.get("/api/online/config")
+        def online_status():
+            return online_service.status()
+
+        @app.post("/api/online/config")
+        def online_settings(body: OnlineSettings, request: Request):
+            if auth(request)["id"] != "host":
+                raise HTTPException(403, "Only the host can configure online services")
+            try:
+                return online_service.save(body.website, body.signaling)
+            except ValueError as exc:
+                raise HTTPException(400, str(exc)) from exc
 
     @app.get("/api/health")
     def health():

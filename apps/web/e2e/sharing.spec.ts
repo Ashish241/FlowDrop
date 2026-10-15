@@ -87,6 +87,24 @@ test("real WebRTC DataChannel approval, file integrity, and text", async ({
   });
   const download = await downloading;
   expect(await readFile((await download.path())!)).toEqual(bytes);
+  const reverse = Buffer.alloc(131089, 39);
+  await b
+    .locator("input[type=file]")
+    .setInputFiles({
+      name: "reverse.bin",
+      mimeType: "application/octet-stream",
+      buffer: reverse,
+    });
+  const reverseDownload = a.waitForEvent("download");
+  await a.getByRole("button", { name: "Accept file", exact: true }).click();
+  expect(await readFile((await (await reverseDownload).path())!)).toEqual(
+    reverse,
+  );
+  await expect(a.getByAltText("Scan online room invitation")).toBeVisible();
+  await expect(a.getByRole("link", { name: /#online-room=/ })).toHaveAttribute(
+    "href",
+    new RegExp("#online-room=" + room + "$"),
+  );
   await a.getByPlaceholder("Share text with your peer").fill("WebRTC message");
   await a.locator("input[type=file]").setInputFiles({
     name: "empty.txt",

@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.3.2 — ONLINE-20261015.1 — 2026-10-15
+
+- Fix packaged Online Sharing targeting an absent local `/signal`: explicit host-authorized HTTPS endpoint settings, bounded health checks, hosted handoff and honest unavailable/errors.
+- Add online invitation URL/QR, endpoint-scoped recovery, shared UDP/TCP/TLS ICE configuration with short-lived TURN credentials, relay-only controls and accurate selected-route/failure diagnostics.
+- Supply an optional digest-pinned Caddy HTTPS edge, strict proxy identity and coturn public IP/certificate configuration; no public deployment performed.
+- Add configuration and separate-browser byte-verified transfer tests; rebuild Windows artifacts and verify native LAN preservation. Internet/physical acceptance and actual browser relay remain blocked; see current verification records.
+
 ## 0.3.1 — LAN-20261015.2 — 2026-10-15
 
 - Reproduced a stale 0.3.0 extracted executable without `--lan`; preserve it as an explicitly named checkpoint and identify new packages with build IDs and hash manifests.

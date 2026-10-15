@@ -15,7 +15,10 @@ services:
       REDIS_URL: redis://:${REDIS_PASSWORD:?Set REDIS_PASSWORD}@redis:6379/0
       FLOWDROP_ORIGINS: ${FLOWDROP_ORIGINS:-http://localhost:8080,http://127.0.0.1:8080}
       FLOWDROP_STUN_URL: ${FLOWDROP_STUN_URL:-}
+      FLOWDROP_STUN_URLS: ${FLOWDROP_STUN_URLS:-}
       FLOWDROP_TURN_URL: ${FLOWDROP_TURN_URL:-}
+      FLOWDROP_TURN_URLS: ${FLOWDROP_TURN_URLS:-}
+      FLOWDROP_ICE_POLICY: ${FLOWDROP_ICE_POLICY:-all}
       FLOWDROP_TURN_SECRET: ${TURN_SECRET:-}
       FLOWDROP_TRUSTED_PROXIES: ${FLOWDROP_TRUSTED_PROXIES:-}
     depends_on:
@@ -88,11 +91,14 @@ services:
     image: coturn/coturn:4.18.0-r0@sha256:bbefd3e1fdfdc0d58770fe01b581fd8b00d9f3a5580d00acb77cf719a6bc78e3
     profiles: [turn]
     entrypoint: ['/bin/sh','/start.sh']
-    volumes: ['./infrastructure/coturn/start.sh:/start.sh:ro']
+    volumes: ['./infrastructure/coturn/start.sh:/start.sh:ro', './infrastructure/coturn/certs:/run/flowdrop-turn-certs:ro']
     environment:
       TURN_SECRET: ${TURN_SECRET:-}
       TURN_REALM: ${TURN_REALM:-localhost}
-    ports: ['3478:3478/udp','3478:3478/tcp','49160-49200:49160-49200/udp']
+      TURN_EXTERNAL_IP: ${TURN_EXTERNAL_IP:-}
+      TURN_TLS_CERT: ${TURN_TLS_CERT:-}
+      TURN_TLS_KEY: ${TURN_TLS_KEY:-}
+    ports: ['3478:3478/udp','3478:3478/tcp','5349:5349/tcp','49160-49200:49160-49200/udp']
   redis:
     image: redis:8.0.5-alpine@sha256:6c8e66693fa71bad36ae06c75c990446ad01dbd4b081dd847eb9869f20d7c6ee
     command: ['redis-server', '--appendonly', 'yes', '--requirepass', '${REDIS_PASSWORD:?Set REDIS_PASSWORD}', '--maxmemory', '128mb', '--maxmemory-policy', 'noeviction']

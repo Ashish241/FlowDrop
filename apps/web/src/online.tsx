@@ -1,10 +1,17 @@
 import { useEffect, useRef, useState } from "react";
+import QRCode from "qrcode";
 import { createSHA256 } from "hash-wasm";
 import { hashFile } from "./hash";
 import { recordTransfer } from "./transfer-history";
 import { persistFile, recoverFiles, forgetFile } from "./queue";
 import { createStreamSink, type StreamSink } from "./stream-sink";
-type Session = { room: string; token: string; member: string; expires: number };
+type Session = {
+  room: string;
+  token: string;
+  member: string;
+  expires: number;
+  endpoint?: string;
+};
 type Meta = {
   type: "file";
   id: string;
@@ -19,7 +26,9 @@ export function OnlinePanel() {
   const expiryTimer = useRef<ReturnType<typeof setTimeout> | undefined>(
     undefined,
   );
-  const [room, setRoom] = useState(""),
+  const [room, setRoom] = useState(
+      new URLSearchParams(location.hash.slice(1)).get("online-room") || "",
+    ),
     [status, setStatus] = useState(
       "Create a temporary room or enter an invitation.",
     ),
@@ -30,6 +39,17 @@ export function OnlinePanel() {
     [text, setText] = useState(""),
     [messages, setMessages] = useState<string[]>([]),
     [route, setRoute] = useState("Not connected");
+  const [invitation, setInvitation] = useState("");
+  const [qr, setQr] = useState("");
+  const [forceRelay, setForceRelay] = useState(false);
+  const [iceWarning, setIceWarning] = useState("");
+  useEffect(() => {
+    if (!invitation) {
+      setQr("");
+      return;
+    }
+    void QRCode.toDataURL(invitation).then(setQr);
+  }, [invitation]);
   const peer = useRef<RTCPeerConnection | undefined>(undefined),
     socket = useRef<WebSocket | undefined>(undefined),
     channel = useRef<RTCDataChannel | undefined>(undefined),
@@ -91,15 +111,18 @@ export function OnlinePanel() {
       .VITE_SIGNAL_URL || "/signal";
   async function api(path: string, method = "GET", token?: string) {
     const r = await fetch(base + path, {
+      signal: AbortSignal.timeout(10000),
       method,
       headers: token ? { Authorization: "Bearer " + token } : {},
     });
-    if (!r.ok)
-      throw new Error(
-        "Signaling unavailable or room rejected (" +
-          r.status +
-          "). Check the signaling deployment.",
-      );
+    if (!r.ok) {
+      const body = await r.json().catch(() => ({}));
+      const detail =
+        typeof body.detail === "string"
+          ? body.detail.slice(0, 200)
+          : "Check signaling deployment, room expiry and receiver capacity.";
+      throw new Error(`Signaling ${r.status}: ${detail}`);
+    }
     return r.json();
   }
   function close() {
@@ -301,6 +324,25 @@ export function OnlinePanel() {
   }
   async function connect(join: boolean, recovering = false) {
     try {
+      let joinRoom = room.trim();
+      if (join) {
+        let value = room.trim();
+        if (!/^[a-f0-9]{32}$/.test(value)) {
+          try {
+            const link = new URL(value);
+            if (link.origin !== location.origin) throw new Error();
+            value =
+              new URLSearchParams(link.hash.slice(1)).get("online-room") || "";
+          } catch {
+            throw new Error(
+              "Use a valid 32-character room ID or an invitation from this website.",
+            );
+          }
+        }
+        if (!/^[a-f0-9]{32}$/.test(value)) throw new Error("Invalid room ID.");
+        setRoom(value);
+        joinRoom = value;
+      }
       transferRecord.current = undefined;
       close();
       cancelled.current = false;
@@ -313,11 +355,20 @@ export function OnlinePanel() {
       const data = (
         recovering && saved
           ? JSON.parse(saved)
-          : await api(
-              join ? "/rooms/" + room.trim() + "/join" : "/rooms",
-              "POST",
-            )
+          : await api(join ? "/rooms/" + joinRoom + "/join" : "/rooms", "POST")
       ) as Session;
+      if (
+        !/^[a-f0-9]{32}$/.test(data.room) ||
+        typeof data.token !== "string" ||
+        typeof data.expires !== "number"
+      )
+        throw new Error("Invalid signaling session response.");
+      const endpoint = new URL(base, location.href).href;
+      if (data.endpoint && data.endpoint !== endpoint)
+        throw new Error(
+          "Saved room belongs to a different signaling endpoint. Create a fresh room.",
+        );
+      data.endpoint = endpoint;
       if (data.expires <= Date.now() / 1000) {
         sessionStorage.removeItem("flowdrop.online.v2");
         throw new Error("Room expired. Create or join a new room.");
@@ -341,6 +392,9 @@ export function OnlinePanel() {
         ),
       );
       setRoom(data.room);
+      setInvitation(
+        location.origin + location.pathname + "#online-room=" + data.room,
+      );
       let ice = await api("/ice", "GET", data.token);
       let pc: RTCPeerConnection;
       const ws = new WebSocket(
@@ -368,14 +422,49 @@ export function OnlinePanel() {
         cancelled.current = true;
         queuedBytes.current = 0;
         receiveChain.current = Promise.resolve();
-        pc = new RTCPeerConnection(ice);
+        if (forceRelay && !ice.turnConfigured)
+          throw new Error(
+            "Relay-only testing requires configured authenticated TURN servers.",
+          );
+        setIceWarning(
+          !ice.stunConfigured && !ice.turnConfigured
+            ? "No STUN/TURN configured: same-network connectivity only; Internet reachability is not established."
+            : !ice.turnConfigured
+              ? "STUN configured; TURN is missing, so restrictive NAT/firewalls may prevent connections."
+              : "Authenticated short-lived TURN fallback configured. Internet reachability still requires different-network testing.",
+        );
+        pc = new RTCPeerConnection({
+          iceServers: ice.iceServers,
+          iceTransportPolicy: forceRelay
+            ? "relay"
+            : ice.iceTransportPolicy || "all",
+        });
         const instance = pc;
+        let hasRelay = false;
         peer.current = pc;
         pc.onicecandidate = (e) => {
           if (peer.current !== instance) return;
+          if (e.candidate?.type === "relay") hasRelay = true;
           if (e.candidate && ws.readyState === WebSocket.OPEN)
             ws.send(
               JSON.stringify({ type: "ice", candidate: e.candidate.toJSON() }),
+            );
+        };
+        pc.onicecandidateerror = (event) => {
+          if (peer.current === instance)
+            setIceWarning(
+              `ICE server request failed (${event.errorCode}). Check STUN/TURN host, port, transport and firewall; a public STUN server does not guarantee connectivity.`,
+            );
+        };
+        pc.onicegatheringstatechange = () => {
+          if (
+            peer.current === instance &&
+            pc.iceGatheringState === "complete" &&
+            (forceRelay || ice.iceTransportPolicy === "relay") &&
+            !hasRelay
+          )
+            setIceWarning(
+              "No TURN relay candidate was allocated. Check TURN reachability, credentials and UDP/TCP transport.",
             );
         };
         pc.ondatachannel = (e) => {
@@ -383,26 +472,42 @@ export function OnlinePanel() {
         };
         pc.onconnectionstatechange = () => {
           if (peer.current !== instance) return;
-          if (pc.connectionState !== "connected") setStatus(pc.connectionState);
+          if (pc.connectionState === "failed")
+            setStatus(
+              hasRelay
+                ? "TURN allocated a relay candidate, but connectivity checks failed. Check relay public address, permissions and relay-port firewall; reconnect to retry."
+                : "WebRTC connection failed. Check NAT/firewall restrictions and configure authenticated TURN; reconnect to retry.",
+            );
+          else if (pc.connectionState !== "connected")
+            setStatus(pc.connectionState);
           else if (channel.current?.readyState === "open")
             setStatus("Connected. Files require receiver approval.");
           if (pc.connectionState === "connected")
             void pc.getStats().then((stats) => {
-              for (const stat of stats.values()) {
-                if (
-                  stat.type === "candidate-pair" &&
-                  stat.state === "succeeded"
-                ) {
-                  const candidate = stats.get(stat.localCandidateId);
-                  const remote = stats.get(stat.remoteCandidateId);
-                  setRoute(
-                    candidate?.candidateType === "relay" ||
-                      remote?.candidateType === "relay"
-                      ? "TURN relay"
-                      : "Direct P2P",
+              const transport = [...stats.values()].find(
+                (stat) =>
+                  stat.type === "transport" && stat.selectedCandidatePairId,
+              );
+              const selected = transport
+                ? stats.get(transport.selectedCandidatePairId)
+                : [...stats.values()].find(
+                    (stat) =>
+                      stat.type === "candidate-pair" &&
+                      stat.state === "succeeded" &&
+                      stat.nominated,
                   );
-                }
+              if (!selected) {
+                setRoute("Connected; selected ICE route unavailable");
+                return;
               }
+              const local = stats.get(selected.localCandidateId),
+                remote = stats.get(selected.remoteCandidateId);
+              setRoute(
+                local?.candidateType === "relay" ||
+                  remote?.candidateType === "relay"
+                  ? "TURN relay"
+                  : "Direct P2P",
+              );
             });
         };
       }
@@ -649,6 +754,27 @@ export function OnlinePanel() {
         Use the hosted signaling service. File bytes travel over an encrypted
         WebRTC DataChannel.
       </p>
+      <p>{iceWarning}</p>
+      <label>
+        <input
+          type="checkbox"
+          checked={forceRelay}
+          onChange={(event) => setForceRelay(event.target.checked)}
+        />
+        Relay-only test (requires TURN; reconnect after changing)
+      </label>
+      {invitation && (
+        <div>
+          <p>
+            Invitation URL: <a href={invitation}>{invitation}</a>
+          </p>
+          <img src={qr} alt="Scan online room invitation" />
+          <p>
+            Invitation contains a room ID only. Owner approval and separate file
+            acceptance are required.
+          </p>
+        </div>
+      )}
       <label>
         Room invitation
         <input value={room} onChange={(e) => setRoom(e.target.value)} />

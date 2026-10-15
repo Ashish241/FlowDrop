@@ -21,6 +21,7 @@ class SignalingTests(unittest.TestCase):
                 a.send_json({"type": "approve"})
                 self.assertEqual(b.receive_json()["type"], "approved")
                 self.assertEqual(a.receive_json()["type"], "ready")
+                a.send_json({"type": "file", "data": "not-a-signaling-message"})
                 a.send_json({"type": "offer", "sdp": "test-sdp"})
                 self.assertEqual(b.receive_json()["sdp"], "test-sdp")
                 b.send_json({"type": "answer", "sdp": "answer"})
