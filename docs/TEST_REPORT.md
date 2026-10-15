@@ -1,3 +1,11 @@
+# Integrated 0.4.0 / INTEGRATED-20261016.1 — 2026-10-16
+
+77 backend tests passed (7 unconfigured provider tests skipped); 4 real Redis integration tests passed separately. Eleven frontend unit tests, 13 product browser scenarios and 20 preserved combined browser scenarios passed; one positive relay case remains conditionally skipped/unverified. Lint, strict TypeScript, production builds, artifact boundaries, rebuilt Windows smoke/native LAN/binding checks and extracted backend smoke passed. Optical tests decode actual QR rasters/PNG frames offline and reconstruct bounded binary data; camera UI errors are simulated, not physical-camera evidence. No public deployment or cross-network Internet test occurred.
+
+Full scope, warnings, earlier harness failures, actual artifacts and remaining gates are in [INTEGRATED_VERIFICATION.md](INTEGRATED_VERIFICATION.md) and [INTEGRATED_0.4.0_EVIDENCE.json](INTEGRATED_0.4.0_EVIDENCE.json). Previous records below are historical.
+
+---
+
 # 0.4.0 / SPLIT-20261015.1 — 2026-10-15
 
 74 Pytest passed; six unconfigured provider tests skipped (not rerun for this memory-only product split). Nine Vitest passed. Preserved combined browser suite: 20 passed, one conditional relay skipped (1.6 min). Dedicated Online website: three passed (12.9s); Desktop offline target: five passed (14.6s), including repeated existing LAN scenarios. Ruff check/format, ESLint, strict TypeScript, all three production builds and bundle-boundary checks passed. Website screenshot/layout inspected; five responsive widths and automated accessibility passed.

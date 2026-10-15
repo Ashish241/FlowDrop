@@ -21,7 +21,7 @@ test("dedicated website works without any desktop API and stays responsive", asy
   });
   await page.goto("/");
   await expect(page.getByRole("heading", { level: 1 })).toContainText(
-    "Across the distance",
+    "Share files instantly",
   );
   expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
   for (const width of [360, 390, 768, 1024, 1440]) {
@@ -68,8 +68,10 @@ test("standalone website transfers multiple files both ways, text, cancellation 
     await expect(left.getByLabel("Room invitation")).toHaveValue(
       /[a-f0-9]{32}/,
     );
-    const room = await left.getByLabel("Room invitation").inputValue();
-    await right.getByLabel("Room invitation").fill(room);
+    await expect(left.getByTestId("pairing-code")).toHaveText(/[0-9]{6}/);
+    await right
+      .getByLabel("Room invitation")
+      .fill(await left.getByTestId("pairing-code").innerText());
     await right.getByRole("button", { name: "Join room", exact: true }).click();
     await left
       .getByRole("button", { name: "Approve receiver", exact: true })
@@ -89,11 +91,22 @@ test("standalone website transfers multiple files both ways, text, cancellation 
           buffer,
         })),
       );
+    await left
+      .getByRole("button", { name: "Pause transfer", exact: true })
+      .click();
+    let first = true;
     for (const payload of bytes) {
       const downloaded = b.waitForEvent("download");
       await right
         .getByRole("button", { name: "Accept file", exact: true })
         .click();
+      if (first) {
+        await expect(left.locator("progress")).toHaveAttribute("value", "0");
+        await left
+          .getByRole("button", { name: "Resume transfer", exact: true })
+          .click();
+        first = false;
+      }
       expect(await readFile((await (await downloaded).path())!)).toEqual(
         payload,
       );
@@ -116,6 +129,23 @@ test("standalone website transfers multiple files both ways, text, cancellation 
       .fill("https://example.com — code and text");
     await left.getByRole("button", { name: "Send text", exact: true }).click();
     await expect(right.locator("pre")).toContainText("code and text");
+    await r.grantPermissions(["clipboard-read", "clipboard-write"]);
+    await right
+      .getByRole("button", { name: "Copy received text", exact: true })
+      .click();
+    await expect
+      .poll(() => b.evaluate(() => navigator.clipboard.readText()))
+      .toContain("code and text");
+    await right
+      .getByRole("button", { name: "Clear received history", exact: true })
+      .click();
+    await expect(right.locator("pre")).toHaveCount(0);
+    await left.getByPlaceholder("Share text with your peer").fill("clear me");
+    await left.getByRole("button", { name: "Clear text", exact: true }).click();
+    await expect(
+      left.getByPlaceholder("Share text with your peer"),
+    ).toHaveValue("");
+
     await left
       .locator("input[type=file]")
       .first()

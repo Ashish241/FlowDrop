@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { Zap, Shield, ArrowUpRight, Moon } from "lucide-react";
 import { OnlinePanel } from "./online";
+import { OpticalPanel } from "./optical";
+import { ComingSoon } from "./coming-soon";
 import { TransferHistory } from "./transfer-history";
 import "./style.css";
 import "./online-style.css";
@@ -17,6 +19,7 @@ function OnlineApp() {
   );
   const [attempt, setAttempt] = useState(0);
   useEffect(() => {
+    if (page === "Optical Share" || page === "Send Later — Coming Soon") return;
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 70000);
     setStatus(
@@ -65,7 +68,10 @@ function OnlineApp() {
       controller.abort();
       clearTimeout(timer);
     };
-  }, [attempt]);
+  }, [
+    attempt,
+    page === "Optical Share" || page === "Send Later — Coming Soon",
+  ]);
   const choose = (value: string) => {
     setPage(value);
     if (["Send Files", "Receive Files", "Share Text"].includes(value))
@@ -85,6 +91,8 @@ function OnlineApp() {
             "Send Files",
             "Receive Files",
             "Share Text",
+            "Optical Share",
+            "Send Later — Coming Soon",
             "Transfer Progress",
             "Connection Diagnostics",
             "Privacy and Help",
@@ -107,9 +115,9 @@ function OnlineApp() {
       </aside>
       <main>
         <header>
-          <span>
-            <i /> FLOWDROP ONLINE
-          </span>
+          <button onClick={() => choose("Privacy and Help")}>
+            How it Works
+          </button>
           <button
             aria-label="Toggle theme"
             onClick={() => document.body.classList.toggle("dark")}
@@ -121,36 +129,38 @@ function OnlineApp() {
           <div className="eyebrow">
             A LITTLE LESS FRICTION. A LOT MORE FLOW.
           </div>
-          <h1>
-            {page === "Home" ? (
-              <>
-                Your files.
-                <br />
-                <em>Across the distance.</em>
-              </>
-            ) : (
-              page
-            )}
-          </h1>
-          <p>Connect two browsers. Approve your peer. Share in the moment.</p>
+          <h1>{page === "Home" ? <>Share files instantly.</> : page}</h1>
+          <p>No login. No installation. Just share.</p>
         </section>
         {page === "Home" && (
           <>
             <div className="cards">
-              {["Send Files", "Receive Files", "Share Text"].map((item, i) => (
+              {[
+                "Send Files",
+                "Receive Files",
+                "Optical Share",
+                "Send Later — Coming Soon",
+              ].map((item, i) => (
                 <button
                   className="card"
                   key={item}
                   onClick={() => choose(item)}
                 >
                   <ArrowUpRight />
-                  <h2>{item}</h2>
+                  <h2>
+                    {item === "Send Files"
+                      ? "Send"
+                      : item === "Receive Files"
+                        ? "Receive"
+                        : item}
+                  </h2>
                   <p>
                     {
                       [
                         "Create a temporary room and invite someone.",
                         "Open an invitation or join with a room code.",
-                        "Send text, code or links through your connection.",
+                        "Screen-to-camera text and small files.",
+                        "Future encrypted temporary sharing links.",
                       ][i]
                     }
                   </p>
@@ -170,7 +180,15 @@ function OnlineApp() {
             </section>
           </>
         )}
-        <section className="online-health" aria-label="Signaling availability">
+        {page === "Optical Share" && <OpticalPanel />}
+        {page === "Send Later — Coming Soon" && <ComingSoon />}
+        <section
+          hidden={
+            page === "Optical Share" || page === "Send Later — Coming Soon"
+          }
+          className="online-health"
+          aria-label="Signaling availability"
+        >
           <p role="status">{status}</p>
           <button onClick={() => setAttempt((value) => value + 1)}>
             Retry signaling connection

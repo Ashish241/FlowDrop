@@ -1,3 +1,9 @@
+# Integrated 0.4.0 deployment constraint
+
+Use the dedicated static website and minimal signaling targets in FREE_HOSTING.md. Send Later is Coming Soon; the public Nginx cloud route is disabled (404), and no cloud/database/storage deployment is required or authorized. Do not start the legacy full-stack cloud Compose services for this release. No public hosting action was performed. See INTEGRATED_VERIFICATION.md.
+
+---
+
 # 0.4.0 deployment targets
 
 The dedicated website/public signaling free MVP is described in [FREE_HOSTING.md](FREE_HOSTING.md). `render.yaml` prepares a free single-worker memory signaling service; Pages builds `apps/web/dist-online` with the actual HTTPS signaling URL, and generated CSP permits only that exact HTTPS/WSS origin. The existing Nginx web container now builds the online target. Legacy full-stack Redis/cloud infrastructure remains optional, not required by the memory MVP. No public deployment/push or paid provisioning has been authorized/performed.

@@ -1,3 +1,15 @@
+# Integrated 0.4.0 — INTEGRATED-20261016.1
+
+Current source starts at `b1a3ec2`; the earlier split and working LAN checkpoints are preserved. Desktop and Web now both expose Optical Share and Send Later — Coming Soon. Online adds six-digit temporary codes (10-minute TTL), existing strong room IDs/capabilities and owner approval, cooperative in-session pause/resume, safe text copy/clear/history controls, transfer metadata and measured speed/ETA. Progress stays below 100% until integrity verification. Interrupted WebRTC files still require whole-file resend; in-flight chunks may settle after pause. Resume on the device that paused.
+
+Optical version-1 text remains compatible and version-2 supports files up to 64 KiB. The same QR decoder accepts camera frames or imported images and supports repeated, missing, duplicate and out-of-order frames. Existing offline LAN routing, pairing, resume and firewall/adapter logic are unchanged. See [Optical guide](OPTICAL_SHARING_GUIDE.md) and [current verification](INTEGRATED_VERIFICATION.md).
+
+Send Later is a visible non-upload Coming Soon screen in shipping builds. No cloud API is called by that screen, no new database/storage/payment dependency is added, and the public Nginx `/cloud/` route returns 404. Legacy implementation and its explicitly local combined regression host are retained; it is not part of the shipping website/desktop feature set. No cloud service was deployed.
+
+Public deployment and Internet/TURN/physical-device verification remain open. No push, publication, public deployment or expenses were authorized or performed.
+
+---
+
 # 0.4.0 limits
 
 The Online Web target needs separately authorized hosting; it is not currently public. The free memory backend loses rooms on sleep/restart, cannot be scaled beyond one worker, and may aggregate anonymous rate limits behind an untrusted provider proxy. Default STUN is direct-first, not guaranteed NAT traversal; successful TURN relay remains blocked. Folder selection saves individual files, not directory trees. WebRTC retry resends the full file; streaming/download/browser quotas still apply. The combined Send Later interface is retained for development/regression but omitted from both shipping product navigations. See FREE_HOSTING.md and SPLIT_VERIFICATION.md.

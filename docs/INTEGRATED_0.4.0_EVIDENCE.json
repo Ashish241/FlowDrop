@@ -1,0 +1,160 @@
+{
+  "version": "0.4.0",
+  "build": "INTEGRATED-20261016.1",
+  "date": "2026-10-16",
+  "timezone": "Asia/Calcutta",
+  "starting_commit": "b1a3ec2",
+  "status": "IMPLEMENTED / LOCALLY TESTED; NOT DEPLOYED OR INTERNET VERIFIED",
+  "artifacts": [
+    {
+      "path": "C:\\My Projects\\flowdrop\\dist\\FlowDrop-windows.zip",
+      "bytes": 25306929,
+      "sha256": "CF8E76E3D14FA88FA3D77F2629BBFCE155E58A1C38F7BA05B7DBB1EBF5590E18"
+    },
+    {
+      "path": "C:\\My Projects\\flowdrop\\dist\\FlowDrop-online-static.zip",
+      "bytes": 157088,
+      "sha256": "7354E54A38755B902966AF87D19803710E767EBF2FE7A74A0D597CB00E15CAFA"
+    },
+    {
+      "path": "C:\\My Projects\\flowdrop\\dist\\FlowDrop-signaling-source.zip",
+      "bytes": 14742,
+      "sha256": "1091F34AA2BAFF19F0E09A6DB64129B5A85B694F9EE3D9B3282A1BB67B03FD13"
+    }
+  ],
+  "executable": {
+    "path": "C:\\My Projects\\flowdrop\\dist\\FlowDrop-integrated-0.4.0\\FlowDrop.exe",
+    "sha256": "BBDDD3DA696C85350E7A07B06C3E3ABBECB94C5788685B55212CF7F4F6D4D4F3",
+    "manifest": {
+      "version": "0.4.0",
+      "build": "INTEGRATED-20261016.1",
+      "executable": "FlowDrop.exe",
+      "executable_sha256": "BBDDD3DA696C85350E7A07B06C3E3ABBECB94C5788685B55212CF7F4F6D4D4F3",
+      "frontend_sha256": "6B3914877C65B285742620768D3364C5EDAC4AED1C299FF4E870AE1F239B1EF2"
+    },
+    "hashes_verified": true
+  },
+  "rollback": {
+    "path": "dist/checkpoints/FlowDrop-0.4.0-split-working.zip",
+    "sha256": "998522DE5F60AB484096026F53BC99EBFBB516F094C8B241C2A6C337C5E5D0DC",
+    "older_checkpoints_preserved": true
+  },
+  "tests": {
+    "baseline": {
+      "backend": 74,
+      "unit": 9,
+      "product_browser": 8
+    },
+    "final_backend": {
+      "passed": 77,
+      "provider_skipped": 7
+    },
+    "real_redis": {
+      "passed": 4,
+      "other_provider_cases_deselected": 2,
+      "seconds": 3.18
+    },
+    "vitest": 11,
+    "product_browser": {
+      "passed": 13,
+      "seconds": 35.3
+    },
+    "combined_browser": {
+      "passed": 20,
+      "positive_relay_skipped": 1,
+      "duration": "1.4 min"
+    },
+    "clipboard_clear_repeat": {
+      "passed": 1,
+      "seconds": 22.9,
+      "note": "Repeat of product scenario, not extra unique test"
+    },
+    "lint_typescript_builds": "passed",
+    "bundle_boundaries": "passed",
+    "windows_smoke": "passed",
+    "standalone_backend_zip_smoke": "passed",
+    "physical_camera": "not performed",
+    "public_internet": "not performed"
+  },
+  "native_same_pc": {
+    "build": "INTEGRATED-20261016.1",
+    "adapter": "Wi-Fi",
+    "lan": "http://192.168.1.7:8000",
+    "host": "http://127.0.0.1:8000",
+    "native_qr": true,
+    "authenticated_transfer": "Passed: 256 KiB hash-matched LAN download and authenticated WebSocket echo; clients on same PC",
+    "diagnostics": {
+      "Host Dashboard URL": "http://127.0.0.1:8000",
+      "Phone URL": "http://192.168.1.7:8000",
+      "Phone connectivity": "Not verified \u2014 local checks cannot establish phone reachability",
+      "Local HTTP / frontend / authorization": "Passed",
+      "LAN IP HTTP (same PC)": "Passed; physical phone not verified",
+      "Socket check": "Passed",
+      "WebSocket authorization": "Passed: denied (1008)",
+      "URL check": "Passed",
+      "Current network state": "Connected",
+      "Selected adapter": "Wi-Fi",
+      "LAN IPv4 / subnet": "192.168.1.7 / 192.168.1.0/24",
+      "Gateway": "192.168.1.1",
+      "Firewall profile": "Public",
+      "Adapter source": "Windows networking APIs",
+      "Firewall policy": "Domain firewall enabled: True; default inbound: Block\nPrivate firewall enabled: True; default inbound: Block\nPublic firewall enabled: True; default inbound: Block\nNo FlowDrop managed rule for this executable/IP/port. Inbound may be blocked; other rules and policy require review."
+    },
+    "network_change": "mocked DHCP notification detected; rebind requested",
+    "restart": "passed",
+    "shutdown": "passed"
+  },
+  "actual_tcp_bindings": [
+    {
+      "mode": "lan-auto-public",
+      "result": "correctly requires explicit trusted-network selection; no silent exposure"
+    },
+    {
+      "mode": "loopback",
+      "listening_address": "127.0.0.1",
+      "port": 12981,
+      "connection_url": "http://127.0.0.1:12981",
+      "http_frontend_ws_auth": "passed"
+    },
+    {
+      "mode": "lan-selected",
+      "listening_address": "192.168.1.7",
+      "port": 2945,
+      "connection_url": "http://192.168.1.7:2945",
+      "http_frontend_ws_auth": "passed"
+    },
+    {
+      "mode": "lan-all",
+      "listening_address": "0.0.0.0",
+      "port": 5408,
+      "connection_url": "http://192.168.1.7:5408",
+      "http_frontend_ws_auth": "passed"
+    }
+  ],
+  "optical": {
+    "text_limit_bytes": 16384,
+    "file_limit_bytes": 65536,
+    "frame_chunk_bytes": 200,
+    "max_file_frames": 328,
+    "compatibility": "version-1 text retained; version-2 binary",
+    "tests": "actual raster/PNG decoding, missing/repeated/out-of-order binary reconstruction offline; simulated denied camera",
+    "physical_camera_verified": false
+  },
+  "send_later": "Coming Soon in shipping UIs; no upload/cloud calls; Nginx /cloud/ returns 404; legacy local fixture retained",
+  "pairing": {
+    "code_digits": 6,
+    "code_ttl_seconds": 600,
+    "room_ttl_seconds": 3600,
+    "authorization": "owner approval plus strong participant capability; pending receiver gets no TURN credentials"
+  },
+  "pause": "cooperative in-session; in-flight bytes may settle; disconnect requires whole-file resend",
+  "provider_limits_rechecked": "2026-10-16; primary documentation linked in FREE_HOSTING.md",
+  "remaining_blockers": [
+    "Explicit public deployment authorization and authorized hosting accounts",
+    "Real public HTTPS/WSS origins, proxy/TLS and cold-start acceptance",
+    "Reachable authenticated TURN and successful browser relay; prior WSL UDP failure unresolved",
+    "Physical camera, new-build phones, disconnected LAN and clean Windows",
+    "Docker runtime, production provider IAM/HA/security and remote CI"
+  ],
+  "no_push_publish_public_deploy_or_expense": true
+}

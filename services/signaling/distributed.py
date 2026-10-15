@@ -173,9 +173,18 @@ def create_distributed_app(redis=None, prefix="flowdrop:signal:"):
     @app.post("/rooms")
     async def create():
         rid, token = secrets.token_hex(16), secrets.token_urlsafe(32)
+        code = None
+        for _ in range(16):
+            candidate = f"{secrets.randbelow(1000000):06d}"
+            if await redis.set(prefix + "code:" + candidate, rid, nx=True, ex=600):
+                code = candidate
+                break
+        if code is None:
+            raise HTTPException(503, "Pairing code capacity reached")
         server_time = await redis.time()
         expiry = server_time[0] + server_time[1] / 1000000 + 3600
         room = {
+            "code": code,
             "expires": expiry,
             "members": {
                 "owner": {"token": digest(token), "approved": True, "connection": None}
@@ -191,12 +200,25 @@ def create_distributed_app(redis=None, prefix="flowdrop:signal:"):
             json.dumps(room),
             expiry,
         ):
+            await redis.delete(prefix + "code:" + code)
             raise HTTPException(503, "Room capacity reached")
         await redis.set(prefix + "token:" + digest(token), rid, ex=3600)
-        return {"room": rid, "token": token, "member": "owner", "expires": expiry}
+        return {
+            "room": rid,
+            "token": token,
+            "member": "owner",
+            "expires": expiry,
+            "pairing_code": code,
+            "code_expires": expiry - 3000,
+        }
 
     @app.post("/rooms/{rid}/join")
     async def join(rid: str):
+        if len(rid) == 6 and rid.isascii() and rid.isdigit():
+            resolved = await redis.get(prefix + "code:" + rid)
+            if not resolved:
+                raise HTTPException(404, "Pairing code expired or unavailable")
+            rid = resolved
         token = secrets.token_urlsafe(32)
 
         def change(room):
@@ -229,6 +251,13 @@ def create_distributed_app(redis=None, prefix="flowdrop:signal:"):
         room, member = await store.authorize(rid, bearer(request))
         if member != "owner":
             raise HTTPException(403, "Owner required")
+        if room.get("code"):
+            await redis.eval(
+                "if redis.call('GET',KEYS[1])==ARGV[1] then return redis.call('DEL',KEYS[1]) end; return 0",
+                1,
+                prefix + "code:" + room["code"],
+                rid,
+            )
         await redis.delete(store.key(rid))
         await redis.zrem(prefix + "rooms", store.key(rid))
         await redis.delete(
@@ -244,8 +273,14 @@ def create_distributed_app(redis=None, prefix="flowdrop:signal:"):
         rid = await redis.get(prefix + "token:" + digest(token))
         if not rid:
             raise HTTPException(401, "Room authorization required")
-        await store.authorize(rid, token)
-        return ice_configuration()
+        room, member = await store.authorize(rid, token)
+        config = ice_configuration()
+        if not room["members"][member]["approved"]:
+            config["iceServers"] = [
+                server for server in config["iceServers"] if "credential" not in server
+            ]
+            config["pendingApproval"] = True
+        return config
 
     @app.websocket("/rooms/{rid}/ws")
     async def websocket(ws: WebSocket, rid: str):

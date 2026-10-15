@@ -1,3 +1,15 @@
+# Integrated 0.4.0 — INTEGRATED-20261016.1
+
+Current source starts at `b1a3ec2`; the earlier split and working LAN checkpoints are preserved. Desktop and Web now both expose Optical Share and Send Later — Coming Soon. Online adds six-digit temporary codes (10-minute TTL), existing strong room IDs/capabilities and owner approval, cooperative in-session pause/resume, safe text copy/clear/history controls, transfer metadata and measured speed/ETA. Progress stays below 100% until integrity verification. Interrupted WebRTC files still require whole-file resend; in-flight chunks may settle after pause. Resume on the device that paused.
+
+Optical version-1 text remains compatible and version-2 supports files up to 64 KiB. The same QR decoder accepts camera frames or imported images and supports repeated, missing, duplicate and out-of-order frames. Existing offline LAN routing, pairing, resume and firewall/adapter logic are unchanged. See [Optical guide](OPTICAL_SHARING_GUIDE.md) and [current verification](INTEGRATED_VERIFICATION.md).
+
+Send Later is a visible non-upload Coming Soon screen in shipping builds. No cloud API is called by that screen, no new database/storage/payment dependency is added, and the public Nginx `/cloud/` route returns 404. Legacy implementation and its explicitly local combined regression host are retained; it is not part of the shipping website/desktop feature set. No cloud service was deployed.
+
+Public deployment and Internet/TURN/physical-device verification remain open. No push, publication, public deployment or expenses were authorized or performed.
+
+---
+
 # 0.4.0 independent applications
 
 Separate desktop/online Vite targets, artifact boundary checks, offline-only launcher resources, dedicated responsive online website, minimal one-worker public signaling, exact-origin cross-service policy and prepared free hosting are implemented. Existing transfer/LAN/cloud source and regression fixture are preserved. See PRODUCT_SEPARATION.md and SPLIT_VERIFICATION.md. Internet deployment/physical acceptance remain unverified.

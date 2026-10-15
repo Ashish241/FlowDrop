@@ -11,6 +11,8 @@ type Session = {
   member: string;
   expires: number;
   endpoint?: string;
+  pairing_code?: string;
+  code_expires?: number;
 };
 type Meta = {
   type: "file";
@@ -18,6 +20,7 @@ type Meta = {
   name: string;
   size: number;
   sha256: string;
+  mime?: string;
 };
 export function OnlinePanel({ folders = false }: { folders?: boolean } = {}) {
   const [recovered, setRecovered] = useState<
@@ -41,6 +44,12 @@ export function OnlinePanel({ folders = false }: { folders?: boolean } = {}) {
     [route, setRoute] = useState("Not connected");
   const [invitation, setInvitation] = useState("");
   const [qr, setQr] = useState("");
+
+  const [pairingCode, setPairingCode] = useState("");
+  const [paused, setPaused] = useState(false);
+  const localPaused = useRef(false),
+    remotePaused = useRef(false);
+  const [metrics, setMetrics] = useState({ speed: 0, eta: 0 });
   const [forceRelay, setForceRelay] = useState(false);
   const [iceWarning, setIceWarning] = useState("");
   useEffect(() => {
@@ -72,10 +81,58 @@ export function OnlinePanel({ folders = false }: { folders?: boolean } = {}) {
     ),
     candidates = useRef<RTCIceCandidateInit[]>([]),
     receiveChain = useRef(Promise.resolve());
+  useEffect(() => {
+    const expires = session.current?.code_expires;
+    if (!pairingCode || !expires) return;
+    const timer = setTimeout(
+      () => setPairingCode(""),
+      Math.max(0, expires * 1000 - Date.now()),
+    );
+    return () => clearTimeout(timer);
+  }, [pairingCode]);
   const transferRecord = useRef<
-    | { id: string; name: string; size: number; direction: "Send" | "Receive" }
+    | {
+        id: string;
+        name: string;
+        size: number;
+        mime?: string;
+        direction: "Send" | "Receive";
+      }
     | undefined
   >(undefined);
+  useEffect(() => {
+    let previous = 0,
+      identity = "",
+      measured = performance.now();
+    const timer = setInterval(() => {
+      const record = transferRecord.current;
+      if (!record) return;
+      const current =
+        record.direction === "Send" ? acked.current : offset.current;
+      if (record.id !== identity) {
+        identity = record.id;
+        previous = 0;
+        measured = performance.now();
+      }
+      const now = performance.now(),
+        speed =
+          localPaused.current || remotePaused.current
+            ? 0
+            : Math.max(0, current - previous) /
+              Math.max(0.001, (now - measured) / 1000);
+      previous = current;
+      measured = now;
+      setMetrics({
+        speed,
+        eta: speed ? Math.max(0, record.size - current) / speed : 0,
+      });
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
+  async function waitWhilePaused() {
+    while ((localPaused.current || remotePaused.current) && !cancelled.current)
+      await new Promise((resolve) => setTimeout(resolve, 100));
+  }
   useEffect(() => {
     if (transferRecord.current)
       recordTransfer({
@@ -127,6 +184,10 @@ export function OnlinePanel({ folders = false }: { folders?: boolean } = {}) {
   }
   function close() {
     clearTimeout(expiryTimer.current);
+    localPaused.current = remotePaused.current = false;
+    setPaused(false);
+    setMessages([]);
+    setText("");
     hashing.current?.abort();
     cancelled.current = true;
     accept.current?.();
@@ -175,6 +236,11 @@ export function OnlinePanel({ folders = false }: { folders?: boolean } = {}) {
         }
         try {
           const data = JSON.parse(e.data);
+          if (data.type === "pause" && typeof data.paused === "boolean") {
+            remotePaused.current = data.paused;
+            setPaused(localPaused.current || remotePaused.current);
+            return;
+          }
           if (data.type === "ack") {
             if (
               !Number.isSafeInteger(data.received) ||
@@ -185,6 +251,13 @@ export function OnlinePanel({ folders = false }: { folders?: boolean } = {}) {
               return;
             }
             acked.current = data.received;
+            if (transferRecord.current?.size)
+              setPercent(
+                Math.min(
+                  99.9,
+                  (data.received / transferRecord.current.size) * 100,
+                ),
+              );
             for (const waiter of creditWaiters.current.splice(0)) waiter();
             return;
           }
@@ -239,6 +312,10 @@ export function OnlinePanel({ folders = false }: { folders?: boolean } = {}) {
                 id: data.id,
                 name: data.name,
                 size: data.size,
+                mime:
+                  typeof data.mime === "string"
+                    ? data.mime.slice(0, 100)
+                    : "application/octet-stream",
                 direction: "Receive",
               };
               hash.current = undefined;
@@ -247,6 +324,8 @@ export function OnlinePanel({ folders = false }: { folders?: boolean } = {}) {
             } else if (data.type === "accept") {
               accept.current?.();
             } else if (data.type === "reject" || data.type === "cancel") {
+              localPaused.current = remotePaused.current = false;
+              setPaused(false);
               userCancelled.current = true;
               hashing.current?.abort();
               verified.current?.(new Error("Transfer rejected or cancelled"));
@@ -306,8 +385,8 @@ export function OnlinePanel({ folders = false }: { folders?: boolean } = {}) {
             dc.send(JSON.stringify({ type: "ack", received: offset.current }));
             setPercent(
               incoming.current.size
-                ? (offset.current / incoming.current.size) * 100
-                : 100,
+                ? Math.min(99.9, (offset.current / incoming.current.size) * 100)
+                : 99.9,
             );
           }
         })
@@ -327,7 +406,7 @@ export function OnlinePanel({ folders = false }: { folders?: boolean } = {}) {
       let joinRoom = room.trim();
       if (join) {
         let value = room.trim();
-        if (!/^[a-f0-9]{32}$/.test(value)) {
+        if (!/^(?:[a-f0-9]{32}|[0-9]{6})$/.test(value)) {
           try {
             const link = new URL(value);
             if (link.origin !== location.origin) throw new Error();
@@ -335,11 +414,12 @@ export function OnlinePanel({ folders = false }: { folders?: boolean } = {}) {
               new URLSearchParams(link.hash.slice(1)).get("online-room") || "";
           } catch {
             throw new Error(
-              "Use a valid 32-character room ID or an invitation from this website.",
+              "Use a six-digit pairing code, room ID or an invitation from this website.",
             );
           }
         }
-        if (!/^[a-f0-9]{32}$/.test(value)) throw new Error("Invalid room ID.");
+        if (!/^(?:[a-f0-9]{32}|[0-9]{6})$/.test(value))
+          throw new Error("Invalid room ID or code.");
         setRoom(value);
         joinRoom = value;
       }
@@ -392,6 +472,7 @@ export function OnlinePanel({ folders = false }: { folders?: boolean } = {}) {
         ),
       );
       setRoom(data.room);
+      setPairingCode(data.pairing_code || "");
       setInvitation(
         location.origin + location.pathname + "#online-room=" + data.room,
       );
@@ -610,7 +691,11 @@ export function OnlinePanel({ folders = false }: { folders?: boolean } = {}) {
     sent.current = 0;
     function waitForCredit() {
       return new Promise<void>((resolve, reject) => {
-        const timer = setTimeout(() => {
+        let timer = setTimeout(function timeout() {
+          if (localPaused.current || remotePaused.current) {
+            timer = setTimeout(timeout, 30000);
+            return;
+          }
           const index = creditWaiters.current.indexOf(done);
           if (index >= 0) creditWaiters.current.splice(index, 1);
           reject(new Error("Receiver stopped acknowledging chunks"));
@@ -645,6 +730,7 @@ export function OnlinePanel({ folders = false }: { folders?: boolean } = {}) {
           ).join(""),
         name: file.name,
         size: file.size,
+        mime: file.type || "application/octet-stream",
         direction: "Send",
       };
       persistedId = transferRecord.current.id;
@@ -670,6 +756,7 @@ export function OnlinePanel({ folders = false }: { folders?: boolean } = {}) {
             id: transferRecord.current!.id,
             name: file.name,
             size: file.size,
+            mime: file.type || "application/octet-stream",
             sha256: digest,
           }),
         );
@@ -677,6 +764,7 @@ export function OnlinePanel({ folders = false }: { folders?: boolean } = {}) {
       if (cancelled.current) return;
       setStatus("Transferring file with receiver acknowledgements");
       for (let start = 0; start < file.size; start += 65536) {
+        await waitWhilePaused();
         if (cancelled.current) break;
         while (
           start + Math.min(65536, file.size - start) - acked.current >
@@ -707,9 +795,13 @@ export function OnlinePanel({ folders = false }: { folders?: boolean } = {}) {
           });
         }
         if (cancelled.current) break;
+        await waitWhilePaused();
+        if (cancelled.current) break;
         dc.send(await file.slice(start, start + 65536).arrayBuffer());
         sent.current = Math.min(file.size, start + 65536);
-        setPercent(Math.min(100, ((start + 65536) / file.size) * 100));
+        setPercent(
+          Math.min(99.9, (acked.current / Math.max(1, file.size)) * 100),
+        );
       }
       if (!cancelled.current) {
         while (acked.current < file.size) await waitForCredit();
@@ -770,6 +862,13 @@ export function OnlinePanel({ folders = false }: { folders?: boolean } = {}) {
         />
         Relay-only test (requires TURN; reconnect after changing)
       </label>
+      {pairingCode && (
+        <p>
+          Pairing code:{" "}
+          <strong data-testid="pairing-code">{pairingCode}</strong> · valid for
+          10 minutes; owner approval required
+        </p>
+      )}
       {invitation && (
         <div>
           <p>
@@ -892,7 +991,36 @@ export function OnlinePanel({ folders = false }: { folders?: boolean } = {}) {
           />
         </label>
       )}
-      <progress max={100} value={percent} />
+      {transferRecord.current && (
+        <p>
+          {transferRecord.current.name} ·{" "}
+          {transferRecord.current.size.toLocaleString()} bytes ·{" "}
+          {transferRecord.current.mime || "application/octet-stream"} ·{" "}
+          {transferRecord.current.direction} · Approved room peer
+        </p>
+      )}
+      <p>
+        {percent.toFixed(1)}% · {Math.round(metrics.speed / 1024)} KiB/s ·{" "}
+        {metrics.eta
+          ? Math.ceil(metrics.eta) + "s remaining"
+          : "ETA unavailable"}{" "}
+        {paused
+          ? "· Paused: resume on the device that paused; in-flight chunks may settle"
+          : ""}
+      </p>
+      <progress aria-label="Transfer progress" max={100} value={percent} />
+      <button
+        disabled={channel.current?.readyState !== "open"}
+        onClick={() => {
+          localPaused.current = !localPaused.current;
+          setPaused(localPaused.current || remotePaused.current);
+          channel.current?.send(
+            JSON.stringify({ type: "pause", paused: localPaused.current }),
+          );
+        }}
+      >
+        {localPaused.current ? "Resume transfer" : "Pause transfer"}
+      </button>
       {offer && (
         <p>
           {offer.name} · {offer.size} bytes{" "}
@@ -954,6 +1082,8 @@ export function OnlinePanel({ folders = false }: { folders?: boolean } = {}) {
       )}
       <button
         onClick={() => {
+          localPaused.current = remotePaused.current = false;
+          setPaused(false);
           userCancelled.current = true;
           hashing.current?.abort();
           cancelled.current = true;
@@ -1006,8 +1136,30 @@ export function OnlinePanel({ folders = false }: { folders?: boolean } = {}) {
       >
         Send text
       </button>
+      <button onClick={() => setText("")}>Clear text</button>
+      <button onClick={() => setMessages([])}>Clear received history</button>
       {messages.map((message, index) => (
-        <pre key={index}>{message}</pre>
+        <div key={index}>
+          <pre>{message}</pre>
+          <button
+            onClick={() => {
+              if (navigator.clipboard && window.isSecureContext)
+                void navigator.clipboard
+                  .writeText(message)
+                  .catch(() =>
+                    setStatus(
+                      "Copy permission denied; select the text to copy manually.",
+                    ),
+                  );
+              else
+                setStatus(
+                  "Select the text to copy manually; clipboard requires HTTPS or localhost.",
+                );
+            }}
+          >
+            Copy received text
+          </button>
+        </div>
       ))}
       <p className="muted">
         Direct connections depend on network conditions. TURN is configured by

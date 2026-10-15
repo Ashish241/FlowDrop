@@ -25,6 +25,7 @@ def create_app():
             prefix=os.getenv("FLOWDROP_REDIS_NAMESPACE", "") + "flowdrop:signal:"
         )
     rooms = {}
+    codes = {}
     limits = {}
     allowed = set(
         os.getenv(
@@ -99,11 +100,21 @@ def create_app():
         }
 
     @app.post("/rooms")
-    def create(request: Request):
+    async def create(request: Request):
         rate(request)
         if len(rooms) >= 1000:
             raise HTTPException(503, "Room capacity reached")
+        for key, (_, expires) in list(codes.items()):
+            if expires <= time.time():
+                codes.pop(key, None)
+        for _ in range(16):
+            code = f"{secrets.randbelow(1000000):06d}"
+            if code not in codes:
+                break
+        else:
+            raise HTTPException(503, "Pairing code capacity reached")
         rid = secrets.token_hex(16)
+        codes[code] = (rid, time.time() + 600)
         token = secrets.token_urlsafe(32)
         rooms[rid] = {
             "expires": time.time() + 3600,
@@ -114,17 +125,25 @@ def create_app():
                 }
             },
             "sockets": {},
+            "code": code,
         }
         return {
             "room": rid,
             "token": token,
             "member": "owner",
+            "pairing_code": code,
+            "code_expires": codes[code][1],
             "expires": rooms[rid]["expires"],
         }
 
     @app.post("/rooms/{rid}/join")
     async def join(rid: str, request: Request):
         rate(request)
+        if len(rid) == 6 and rid.isascii() and rid.isdigit():
+            entry = codes.get(rid)
+            if not entry or entry[1] <= time.time():
+                raise HTTPException(404, "Pairing code expired or unavailable")
+            rid = entry[0]
         room = room_for(rid)
         if len(room["members"]) >= 2:
             raise HTTPException(409, "Room already has a receiver")
@@ -146,16 +165,25 @@ def create_app():
         supplied = hashlib.sha256(
             request.headers.get("authorization", "").removeprefix("Bearer ").encode()
         ).hexdigest()
-        if not any(
-            room["expires"] > time.time()
-            and any(
-                hmac.compare_digest(member["token"], supplied)
+        member = next(
+            (
+                member
+                for room in rooms.values()
+                if room["expires"] > time.time()
                 for member in room["members"].values()
-            )
-            for room in rooms.values()
-        ):
+                if hmac.compare_digest(member["token"], supplied)
+            ),
+            None,
+        )
+        if member is None:
             raise HTTPException(401, "Room authorization required")
-        return ice_configuration()
+        config = ice_configuration()
+        if not member["approved"]:
+            config["iceServers"] = [
+                server for server in config["iceServers"] if "credential" not in server
+            ]
+            config["pendingApproval"] = True
+        return config
 
     @app.delete("/rooms/{rid}")
     async def revoke(rid: str, request: Request):
@@ -168,6 +196,8 @@ def create_app():
         ):
             raise HTTPException(403, "Owner required")
         rooms.pop(rid, None)
+        if codes.get(room["code"], (None,))[0] == rid:
+            codes.pop(room["code"], None)
         for socket in list(room["sockets"].values()):
             await socket.close(code=1008)
         return {"status": "revoked"}

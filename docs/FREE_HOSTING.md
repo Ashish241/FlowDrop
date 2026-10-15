@@ -4,7 +4,7 @@ The public website and signaling are independent of the user's PC. Deploy only a
 
 ## Current provider evidence
 
-Checked 2026-10-15 against primary provider documentation:
+Checked 2026-10-16 against primary provider documentation:
 
 - [Cloudflare Pages limits](https://developers.cloudflare.com/pages/platform/limits/): the Free plan documents 500 builds per month, 20,000 files per site and a 25 MiB single-asset limit. This static frontend fits those asset limits; no file payload is uploaded to Pages. Plan/usage eligibility must still be checked in the account.
 - [Render Free](https://render.com/docs/free): Free web services sleep after 15 idle minutes, wake on HTTP/WebSocket activity in about a minute, share 750 instance hours per workspace/month, and can restart. In-memory rooms disappear on process restart. Free hosting is presented as an MVP/preview, not production availability.

@@ -9,7 +9,7 @@ $taskHelp = & $taskExe --help
 if ($LASTEXITCODE -ne 0) { throw 'Executable help failed' }
 if (-not ($taskHelp -match '--lan')) { throw 'Packaged executable lacks --lan; stale build' }
 $taskInfo = & $taskExe --build-info | ConvertFrom-Json
-if ($LASTEXITCODE -ne 0 -or $taskInfo.build -ne 'SPLIT-20261015.1') { throw 'Executable build identifier mismatch' }
+if ($LASTEXITCODE -ne 0 -or $taskInfo.build -ne 'INTEGRATED-20261016.1') { throw 'Executable build identifier mismatch' }
 if ((Get-FileHash -LiteralPath $taskExe -Algorithm SHA256).Hash -ne (Get-Content (Join-Path (Split-Path $taskExe -Parent) 'BUILD_INFO.json') -Raw | ConvertFrom-Json).executable_sha256) { throw 'Executable/manifest hash mismatch' }
 & $taskExe --version
 if ($LASTEXITCODE -ne 0) { throw 'Executable version failed' }

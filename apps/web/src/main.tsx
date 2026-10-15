@@ -9,6 +9,7 @@ import "./style.css";
 import { OnlinePanel } from "./online-entry";
 import { LaterPanel } from "./later";
 import { OpticalPanel } from "./optical";
+import { ComingSoon } from "./coming-soon";
 import { ModeCards } from "./mode-cards";
 import { TransferHistory } from "./transfer-history";
 type Device = { id: string; name: string; approved: boolean };
@@ -245,7 +246,7 @@ function App() {
         }
         setProgress((p) => ({
           ...p,
-          [t.id]: f.size ? Math.round((acknowledged / f.size) * 100) : 100,
+          [t.id]: f.size ? Math.min(99.9, (acknowledged / f.size) * 100) : 99.9,
         }));
       }
       await api(`/transfers/${t.id}/finish`, { method: "POST" });
@@ -348,6 +349,7 @@ function App() {
     "Transfer Dashboard",
     "Settings",
     "Optical Text",
+    ...(__DESKTOP__ ? ["Send Later — Coming Soon"] : []),
   ].filter(
     (item) => !__DESKTOP__ || !["Online Share", "Send Later"].includes(item),
   );
@@ -365,7 +367,7 @@ function App() {
               key={x}
               onClick={() => setPage(x)}
             >
-              {x}
+              {__DESKTOP__ && x === "Optical Text" ? "Optical Share" : x}
               <ArrowUpRight size={15} />
             </button>
           ))}
@@ -435,7 +437,9 @@ function App() {
             )}
           </div>
         )}
-        {page === "Send Later" || page === "Online Share" ? null : page ===
+        {page === "Send Later — Coming Soon" ? (
+          <ComingSoon />
+        ) : page === "Send Later" || page === "Online Share" ? null : page ===
           "Optical Text" ? (
           <OpticalPanel />
         ) : !me ? (
@@ -542,7 +546,12 @@ function App() {
                       <div>
                         <b>{t.name}</b>
                         <small>
-                          {(t.size / 1048576).toFixed(2)} MB · {t.state}{" "}
+                          File type:{" "}
+                          {t.name.includes(".")
+                            ? t.name.split(".").pop()
+                            : "unspecified"}{" "}
+                          (from filename) · {(t.size / 1048576).toFixed(2)} MB ·{" "}
+                          {t.state}{" "}
                           {t.state === "COMPLETED" ? "· SHA-256 verified" : ""}
                         </small>
                         <progress
@@ -550,18 +559,21 @@ function App() {
                           value={
                             t.state === "COMPLETED"
                               ? 100
-                              : Math.max(
-                                  progress[t.id] || 0,
-                                  t.size
-                                    ? ((t.received || 0) / t.size) * 100
-                                    : 0,
+                              : Math.min(
+                                  99.9,
+                                  Math.max(
+                                    progress[t.id] || 0,
+                                    t.size
+                                      ? ((t.received || 0) / t.size) * 100
+                                      : 0,
+                                  ),
                                 )
                           }
                         />
                         <small>
                           {t.state === "COMPLETED"
                             ? "100%"
-                            : `${Math.round(t.size ? ((t.received || 0) / t.size) * 100 : 0)}%`}{" "}
+                            : `${Math.min(99.9, t.size ? ((t.received || 0) / t.size) * 100 : 0).toFixed(1)}%`}{" "}
                           ·{" "}
                           {t.sender === me.id
                             ? `You → ${devices.find((d) => d.id === t.recipient)?.name || "Recipient"}`

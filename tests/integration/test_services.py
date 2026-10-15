@@ -29,7 +29,8 @@ def test_redis_cross_instance_approval_routing_revocation():
         with first.websocket_connect(path + "/ws") as a:
             a.send_text(owner["token"])
             assert a.receive_json()["type"] == "authorized"
-            receiver = second.post(path + "/join").json()
+            receiver = second.post("/rooms/" + owner["pairing_code"] + "/join").json()
+            assert receiver["room"] == owner["room"]
             with second.websocket_connect(path + "/ws") as b:
                 b.send_text(receiver["token"])
                 assert b.receive_json()["type"] == "authorized"
@@ -90,6 +91,43 @@ def test_redis_room_survives_worker_restart_and_expires():
         redis.pexpire(prefix + "room:" + owner["room"], 10)
         time.sleep(0.03)
         assert restarted.get("/ice", headers=headers).status_code == 404
+
+
+def test_redis_code_expiry_and_reuse_cannot_be_revoked_by_old_room(monkeypatch):
+    monkeypatch.setenv(
+        "FLOWDROP_TURN_URLS", '["turn:relay.example.com:3478?transport=tcp"]'
+    )
+    monkeypatch.setenv("FLOWDROP_TURN_SECRET", "x" * 64)
+    import time
+    from unittest.mock import patch
+
+    prefix = "flowdrop:test:" + secrets.token_hex(8) + ":"
+    redis = Redis.from_url(os.environ["REDIS_URL"])
+    with TestClient(create_distributed_app(prefix=prefix)) as client:
+        with patch(
+            "services.signaling.distributed.secrets.randbelow", return_value=123
+        ):
+            old = client.post("/rooms").json()
+            assert old["pairing_code"] == "000123"
+            assert client.post("/rooms").status_code == 503
+            redis.pexpire(prefix + "code:000123", 1)
+            time.sleep(0.03)
+            assert client.post("/rooms/000123/join").status_code == 404
+            new = client.post("/rooms").json()
+        assert (
+            client.delete(
+                "/rooms/" + old["room"],
+                headers={"Authorization": "Bearer " + old["token"]},
+            ).status_code
+            == 200
+        )
+        receiver = client.post("/rooms/000123/join").json()
+        assert receiver["room"] == new["room"]
+        pending = client.get(
+            "/ice", headers={"Authorization": "Bearer " + receiver["token"]}
+        ).json()
+        assert pending["pendingApproval"] is True
+        assert not any("credential" in server for server in pending["iceServers"])
 
 
 def test_postgres_atomic_quota_and_download_limits(tmp_path):

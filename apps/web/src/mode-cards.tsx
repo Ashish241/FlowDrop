@@ -25,17 +25,56 @@ export function ModeCards({
       caption: "ENCRYPTED EXPIRING LINKS",
       Icon: Upload,
     },
+    {
+      name: "Optical Share",
+      description: "Screen-to-camera text and small files.",
+      caption: "NO NETWORK AFTER LOADING",
+      Icon: Radio,
+    },
+    {
+      name: "Send Later — Coming Soon",
+      description: "Future encrypted temporary links.",
+      caption: "COMING SOON",
+      Icon: Upload,
+    },
+    {
+      name: "Offline Text Sharing",
+      description: "Text, links and code on your LAN.",
+      caption: "APPROVED DEVICES ONLY",
+      Icon: Radio,
+    },
   ];
   return (
     <div className="cards">
       {modes
-        .filter((mode) => !offlineOnly || mode.name === "Offline LAN")
+        .filter((mode) =>
+          offlineOnly
+            ? [
+                "Offline LAN",
+                "Offline Text Sharing",
+                "Optical Share",
+                "Send Later — Coming Soon",
+              ].includes(mode.name)
+            : ![
+                "Offline Text Sharing",
+                "Send Later — Coming Soon",
+                "Optical Share",
+              ].includes(mode.name),
+        )
         .map(({ name, description, caption, Icon }) => (
           <button
             type="button"
             key={name}
             className="card"
-            onClick={() => onSelect(name)}
+            onClick={() =>
+              onSelect(
+                name === "Optical Share"
+                  ? "Optical Text"
+                  : name === "Offline Text Sharing"
+                    ? "Share Text"
+                    : name,
+              )
+            }
           >
             <Icon size={26} />
             <ArrowUpRight className="arrow" />

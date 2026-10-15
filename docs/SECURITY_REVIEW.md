@@ -1,3 +1,9 @@
+# Integrated 0.4.0 security follow-up
+
+Six-digit lookup is bounded by per-client request controls and ten-minute expiry; it never substitutes for strong participant tokens and owner approval. Redis allocation uses NX/TTL and revocation compares the room ID to prevent an old room deleting a reused code. Pending receivers receive no TURN credentials before approval. Optical payloads have strict frame/count/size/metadata bounds, safe filename normalization and whole-payload SHA-256; these are integrity controls, not sender authentication. Received text remains escaped React content. Progress stays below completion until verification, and browser handoff is not asserted disk save. Public cloud routes are disabled for Coming Soon. No Internet, physical camera or independent production security certification is claimed; see INTEGRATED_VERIFICATION.md.
+
+---
+
 # 0.4.0 security boundary
 
 Desktop ships no online/cloud frontend implementation, URL probe or signaling service. The website calls no local desktop APIs. Exact HTTPS public frontend origins are required by the dedicated backend; the static build generates narrowly scoped HTTPS/WSS CSP for the operator-configured destination. Participant capability auth, receiver approval, one-hour rooms, bounded signaling/rates, encrypted DataChannels, hashing and per-file acceptance are preserved. Corrupted streamed downloads are explicitly aborted rather than closed successfully; browsers may expose an incomplete download and users should remove partial files. No new blanket CORS/proxy/firewall permission was added. Public deployment, provider identity/logging policy, real relay and independent security review remain acceptance gates; local test success is not production security certification.

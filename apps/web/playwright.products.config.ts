@@ -13,13 +13,14 @@ export default defineConfig({
   projects: [
     {
       name: "online",
-      testMatch: "online-product.spec.ts",
+      testMatch: ["online-product.spec.ts", "integration-product.spec.ts"],
       use: { baseURL: "http://127.0.0.1:8770" },
     },
     {
       name: "desktop",
       testMatch: [
         "desktop-product.spec.ts",
+        "integration-product.spec.ts",
         "queue.spec.ts",
         "lan-url.spec.ts",
         "multi-device.spec.ts",

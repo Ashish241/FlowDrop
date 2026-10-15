@@ -1,3 +1,23 @@
+# Current Online Web workflow
+
+Open the independent hosted website (or explicit loopback development preview), choose Send, then Create room. Share the six-digit code (valid 10 minutes), QR or invitation. The receiver chooses Receive, enters the code/invitation and joins. Approve the receiver, select files or supported folder contents and accept each offer. Text/code/links use Share Text with safe copy/clear controls. Pause/resume is cooperative within the same connected session; in-flight chunks may settle. Interrupted transfers are resent after reconnect. Use Optical Share independently once its assets are loaded; Send Later is Coming Soon only. The offline desktop never hosts the public online service.
+
+Deployment remains governed by FREE_HOSTING.md and requires explicit approval and real service URLs. No Internet success is implied by local preview. Current verification is INTEGRATED_VERIFICATION.md.
+
+# Integrated 0.4.0 — INTEGRATED-20261016.1
+
+Current source starts at `b1a3ec2`; the earlier split and working LAN checkpoints are preserved. Desktop and Web now both expose Optical Share and Send Later — Coming Soon. Online adds six-digit temporary codes (10-minute TTL), existing strong room IDs/capabilities and owner approval, cooperative in-session pause/resume, safe text copy/clear/history controls, transfer metadata and measured speed/ETA. Progress stays below 100% until integrity verification. Interrupted WebRTC files still require whole-file resend; in-flight chunks may settle after pause. Resume on the device that paused.
+
+Optical version-1 text remains compatible and version-2 supports files up to 64 KiB. The same QR decoder accepts camera frames or imported images and supports repeated, missing, duplicate and out-of-order frames. Existing offline LAN routing, pairing, resume and firewall/adapter logic are unchanged. See [Optical guide](OPTICAL_SHARING_GUIDE.md) and [current verification](INTEGRATED_VERIFICATION.md).
+
+Send Later is a visible non-upload Coming Soon screen in shipping builds. No cloud API is called by that screen, no new database/storage/payment dependency is added, and the public Nginx `/cloud/` route returns 404. Legacy implementation and its explicitly local combined regression host are retained; it is not part of the shipping website/desktop feature set. No cloud service was deployed.
+
+Public deployment and Internet/TURN/physical-device verification remain open. No push, publication, public deployment or expenses were authorized or performed.
+
+---
+
+# Historical pre-split setup — not current desktop instructions
+
 # Online Sharing — 0.3.2
 
 Offline LAN continues to run independently of Internet services. Online Sharing uses a public HTTPS website, its same-origin `/signal` HTTP/WSS proxy, Redis-backed signaling, and encrypted WebRTC DataChannels. Direct connections use STUN; restrictive networks need an authenticated TURN relay. File bytes travel between browsers directly or through TURN, not through the signaling service. Send Later retains its separate encrypted storage path.

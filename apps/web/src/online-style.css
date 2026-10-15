@@ -38,3 +38,17 @@
     padding: 20px;
   }
 }
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
+}
+.online-shell .cards {
+  background: linear-gradient(135deg, #eaf2e8, transparent);
+  border-radius: 14px;
+}

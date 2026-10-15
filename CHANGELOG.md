@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.4.0 integrated — INTEGRATED-20261016.1 — 2026-10-16
+
+- Add backward-compatible optical binary frames (64 KiB cap), missing/duplicate tracking, speed controls, image-import camera fallback and integrity-checked reconstruction in both products.
+- Add expiring six-digit online pairing across memory and Redis, preserving capabilities/approval, and cooperative pause/resume with verified-only completion progress.
+- Add safe text controls, transfer metadata/rate/ETA and the requested website hero; expose Send Later only as Coming Soon in shipping UIs and deny public cloud proxy routes.
+- Preserve LAN networking and prior packages; add actual QR/Redis/optical-offline/pairing/transfer regressions. Public Internet and physical camera acceptance remain unverified.
+
 ## 0.4.0 — SPLIT-20261015.1 — 2026-10-15
 
 - Separate offline desktop, dedicated online website and minimal public signaling targets while retaining existing transfer code and combined regressions.

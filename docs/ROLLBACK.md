@@ -1,3 +1,9 @@
+# Integrated 0.4.0 rollback
+
+Previous source: `b1a3ec2`. The previously verified split archive is preserved at `dist/checkpoints/FlowDrop-0.4.0-split-working.zip`. Earlier 0.3.1/0.3.2 backups and extracted working folders remain unchanged. No data/schema migration was introduced. Stop the host, back up user data and choose a fresh extraction/shortcut when switching builds. Exact prior/new artifact hashes are recorded in INTEGRATED_0.4.0_EVIDENCE.json.
+
+---
+
 # 0.4.0 rollback
 
 Previous source: `13ec1e7` (0.3.2). Preserved ZIP: `dist/checkpoints/FlowDrop-0.3.2-online-working.zip`, SHA-256 `A1D23B7BB38785F7302280AA00D1848C8439FCE73A76EFC2D681381BFD8E685F`. The 0.3.1 ZIP and existing `dist/FlowDrop-windows`/`dist/FlowDrop-online-0.3.2` extractions remain intact. Stop the host, back up user data and extract the chosen version into a fresh folder before updating shortcuts. No data/schema migration was introduced. New desktop omits online/cloud navigation; legacy combined source remains available.
