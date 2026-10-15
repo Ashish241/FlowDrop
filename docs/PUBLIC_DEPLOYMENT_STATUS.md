@@ -1,3 +1,9 @@
+# Online 0.4.1 live fix — 2026-10-16
+
+Deployed: https://flowdrop-online.pages.dev (source `ba587a6`), with existing Render signaling. Fixed discarded preconnection file selection, idle cancellation state, bounded download fallback and shared ICE/pairing/revocation request budget; simplified Online-only UI. Actual public browser suite: 8 passed, with saved-byte checks on same-PC peers; no physical cross-network claim. Backend 78 passed (7 provider skips), frontend unit 14, local online 8, desktop 8, preserved combined 20 (1 TURN skip). Lint/TypeScript/build passed. Both providers use manual free deployment; Windows ZIP unchanged. [Complete root cause, deployment IDs, verification and external gates](ONLINE_0.4.1_VERIFICATION.md). Earlier records below are historical.
+
+---
+
 # Public deployment execution — 2026-10-16
 
 Source checkpoint `c47cc16fd4896e2091040403b63298451786b786` pushed to the existing private `Ashish241/FlowDrop` repository, branch `master`, with explicit owner authorization. Actions was temporarily disabled for this push and restored to its original enabled/all-actions/no-SHA-pinning settings. No CI run was triggered. No repository or release was replaced.

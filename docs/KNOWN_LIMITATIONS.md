@@ -1,3 +1,9 @@
+# Current Online 0.4.1 limitations — 2026-10-16
+
+Website and signaling are now publicly deployed; [current evidence](ONLINE_0.4.1_VERIFICATION.md) supersedes historical deployment statements below. Production browser file/text tests passed with same-PC peers. Physical PC/phone across different networks, mobile lifecycle and authenticated TURN relay remain unverified. Free service restarts erase rooms; retry resends interrupted files. Worker-denied small downloads use explicit Save actions bounded to 128 MiB; larger files need streaming support. Offline LAN Windows artifacts remain unchanged. Earlier records below are historical.
+
+---
+
 # Integrated 0.4.0 — INTEGRATED-20261016.1
 
 Current source starts at `b1a3ec2`; the earlier split and working LAN checkpoints are preserved. Desktop and Web now both expose Optical Share and Send Later — Coming Soon. Online adds six-digit temporary codes (10-minute TTL), existing strong room IDs/capabilities and owner approval, cooperative in-session pause/resume, safe text copy/clear/history controls, transfer metadata and measured speed/ETA. Progress stays below 100% until integrity verification. Interrupted WebRTC files still require whole-file resend; in-flight chunks may settle after pause. Resume on the device that paused.
