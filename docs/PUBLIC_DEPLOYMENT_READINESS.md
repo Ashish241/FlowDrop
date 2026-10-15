@@ -1,3 +1,9 @@
+# Public deployment completed — 2026-10-16
+
+Website: https://flowdrop-online.pages.dev. Signaling: https://flowdrop-signaling.onrender.com/signal. Deployed with explicit authorization on Pages Direct Upload and Render Free; Git auto-deployment off. Public HTTP/WSS/security/room checks passed, as did deployed-site text and a saved hash-matched 64 KiB WebRTC file between two tabs on the same PC. Physical cross-network transfers and TURN remain unverified. Windows ZIP unchanged. See [actual deployment evidence and limitations](PUBLIC_DEPLOYMENT_STATUS.md). The preparation record below is historical.
+
+---
+
 # Public Online deployment checkpoint — 2026-10-16
 
 Starting commit: `463620c`. Public website URL: **not assigned**. Public signaling URL: **not assigned**. Status: **deployment awaiting explicit owner authorization and hosting access; Internet acceptance not verified**.
