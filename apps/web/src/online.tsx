@@ -22,7 +22,27 @@ type Meta = {
   sha256: string;
   mime?: string;
 };
-export function OnlinePanel({ folders = false }: { folders?: boolean } = {}) {
+export function OnlinePanel({
+  folders = false,
+  consumer = false,
+  mode = "Send Files",
+}: { folders?: boolean; consumer?: boolean; mode?: string } = {}) {
+  const [downloads, setDownloads] = useState<
+    Array<{ name: string; blob: Blob }>
+  >([]);
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const fileQueue = useRef<File[]>([]);
+  const draining = useRef(false);
+  const [connected, setConnected] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [connecting, setConnecting] = useState(false);
+  const [sharing, setSharing] = useState(false);
+  const [copyStatus, setCopyStatus] = useState("");
+  const connectionTimer = useRef<ReturnType<typeof setTimeout> | undefined>(
+    undefined,
+  );
+  const picker = useRef<HTMLInputElement>(null);
+  const folderPicker = useRef<HTMLInputElement>(null);
   const [recovered, setRecovered] = useState<
     Array<{ id: string; file: File; sha256: string }>
   >([]);
@@ -156,6 +176,7 @@ export function OnlinePanel({ folders = false }: { folders?: boolean } = {}) {
   useEffect(
     () => () => {
       clearTimeout(expiryTimer.current);
+      clearTimeout(connectionTimer.current);
       channel.current?.close();
       peer.current?.close();
       socket.current?.close();
@@ -168,7 +189,7 @@ export function OnlinePanel({ folders = false }: { folders?: boolean } = {}) {
       .VITE_SIGNAL_URL || "/signal";
   async function api(path: string, method = "GET", token?: string) {
     const r = await fetch(base + path, {
-      signal: AbortSignal.timeout(10000),
+      signal: AbortSignal.timeout(70000),
       method,
       headers: token ? { Authorization: "Bearer " + token } : {},
     });
@@ -183,6 +204,9 @@ export function OnlinePanel({ folders = false }: { folders?: boolean } = {}) {
     return r.json();
   }
   function close() {
+    clearTimeout(connectionTimer.current);
+    setConnected(false);
+    setConnecting(false);
     clearTimeout(expiryTimer.current);
     localPaused.current = remotePaused.current = false;
     setPaused(false);
@@ -213,9 +237,18 @@ export function OnlinePanel({ folders = false }: { folders?: boolean } = {}) {
     channel.current = dc;
     dc.binaryType = "arraybuffer";
     dc.bufferedAmountLowThreshold = 262144;
-    dc.onopen = () => setStatus("Connected. Files require receiver approval.");
+    dc.onopen = () => {
+      if (channel.current !== dc) return;
+      clearTimeout(connectionTimer.current);
+      cancelled.current = false;
+      setConnected(true);
+      setConnecting(false);
+      setStatus("Connected. Files require receiver approval.");
+      void drainQueue();
+    };
     dc.onclose = () => {
       if (channel.current !== dc) return;
+      setConnected(false);
       cancelled.current = true;
       accept.current?.();
       verified.current?.(new Error("Peer disconnected"));
@@ -350,12 +383,16 @@ export function OnlinePanel({ folders = false }: { folders?: boolean } = {}) {
               } else {
                 const blob = await sink.current?.close();
                 sink.current = undefined;
-                setReceived({
-                  name: meta.name,
-                  blob,
-                });
+                setReceived({ name: meta.name, blob });
+                if (blob && consumer)
+                  setDownloads((items) => [
+                    ...items,
+                    { name: meta.name, blob },
+                  ]);
                 setStatus(
-                  "Completed · SHA-256 verified; handed to browser downloads",
+                  blob
+                    ? "Completed · SHA-256 verified; choose Save to download"
+                    : "Completed · SHA-256 verified; handed to browser downloads",
                 );
                 setPercent(100);
                 dc.send(JSON.stringify({ type: "verified" }));
@@ -402,6 +439,7 @@ export function OnlinePanel({ folders = false }: { folders?: boolean } = {}) {
     };
   }
   async function connect(join: boolean, recovering = false) {
+    if (connecting) return;
     try {
       let joinRoom = room.trim();
       if (join) {
@@ -426,9 +464,13 @@ export function OnlinePanel({ folders = false }: { folders?: boolean } = {}) {
       transferRecord.current = undefined;
       close();
       cancelled.current = false;
+      setConnecting(true);
+      setStatus("Connecting");
       setPending(false);
       setReceived(undefined);
+      if (!recovering) setDownloads([]);
       candidates.current = [];
+      setSharing(true);
       const saved = sessionStorage.getItem("flowdrop.online.v2");
       if (recovering && !saved)
         throw new Error("No saved room. Create or join a room first.");
@@ -485,7 +527,15 @@ export function OnlinePanel({ folders = false }: { folders?: boolean } = {}) {
         ).href.replace(/^http/, "ws"),
       );
       socket.current = ws;
+      connectionTimer.current = setTimeout(() => {
+        if (socket.current !== ws || ws.readyState === WebSocket.OPEN) return;
+        close();
+        setStatus(
+          "Connection failed. The sharing service may be waking up. Retry; your files are still selected.",
+        );
+      }, 25000);
       function resetPeer() {
+        setConnected(false);
         const old = channel.current;
         channel.current = undefined;
         old?.close();
@@ -553,13 +603,29 @@ export function OnlinePanel({ folders = false }: { folders?: boolean } = {}) {
         };
         pc.onconnectionstatechange = () => {
           if (peer.current !== instance) return;
-          if (pc.connectionState === "failed")
+          if (pc.connectionState === "connecting") {
+            clearTimeout(connectionTimer.current);
+            connectionTimer.current = setTimeout(() => {
+              if (
+                peer.current !== instance ||
+                channel.current?.readyState === "open"
+              )
+                return;
+              close();
+              setStatus(
+                "Connection failed. This network could not reach the other device. Try another network, then retry. Your files are still selected.",
+              );
+            }, 45000);
+          }
+          if (pc.connectionState === "failed") {
+            setConnected(false);
+            setConnecting(false);
             setStatus(
               hasRelay
                 ? "TURN allocated a relay candidate, but connectivity checks failed. Check relay public address, permissions and relay-port firewall; reconnect to retry."
                 : "WebRTC connection failed. Check NAT/firewall restrictions and configure authenticated TURN; reconnect to retry.",
             );
-          else if (pc.connectionState !== "connected")
+          } else if (pc.connectionState !== "connected")
             setStatus(pc.connectionState);
           else if (channel.current?.readyState === "open")
             setStatus("Connected. Files require receiver approval.");
@@ -594,6 +660,9 @@ export function OnlinePanel({ folders = false }: { folders?: boolean } = {}) {
       }
       resetPeer();
       ws.onopen = () => {
+        if (socket.current !== ws) return;
+        clearTimeout(connectionTimer.current);
+        setConnecting(false);
         ws.send(data.token);
         setStatus(
           join
@@ -605,6 +674,7 @@ export function OnlinePanel({ folders = false }: { folders?: boolean } = {}) {
       ws.onmessage = (e) => {
         signalingChain = signalingChain
           .then(async () => {
+            if (socket.current !== ws) return;
             const msg = JSON.parse(e.data);
             if (msg.type === "join-request") setPending(true);
             if (msg.type === "ready") {
@@ -651,12 +721,16 @@ export function OnlinePanel({ folders = false }: { folders?: boolean } = {}) {
           })
           .catch((e) => setStatus(String(e)));
       };
-      ws.onerror = () =>
+      ws.onerror = () => {
+        if (socket.current !== ws) return;
+        setConnecting(false);
         setStatus(
           "Signaling connection failed. Check network, HTTPS, origin configuration, and TURN availability.",
         );
+      };
       ws.onclose = (event) => {
         if (socket.current !== ws) return;
+        setConnecting(false);
         if (event.code === 1008) {
           close();
           session.current = undefined;
@@ -670,16 +744,19 @@ export function OnlinePanel({ folders = false }: { folders?: boolean } = {}) {
         );
       };
     } catch (e) {
+      setConnecting(false);
       setStatus(String(e));
     }
   }
   async function send(file?: File, recoveryId?: string) {
-    if (!file) return;
+    if (!file) return false;
     if (sending.current) {
       setStatus("Another file is still in progress.");
-      return;
+      return false;
     }
     sending.current = true;
+    setBusy(true);
+    let completed = false;
     transferRecord.current = undefined;
     userCancelled.current = false;
     const sourceSession = session.current;
@@ -824,6 +901,7 @@ export function OnlinePanel({ folders = false }: { folders?: boolean } = {}) {
         dc.send(JSON.stringify({ type: "finish" }));
         setStatus("Sent; receiver verifies the hash.");
         await verification;
+        completed = true;
         await forgetFile(transferRecord.current!.id).catch(() => undefined);
         setRecovered((items) =>
           items.filter((item) => item.id !== transferRecord.current?.id),
@@ -837,16 +915,142 @@ export function OnlinePanel({ folders = false }: { folders?: boolean } = {}) {
         await forgetFile(persistedId).catch(() => undefined);
       if (hashing.current === hashController) hashing.current = undefined;
       sending.current = false;
+      setBusy(false);
+    }
+    return completed;
+  }
+  async function drainQueue() {
+    if (draining.current || channel.current?.readyState !== "open") return;
+    draining.current = true;
+    try {
+      while (
+        fileQueue.current.length &&
+        channel.current?.readyState === "open"
+      ) {
+        const file = fileQueue.current[0];
+        const success = await send(file);
+        if (!success) break;
+        fileQueue.current = fileQueue.current.filter((item) => item !== file);
+        setSelectedFiles([...fileQueue.current]);
+      }
+    } finally {
+      draining.current = false;
     }
   }
   async function selectFiles(files: File[]) {
-    cancelled.current = false;
-    for (const file of files) {
-      if (cancelled.current) break;
-      await send(file);
+    fileQueue.current.push(...files);
+    setSelectedFiles([...fileQueue.current]);
+    if (channel.current?.readyState === "open") {
+      cancelled.current = false;
+      await drainQueue();
+    } else setStatus("Ready to share. Your files are selected.");
+  }
+  async function acceptFile() {
+    if (!offer) return;
+
+    const approved = offer;
+    setOffer(undefined);
+    const receivingChannel = channel.current;
+    const decoder = await createSHA256();
+    decoder.init();
+    if (incoming.current !== approved || channel.current !== receivingChannel)
+      return;
+    try {
+      const created = await createStreamSink(approved.name, approved.size);
+      if (
+        consumer &&
+        created.buffered &&
+        downloads.reduce((n, item) => n + item.blob.size, 0) + approved.size >
+          128 * 1024 * 1024
+      ) {
+        created.abort();
+        throw new Error(
+          "Save your previous files before accepting another download.",
+        );
+      }
+      if (
+        incoming.current !== approved ||
+        channel.current !== receivingChannel
+      ) {
+        created.abort();
+        return;
+      }
+      sink.current = created;
+      hash.current = decoder;
+      offset.current = 0;
+    } catch (e) {
+      if (incoming.current !== approved || channel.current !== receivingChannel)
+        return;
+      setStatus(String(e));
+      channel.current?.send(JSON.stringify({ type: "reject" }));
+      incoming.current = undefined;
+      setOffer(undefined);
+      return;
+    }
+    channel.current?.send(JSON.stringify({ type: "accept" }));
+    setStatus("Receiving and verifying file");
+    setOffer(undefined);
+  }
+  function cancelTransfer() {
+    localPaused.current = remotePaused.current = false;
+    setPaused(false);
+    userCancelled.current = true;
+    hashing.current?.abort();
+    cancelled.current = true;
+    incoming.current = undefined;
+    sink.current?.abort();
+    sink.current = undefined;
+    setOffer(undefined);
+    accept.current?.();
+    verified.current?.(new Error("Transfer cancelled"));
+    for (const waiter of creditWaiters.current.splice(0))
+      waiter(new Error("Transfer cancelled"));
+    channel.current?.send(JSON.stringify({ type: "cancel" }));
+    setStatus("Transfer cancelled");
+
+    fileQueue.current = [];
+    setSelectedFiles([]);
+  }
+  function togglePause() {
+    if (channel.current?.readyState !== "open") return;
+    localPaused.current = !localPaused.current;
+    setPaused(localPaused.current || remotePaused.current);
+    channel.current.send(
+      JSON.stringify({ type: "pause", paused: localPaused.current }),
+    );
+  }
+  async function endShare() {
+    const current = session.current;
+    try {
+      if (current?.member === "owner")
+        await api(`/rooms/${current.room}`, "DELETE", current.token);
+      if (current) {
+        const stored = await recoverFiles(
+          await hashFile(new Blob([current.token])),
+        ).catch(() => []);
+        await Promise.all(stored.map((item) => forgetFile(item.id))).catch(
+          () => undefined,
+        );
+      }
+      close();
+      session.current = undefined;
+      sessionStorage.removeItem("flowdrop.online.v2");
+      setSharing(false);
+      setDownloads([]);
+      setReceived(undefined);
+      setRecovered([]);
+      transferRecord.current = undefined;
+      setPercent(0);
+      setInvitation("");
+      setPairingCode("");
+      setStatus("Ready to share");
+    } catch {
+      setStatus(
+        "Connection failed. Could not end this share. Retry ending the share.",
+      );
     }
   }
-  return (
+  const technicalPanel = (
     <section className="panel">
       <h2>Online peer-to-peer</h2>
       <p>
@@ -1024,51 +1228,7 @@ export function OnlinePanel({ folders = false }: { folders?: boolean } = {}) {
       {offer && (
         <p>
           {offer.name} · {offer.size} bytes{" "}
-          <button
-            onClick={async () => {
-              const approved = offer;
-              const receivingChannel = channel.current;
-              const decoder = await createSHA256();
-              decoder.init();
-              if (
-                incoming.current !== approved ||
-                channel.current !== receivingChannel
-              )
-                return;
-              try {
-                const created = await createStreamSink(
-                  approved.name,
-                  approved.size,
-                );
-                if (
-                  incoming.current !== approved ||
-                  channel.current !== receivingChannel
-                ) {
-                  created.abort();
-                  return;
-                }
-                sink.current = created;
-                hash.current = decoder;
-                offset.current = 0;
-              } catch (e) {
-                if (
-                  incoming.current !== approved ||
-                  channel.current !== receivingChannel
-                )
-                  return;
-                setStatus(String(e));
-                channel.current?.send(JSON.stringify({ type: "reject" }));
-                incoming.current = undefined;
-                setOffer(undefined);
-                return;
-              }
-              channel.current?.send(JSON.stringify({ type: "accept" }));
-              setStatus("Receiving and verifying file");
-              setOffer(undefined);
-            }}
-          >
-            Accept file
-          </button>{" "}
+          <button onClick={() => void acceptFile()}>Accept file</button>{" "}
           <button
             onClick={() => {
               channel.current?.send(JSON.stringify({ type: "reject" }));
@@ -1080,25 +1240,7 @@ export function OnlinePanel({ folders = false }: { folders?: boolean } = {}) {
           </button>
         </p>
       )}
-      <button
-        onClick={() => {
-          localPaused.current = remotePaused.current = false;
-          setPaused(false);
-          userCancelled.current = true;
-          hashing.current?.abort();
-          cancelled.current = true;
-          incoming.current = undefined;
-          sink.current?.abort();
-          sink.current = undefined;
-          setOffer(undefined);
-          accept.current?.();
-          verified.current?.(new Error("Transfer cancelled"));
-          for (const waiter of creditWaiters.current.splice(0))
-            waiter(new Error("Transfer cancelled"));
-          channel.current?.send(JSON.stringify({ type: "cancel" }));
-          setStatus("Transfer cancelled");
-        }}
-      >
+      <button disabled={!busy && !incoming.current} onClick={cancelTransfer}>
         Cancel transfer
       </button>
       {received?.blob && (
@@ -1127,6 +1269,7 @@ export function OnlinePanel({ folders = false }: { folders?: boolean } = {}) {
         placeholder="Share text with your peer"
       />
       <button
+        disabled={!connected || !text.trim()}
         onClick={() => {
           if (channel.current?.readyState === "open") {
             channel.current.send(JSON.stringify({ type: "text", text }));
@@ -1167,6 +1310,351 @@ export function OnlinePanel({ folders = false }: { folders?: boolean } = {}) {
         acknowledgement window. Browsers without Service Worker support use a
         128 MiB fallback. Interrupted online transfers require resending.
       </p>
+    </section>
+  );
+  if (!consumer) return technicalPanel;
+  const failure = /failed|Error:|expired|revoked|disconnected|timed out/i.test(
+    status,
+  );
+  const completed = /Completed|Delivered/.test(status);
+  const label = /cancelled|rejected/.test(status)
+    ? "Transfer cancelled"
+    : status === "File declined"
+      ? "File declined"
+      : completed
+        ? "Completed"
+        : paused
+          ? "Paused"
+          : busy && !status.includes("approval")
+            ? "Sending"
+            : incoming.current && !offer
+              ? "Receiving"
+              : offer
+                ? "Incoming file"
+                : status.includes("approval")
+                  ? "Waiting for approval"
+                  : connected
+                    ? "Connected"
+                    : failure
+                      ? "Connection failed"
+                      : sharing
+                        ? session.current?.member === "owner"
+                          ? "Waiting for receiver"
+                          : "Connecting"
+                        : "Ready to share";
+  return (
+    <section className="panel share-flow" aria-label="File sharing">
+      <p role="status" className={failure ? "flow-state error" : "flow-state"}>
+        {label}
+      </p>
+      {mode !== "Receive Files" && (
+        <div
+          className="dropzone"
+          hidden={sharing && (!completed || busy)}
+          onDragOver={(e) => e.preventDefault()}
+          onDrop={(e) => {
+            e.preventDefault();
+            void selectFiles(Array.from(e.dataTransfer.files));
+          }}
+        >
+          <h2>
+            {mode === "Share Text"
+              ? "Share a thought, a link, anything."
+              : "Drop your files here"}
+          </h2>
+          <p>Private sharing, straight to the other device.</p>
+          <button className="primary" onClick={() => picker.current?.click()}>
+            Browse Files
+          </button>
+          <input
+            hidden
+            ref={picker}
+            aria-label="Browse Files"
+            type="file"
+            multiple
+            onChange={(e) => {
+              void selectFiles(Array.from(e.target.files || []));
+              e.currentTarget.value = "";
+            }}
+          />
+          {folders && "webkitdirectory" in document.createElement("input") && (
+            <>
+              <button
+                className="secondary"
+                onClick={() => folderPicker.current?.click()}
+              >
+                Select Folder
+              </button>
+              <input
+                hidden
+                ref={folderPicker}
+                type="file"
+                multiple
+                {...{ webkitdirectory: "" }}
+                onChange={(e) => {
+                  void selectFiles(Array.from(e.target.files || []));
+                  e.currentTarget.value = "";
+                }}
+              />
+            </>
+          )}
+        </div>
+      )}
+      {selectedFiles.length > 0 && (
+        <ul className="selected-files" aria-label="Selected files">
+          {selectedFiles.map((f, i) => (
+            <li key={i}>
+              <span>{f.name}</span>
+              <small>{(f.size / 1024).toFixed(1)} KB</small>
+            </li>
+          ))}
+        </ul>
+      )}
+      {!sharing && mode !== "Receive Files" && (
+        <button
+          className="primary"
+          disabled={
+            connecting || (mode !== "Share Text" && !selectedFiles.length)
+          }
+          onClick={() => void connect(false)}
+        >
+          Continue
+        </button>
+      )}
+      {!sharing && mode === "Receive Files" && (
+        <div className="join-flow">
+          <h2>Enter your sharing code</h2>
+          <label>
+            Pairing code
+            <input
+              aria-label="Pairing code"
+              inputMode="numeric"
+              autoComplete="off"
+              placeholder="482 916"
+              value={room}
+              onChange={(e) => setRoom(e.target.value.replace(/\s/g, ""))}
+            />
+          </label>
+          <button
+            className="primary"
+            disabled={connecting || !room}
+            onClick={() => void connect(true)}
+          >
+            Join
+          </button>
+          <p>
+            Or open the sender·s invitation link. Scan their QR with your camera
+            app.
+          </p>
+        </div>
+      )}
+      {sharing && !connected && session.current?.member === "owner" && (
+        <div className="invitation">
+          <h2>Your sharing code</h2>
+          {pairingCode ? (
+            <strong data-testid="pairing-code" className="code">
+              {pairingCode.slice(0, 3)} {pairingCode.slice(3)}
+            </strong>
+          ) : (
+            <p>Code expired. Start a new share.</p>
+          )}
+          <p>Expires in 10 minutes. Only approve someone you know.</p>
+          {qr && <img src={qr} alt="Scan online room invitation" />}
+          <button
+            className="secondary"
+            onClick={() =>
+              void navigator.clipboard
+                .writeText(invitation)
+                .then(() => setCopyStatus("Link copied"))
+                .catch(() =>
+                  setCopyStatus(
+                    "Copy unavailable. Open the invitation link to copy it.",
+                  ),
+                )
+            }
+          >
+            Copy Invitation Link
+          </button>
+          {copyStatus && <p>{copyStatus}</p>}
+        </div>
+      )}
+      {pending && (
+        <div className="incoming">
+          <h2>Someone wants to connect</h2>
+          <p>Confirm this is the person you invited.</p>
+          <button
+            className="primary"
+            onClick={() => {
+              socket.current?.send(JSON.stringify({ type: "approve" }));
+              setPending(false);
+            }}
+          >
+            Approve receiver
+          </button>
+        </div>
+      )}
+      {offer && (
+        <div className="incoming">
+          <h2>{offer.name}</h2>
+          <p>{offer.size.toLocaleString()} bytes</p>
+          <button className="primary" onClick={() => void acceptFile()}>
+            Accept file
+          </button>
+          <button
+            className="secondary"
+            onClick={() => {
+              channel.current?.send(JSON.stringify({ type: "reject" }));
+              incoming.current = undefined;
+              setOffer(undefined);
+              setStatus("File declined");
+            }}
+          >
+            Decline
+          </button>
+        </div>
+      )}
+      {transferRecord.current && (
+        <div className="transfer-card">
+          <h2>{transferRecord.current.name}</h2>
+          <progress aria-label="Transfer progress" max={100} value={percent} />
+          <p>
+            {percent.toFixed(1)}% · {Math.round(metrics.speed / 1024)} KB/s
+            {metrics.eta ? ` · ${Math.ceil(metrics.eta)}s remaining` : ""}
+          </p>
+          {completed && (
+            <p>
+              Integrity verified.{" "}
+              {transferRecord.current.direction === "Receive"
+                ? received?.blob
+                  ? "Choose Save to download."
+                  : "Check your browser downloads."
+                : "Received by the other device."}
+            </p>
+          )}
+        </div>
+      )}
+      {(busy || incoming.current) && (
+        <div className="flow-actions">
+          <button disabled={!connected} onClick={togglePause}>
+            {localPaused.current ? "Resume transfer" : "Pause transfer"}
+          </button>
+          <button className="secondary" onClick={cancelTransfer}>
+            Cancel transfer
+          </button>
+        </div>
+      )}
+      {downloads.map((item, i) => (
+        <button
+          key={i}
+          onClick={() => {
+            const url = URL.createObjectURL(item.blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = item.name;
+            a.click();
+            setTimeout(() => URL.revokeObjectURL(url), 10000);
+            setDownloads((items) => items.filter((entry) => entry !== item));
+          }}
+        >
+          Save {item.name}
+        </button>
+      ))}
+      {failure && (
+        <div className="flow-error">
+          <p>
+            {/expired|revoked|404/.test(status)
+              ? "This share has expired. Start a new share or ask for a fresh code."
+              : "We couldn't connect or finish this transfer. Keep both pages open, try another trusted network, then retry. Your selected files are retained."}
+          </p>
+          <button
+            disabled={connecting}
+            onClick={() =>
+              void connect(mode === "Receive Files", !!session.current)
+            }
+          >
+            Retry connection
+          </button>
+          <button
+            className="secondary"
+            onClick={() => {
+              close();
+              session.current = undefined;
+              setSharing(false);
+              setDownloads([]);
+              setReceived(undefined);
+              transferRecord.current = undefined;
+              setPercent(0);
+              setInvitation("");
+              setPairingCode("");
+              setStatus("Ready to share");
+            }}
+          >
+            Start a new share
+          </button>
+        </div>
+      )}
+      {connected && !busy && selectedFiles.length > 0 && (
+        <button
+          disabled={busy}
+          onClick={() => {
+            cancelled.current = false;
+            void drainQueue();
+          }}
+        >
+          Retry selected files
+        </button>
+      )}
+      {connected && (
+        <details className="text-share" open={mode === "Share Text"}>
+          <summary>Share text</summary>
+          <label>
+            Message
+            <textarea
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              maxLength={65536}
+            />
+          </label>
+          <button
+            disabled={!connected || !text.trim()}
+            onClick={() => {
+              channel.current?.send(JSON.stringify({ type: "text", text }));
+              setText("");
+            }}
+          >
+            Send text
+          </button>
+          {messages.map((m, i) => (
+            <pre key={i}>{m}</pre>
+          ))}
+        </details>
+      )}
+      {connected && completed && mode !== "Receive Files" && (
+        <button className="secondary" onClick={() => picker.current?.click()}>
+          Send another file
+        </button>
+      )}
+      {connected && completed && mode === "Receive Files" && (
+        <button
+          className="secondary"
+          onClick={() => {
+            transferRecord.current = undefined;
+            setPercent(0);
+            setStatus("Connected. Ready to receive another file.");
+          }}
+        >
+          Receive another file
+        </button>
+      )}
+      {sharing && (
+        <button className="secondary end-share" onClick={() => void endShare()}>
+          End share
+        </button>
+      )}
+      <details className="advanced">
+        <summary>Advanced connection diagnostics</summary>
+        {technicalPanel}
+      </details>
     </section>
   );
 }

@@ -37,3 +37,18 @@ class SignalingTests(unittest.TestCase):
             403,
         )
         self.assertEqual(client.post("/rooms/missing/join").status_code, 404)
+
+    def test_ice_refresh_budget_does_not_block_pairing_or_revocation(self):
+        with TestClient(create_app()) as client:
+            owner = client.post("/rooms").json()
+            auth = {"Authorization": "Bearer " + owner["token"]}
+            for _ in range(20):
+                self.assertEqual(client.get("/ice", headers=auth).status_code, 200)
+            self.assertEqual(client.get("/ice", headers=auth).status_code, 429)
+            self.assertEqual(client.post("/rooms").status_code, 200)
+            self.assertEqual(
+                client.delete("/rooms/" + owner["room"], headers=auth).status_code, 200
+            )
+            for _ in range(18):
+                self.assertEqual(client.post("/rooms/missing/join").status_code, 404)
+            self.assertEqual(client.post("/rooms/missing/join").status_code, 429)

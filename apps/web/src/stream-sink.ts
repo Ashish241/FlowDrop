@@ -1,9 +1,47 @@
 export interface StreamSink {
+  buffered?: boolean;
   write(bytes: Uint8Array): Promise<void>;
   close(): Promise<Blob | undefined>;
   abort(): void;
 }
+function memorySink(size: number): StreamSink {
+  const chunks: Uint8Array<ArrayBuffer>[] = [];
+  let total = 0,
+    aborted = false;
+  return {
+    buffered: true,
+    async write(bytes) {
+      if (aborted || total + bytes.length > size)
+        throw new Error("Invalid download");
+      chunks.push(Uint8Array.from(bytes));
+      total += bytes.length;
+    },
+    async close() {
+      if (aborted || total !== size) throw new Error("Incomplete download");
+      return new Blob(chunks);
+    },
+    abort() {
+      aborted = true;
+      chunks.length = 0;
+    },
+  };
+}
 export async function createStreamSink(
+  name: string,
+  size: number,
+): Promise<StreamSink> {
+  if (!Number.isSafeInteger(size) || size < 0 || size > 20 * 1024 ** 3)
+    throw new Error("Invalid download size");
+  try {
+    return await createBrowserStreamSink(name, size);
+  } catch (error) {
+    // Some private/mobile browser modes expose the API but prohibit registration.
+    // Only fall back before any accepted file bytes, with the same strict memory bound.
+    if (size > 128 * 1024 * 1024) throw error;
+    return memorySink(size);
+  }
+}
+async function createBrowserStreamSink(
   name: string,
   size: number,
 ): Promise<StreamSink> {
@@ -14,25 +52,7 @@ export async function createStreamSink(
       throw new Error(
         "Large online downloads require a secure context with Service Worker support.",
       );
-    const chunks: Uint8Array<ArrayBuffer>[] = [];
-    let total = 0,
-      aborted = false;
-    return {
-      async write(bytes) {
-        if (aborted || total + bytes.length > size)
-          throw new Error("Invalid download");
-        chunks.push(Uint8Array.from(bytes));
-        total += bytes.length;
-      },
-      async close() {
-        if (aborted || total !== size) throw new Error("Incomplete download");
-        return new Blob(chunks);
-      },
-      abort() {
-        aborted = true;
-        chunks.length = 0;
-      },
-    };
+    return memorySink(size);
   }
   const registration = await navigator.serviceWorker.register("/stream-sw.js", {
     scope: "/",

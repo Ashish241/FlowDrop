@@ -13,7 +13,11 @@ export default defineConfig({
   projects: [
     {
       name: "online",
-      testMatch: ["online-product.spec.ts", "integration-product.spec.ts"],
+      testMatch: [
+        "online-product.spec.ts",
+        "integration-product.spec.ts",
+        "consumer-online.spec.ts",
+      ],
       use: { baseURL: "http://127.0.0.1:8770" },
     },
     {

@@ -69,8 +69,9 @@ def create_app():
         allow_headers=["Content-Type", "Authorization"],
     )
 
-    def rate(request):
-        ip = request.client.host
+    def rate(request, bucket="pairing"):
+        # Keep ICE refresh/revocation from exhausting the code-guessing budget.
+        ip = (request.client.host, bucket)
         now = time.time()
         entries = [t for t in limits.get(ip, []) if t > now - 60]
         if len(entries) >= 20:
@@ -161,7 +162,7 @@ def create_app():
 
     @app.get("/ice")
     def ice(request: Request):
-        rate(request)
+        rate(request, "ice")
         supplied = hashlib.sha256(
             request.headers.get("authorization", "").removeprefix("Bearer ").encode()
         ).hexdigest()
@@ -187,7 +188,7 @@ def create_app():
 
     @app.delete("/rooms/{rid}")
     async def revoke(rid: str, request: Request):
-        rate(request)
+        rate(request, "revoke")
         room = room_for(rid)
         token = request.headers.get("authorization", "").removeprefix("Bearer ")
         if not hmac.compare_digest(

@@ -3,13 +3,11 @@ import { readFile } from "node:fs/promises";
 import AxeBuilder from "@axe-core/playwright";
 async function controls(page: Page, action = "Send Files") {
   await page.goto("/");
+  await page.getByRole("button", { name: action, exact: true }).click();
   await page
-    .getByRole("navigation")
-    .getByRole("button", { name: action, exact: true })
+    .getByText("Advanced connection diagnostics", { exact: true })
     .click();
-  return page.locator("section.panel").filter({
-    has: page.getByRole("heading", { name: "Online peer-to-peer" }),
-  });
+  return page.locator("details.advanced > section.panel");
 }
 test("dedicated website works without any desktop API and stays responsive", async ({
   page,
@@ -162,9 +160,9 @@ test("standalone website transfers multiple files both ways, text, cancellation 
       .click();
     await expect(right.getByRole("status")).toContainText("cancelled");
     await b.reload();
+    await b.getByRole("button", { name: "Receive Files", exact: true }).click();
     await b
-      .getByRole("navigation")
-      .getByRole("button", { name: "Receive Files", exact: true })
+      .getByText("Advanced connection diagnostics", { exact: true })
       .click();
     await right
       .getByRole("button", { name: "Reconnect saved room", exact: true })
@@ -203,28 +201,39 @@ test("standalone website transfers multiple files both ways, text, cancellation 
     await Promise.all([l.close(), r.close()]);
   }
 });
-test("cold-start timeout/outage and retry are visible without fake connection", async ({
+test("cold-start outage retains files and gives a useful retry", async ({
   page,
 }) => {
-  await page.route("**/signal/health", (route) =>
-    route.fulfill({ status: 503, body: "waking" }),
+  await page.route("**/signal/rooms", (route) =>
+    route.fulfill({
+      status: 503,
+      body: JSON.stringify({ detail: "service waking" }),
+      contentType: "application/json",
+    }),
   );
   await page.goto("/");
-  await expect(page.getByRole("status")).toContainText(
-    "Unable to reach signaling",
+  await page.getByRole("button", { name: "Send Files", exact: true }).click();
+  await page
+    .getByLabel("Browse Files", { exact: true })
+    .setInputFiles({
+      name: "retained.txt",
+      mimeType: "text/plain",
+      buffer: Buffer.from("keep me"),
+    });
+  await page.getByRole("button", { name: "Continue", exact: true }).click();
+  await expect(page.locator(".flow-error")).toContainText(
+    "selected files are retained",
   );
-  await page
-    .getByRole("navigation")
-    .getByRole("button", { name: "Send Files", exact: true })
-    .click();
   await expect(
-    page.getByRole("button", { name: "Create room", exact: true }),
-  ).toHaveCount(0);
-  await page.unroute("**/signal/health");
+    page.getByRole("list", { name: "Selected files" }),
+  ).toContainText("retained.txt");
+  await page.unroute("**/signal/rooms");
   await page
-    .getByRole("button", { name: "Retry signaling connection" })
+    .getByRole("button", { name: "Retry connection", exact: true })
     .click();
+  await expect(page.locator(".code")).toHaveText(/\d{3} \d{3}/);
   await expect(
-    page.getByRole("button", { name: "Create room", exact: true }),
-  ).toBeVisible();
+    page.getByRole("list", { name: "Selected files" }),
+  ).toContainText("retained.txt");
+  await page.getByRole("button", { name: "End share", exact: true }).click();
 });
