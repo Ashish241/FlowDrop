@@ -71,6 +71,27 @@ function fec() {
 }
 const encoder = new TextEncoder();
 const decoder = new TextDecoder("utf-8", { fatal: true });
+export function opticalCaptureSize(
+  width: number,
+  height: number,
+  maximum: number,
+) {
+  if (
+    !Number.isFinite(width) ||
+    !Number.isFinite(height) ||
+    width <= 0 ||
+    height <= 0 ||
+    !Number.isFinite(maximum) ||
+    maximum <= 0
+  )
+    throw Error("Camera has no usable video dimensions");
+  const bound = Math.min(1280, maximum),
+    scale = Math.min(1, bound / width, bound / height);
+  return {
+    width: Math.max(1, Math.round(width * scale)),
+    height: Math.max(1, Math.round(height * scale)),
+  };
+}
 function safeName(name: string) {
   let cleaned = "";
   for (const c of name) {

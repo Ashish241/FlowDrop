@@ -10,7 +10,27 @@ import {
   base45,
   unbase45,
   crc32,
+  opticalCaptureSize,
 } from "./optical-reliable";
+it("bounds landscape and portrait camera captures without upscaling or accepting empty video", () => {
+  expect(opticalCaptureSize(1920, 1080, 1280)).toEqual({
+    width: 1280,
+    height: 720,
+  });
+  expect(opticalCaptureSize(1080, 1920, 1280)).toEqual({
+    width: 720,
+    height: 1280,
+  });
+  expect(opticalCaptureSize(1080, 1920, 720)).toEqual({
+    width: 405,
+    height: 720,
+  });
+  expect(opticalCaptureSize(320, 240, 1280)).toEqual({
+    width: 320,
+    height: 240,
+  });
+  expect(() => opticalCaptureSize(0, 1080, 1280)).toThrow();
+});
 import { fileFramesFor, OpticalCollector } from "./optical-protocol";
 import { hashFile } from "./hash";
 const bytesFor = (length: number) => {

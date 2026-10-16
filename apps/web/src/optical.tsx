@@ -8,6 +8,7 @@ import {
   parseRecovery,
   selectiveFrames,
   manualMissing,
+  opticalCaptureSize,
   type OpticalTransfer,
   type RecoveryRequest,
 } from "./optical-reliable";
@@ -390,16 +391,17 @@ export function OpticalPanel() {
           !pending.current &&
           v.readyState >= 2 &&
           v.videoWidth &&
+          v.videoHeight &&
           now - captured >= 120
         ) {
           captured = now;
-          const scale = Math.min(
-            1,
-            cameraSize / v.videoWidth,
-            1280 / v.videoWidth,
+          const dimensions = opticalCaptureSize(
+            v.videoWidth,
+            v.videoHeight,
+            cameraSize,
           );
-          canvas.width = Math.round(v.videoWidth * scale);
-          canvas.height = Math.round(v.videoHeight * scale);
+          canvas.width = dimensions.width;
+          canvas.height = dimensions.height;
           ctx.drawImage(v, 0, 0, canvas.width, canvas.height);
           const pixels = ctx.getImageData(0, 0, canvas.width, canvas.height),
             seq = ++sequence.current;

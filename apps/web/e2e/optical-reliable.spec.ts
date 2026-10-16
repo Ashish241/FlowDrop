@@ -194,14 +194,14 @@ test("synthetic camera video reaches real worker decoder and completes single-fr
             getUserMedia: async () => {
               const canvas = document.createElement("canvas");
               canvas.width = 720;
-              canvas.height = 720;
+              canvas.height = 1280;
               const image = new Image();
               image.src = src!;
               await image.decode();
               const ctx = canvas.getContext("2d")!;
               ctx.fillStyle = "#fff";
-              ctx.fillRect(0, 0, 720, 720);
-              ctx.drawImage(image, 60, 60, 600, 600);
+              ctx.fillRect(0, 0, 720, 1280);
+              ctx.drawImage(image, 60, 340, 600, 600);
               const stream = canvas.captureStream(10);
               Object.assign(window, { syntheticOpticalCanvas: canvas });
               return stream;
@@ -213,6 +213,7 @@ test("synthetic camera video reaches real worker decoder and completes single-fr
     );
     const b = await bc.newPage();
     await open(b);
+    await b.getByLabel("Camera resolution").selectOption("720");
     await b.getByRole("button", { name: "Start camera", exact: true }).click();
     await expect(b.getByRole("status")).toContainText(
       "Completed · SHA-256 verified",
@@ -374,13 +375,11 @@ test("browser WASM parity reconstructs a binary file from one data QR and two pa
         return seed & 255;
       }),
     );
-    await a
-      .getByLabel("Small optical file (64 KiB maximum)")
-      .setInputFiles({
-        name: "fec-browser.bin",
-        mimeType: "application/octet-stream",
-        buffer: bytes,
-      });
+    await a.getByLabel("Small optical file (64 KiB maximum)").setInputFiles({
+      name: "fec-browser.bin",
+      mimeType: "application/octet-stream",
+      buffer: bytes,
+    });
     await a
       .getByRole("button", { name: "Start Transfer", exact: true })
       .click();

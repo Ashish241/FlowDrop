@@ -13,7 +13,7 @@
       "passed": 84,
       "skipped": 7
     },
-    "frontend_units": 30,
+    "frontend_units": 31,
     "online_full_run": {
       "passed": 16,
       "duration_reported": "2.7m"
@@ -36,7 +36,9 @@
     "final_desktop_optical_subset": 2,
     "vite_rooms": 3,
     "guarded_pages_build": "passed",
-    "final_desktop_build": "passed"
+    "final_desktop_build": "passed",
+    "portrait_camera_browser": 1,
+    "camera_size_tests": "landscape/portrait long-side cap, no upscale and zero-size rejection"
   },
   "optical": {
     "fixture_bytes": 65536,
@@ -54,13 +56,14 @@
     "retained_frame_payload_test_upper_bound_bytes": 200000
   },
   "deployment": {
-    "status": "pending",
+    "status": "initial optical release live; verified portrait capture correction pending manual deployment",
     "website": "https://flowdrop-online.pages.dev/",
     "signaling": "https://flowdrop-signaling.onrender.com/signal/v2",
     "rollback_pages_id": "f902f348-6a52-4a65-86ed-9837402ea3f9",
     "backend_unchanged": true,
     "automatic_deployments": false,
-    "hosting": "existing Cloudflare Pages Free + Render Free"
+    "hosting": "existing Cloudflare Pages Free + Render Free",
+    "initial_optical_pages_id": "0d58c03d-2948-4bcc-b868-dfe867c2a620"
   },
   "windows_zip_sha256": "CF8E76E3D14FA88FA3D77F2629BBFCE155E58A1C38F7BA05B7DBB1EBF5590E18",
   "physical_phone_verified": false,
