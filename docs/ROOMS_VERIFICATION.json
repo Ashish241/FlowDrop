@@ -1,0 +1,82 @@
+{
+  "revision": "rooms-v2-20261016",
+  "local": {
+    "python_passed": 82,
+    "python_skipped": 7,
+    "frontend_unit_passed": 14,
+    "production_room_suite_passed": 5,
+    "vite_room_suite_passed": 3,
+    "desktop_browser_passed": 8,
+    "legacy_suite_passed": 19,
+    "legacy_suite_timeout": 1,
+    "legacy_turn_skipped": 1,
+    "legacy_timeout_isolated_retry_passed": 1,
+    "lint": true,
+    "typescript": true,
+    "pages_release_build": true,
+    "completion_guard_suite_passed": 5,
+    "completion_guard_legacy_transfers_passed": 2
+  },
+  "real_byte_checks": {
+    "forward": 1048583,
+    "reverse": 5,
+    "selected_multiple_with_independent_decline": 262151,
+    "batch": [
+      2,
+      3
+    ],
+    "paused_renamed_resumed": 33554435,
+    "saved_integrity_verified": true
+  },
+  "browser_scope": "Four isolated contexts on one PC; actual WebRTC protocol and bytes",
+  "physical_cross_network_verified": false,
+  "turn_relay_verified": false,
+  "windows_zip_sha256": "CF8E76E3D14FA88FA3D77F2629BBFCE155E58A1C38F7BA05B7DBB1EBF5590E18",
+  "render_deployment": "dep-db91og7f3r2c73fq01jg",
+  "pages_deployment": "cbd20ba4-3c5e-4aed-b18c-be62386e2e99",
+  "public_verification": {
+    "final_guarded_suite_passed": 5,
+    "duration": "1.1m",
+    "initial_public_suite": "4 passed; Select All test raced a not-yet-online member. Wait corrected to actual eligible checkbox; then all 5 passed.",
+    "negative_control": "Expected failure on pre-guard frontend confirmed premature Delivered; final guarded regression passed.",
+    "scope": "Real public HTTPS/WSS and WebRTC byte transport between browser contexts on one PC. Not physical cross-network verification."
+  },
+  "feature_commit": "5859e743f730a4b417e5a63791419db9012974f9",
+  "frontend_commit": "06d2c48f0d363485e751fabdbe88767bcc8e7e34",
+  "backend_commit": "5859e743f730a4b417e5a63791419db9012974f9",
+  "security_negative_control": "Early verified message reproduced false Delivered on pre-guard public build; guarded local suite passes",
+  "initial_public_room_suite_passed": 5,
+  "public_services": {
+    "website": "https://flowdrop-online.pages.dev",
+    "signaling": "https://flowdrop-signaling.onrender.com/signal/v2",
+    "scope": "public HTTPS/WSS service checks",
+    "physical_cross_network_verified": false,
+    "frontend_revision": "rooms-v2-20261016",
+    "integrity_guard": true,
+    "backend_revision": "rooms-v2-20261016",
+    "exact_origin_cors": true,
+    "automatic_authorized_join": true,
+    "websocket_members": true,
+    "rename_broadcast": true,
+    "addressed_signaling": true,
+    "creator_lock": true,
+    "credentials_excluded_from_roster": true
+  },
+  "pages_initial_room_deployment": "97f89478-5e53-4d19-acbf-14025e47fb1c",
+  "legacy_public_compatibility": {
+    "website": "https://flowdrop-online.pages.dev",
+    "signaling": "https://flowdrop-signaling.onrender.com/signal",
+    "scope": "public HTTP/WSS service checks",
+    "physical_cross_network_transfer_verified": false,
+    "frontend": true,
+    "configuration_checked": true,
+    "pages_release_validated": true,
+    "health": true,
+    "exact_origin_cors": true,
+    "websocket_authorization": true,
+    "six_digit_join": true,
+    "owner_approval": true,
+    "metadata_routing": true,
+    "turn_configured": false
+  }
+}
