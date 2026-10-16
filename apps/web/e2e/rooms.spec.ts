@@ -46,6 +46,22 @@ test("named room auto-join, three real peers, rename and recipient-isolated tran
   try {
     for (const context of contexts)
       await context.addInitScript(() => {
+        const Peer = RTCPeerConnection;
+        const channels: RTCDataChannel[] = [];
+        Object.assign(window, { roomTestChannels: channels });
+        window.RTCPeerConnection = class extends Peer {
+          constructor(config?: RTCConfiguration) {
+            super(config);
+            this.addEventListener("datachannel", (e) =>
+              channels.push(e.channel),
+            );
+          }
+          createDataChannel(label: string, options?: RTCDataChannelInit) {
+            const channel = super.createDataChannel(label, options);
+            channels.push(channel);
+            return channel;
+          }
+        };
         const Socket = WebSocket;
         const sockets: WebSocket[] = [];
         Object.assign(window, { roomTestSockets: sockets });
@@ -88,6 +104,9 @@ test("named room auto-join, three real peers, rename and recipient-isolated tran
     await expect(
       a.getByRole("checkbox", { name: "Select Office Laptop" }),
     ).toHaveCount(0);
+    await expect(
+      a.getByRole("checkbox", { name: "Select Tablet", exact: true }),
+    ).toBeVisible();
     await a.getByRole("button", { name: "Select All", exact: true }).click();
     await expect(a.getByText("2 selected", { exact: true })).toBeVisible();
     await a.getByRole("button", { name: "Clear Selection" }).click();
@@ -105,6 +124,28 @@ test("named room auto-join, three real peers, rename and recipient-isolated tran
     ).toBeVisible();
     await expect(
       c.getByRole("button", { name: "Accept file", exact: true }),
+    ).toHaveCount(0);
+    // Out-of-order completion cannot mark a pending offer successful.
+    await b.evaluate(() => {
+      for (const dc of (
+        window as unknown as { roomTestChannels: RTCDataChannel[] }
+      ).roomTestChannels)
+        if (dc.readyState === "open") {
+          dc.send(JSON.stringify({ type: "verified" }));
+          dc.send(
+            JSON.stringify({ type: "text", text: "control-order-check" }),
+          );
+        }
+    });
+    await expect(
+      a
+        .locator(".recipient-transfer pre")
+        .filter({ hasText: "control-order-check" }),
+    ).toHaveCount(1);
+    await expect(
+      a
+        .locator(".recipient-transfer .flow-state")
+        .filter({ hasText: "Delivered" }),
     ).toHaveCount(0);
     // A late member is never added to the active recipient snapshot.
     await join(d, code, "Late device");

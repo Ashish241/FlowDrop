@@ -491,7 +491,12 @@ export function OnlinePanel({
               }
               incoming.current = undefined;
               setOffer(undefined);
-            } else if (data.type === "verified") {
+            } else if (
+              data.type === "verified" &&
+              sending.current &&
+              verified.current &&
+              acked.current === transferRecord.current?.size
+            ) {
               verified.current?.();
               if (transferRecord.current)
                 setCompletedTransfers((items) =>

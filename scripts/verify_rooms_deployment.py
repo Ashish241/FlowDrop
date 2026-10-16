@@ -22,6 +22,7 @@ def verify(website, signaling):
     ) as client:
         metadata = client.get(origin + "/DEPLOYMENT_INFO.json").json()
         assert metadata["revision"] == "rooms-v2-20261016"
+        assert metadata.get("integrityGuard") is True
         assert metadata["signaling"].rstrip("/") == signaling.rstrip("/")
         health = client.get(endpoint + "/health")
         health.raise_for_status()
@@ -88,6 +89,7 @@ def verify(website, signaling):
                     )
             result.update(
                 frontend_revision=metadata["revision"],
+                integrity_guard=True,
                 backend_revision=health.json()["revision"],
                 exact_origin_cors=True,
                 automatic_authorized_join=True,
