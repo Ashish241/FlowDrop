@@ -27,9 +27,14 @@
     }
   },
   "deployment": {
-    "status": "pending",
+    "status": "live; public HTTPS/WSS and browser checks passed",
     "website": "https://flowdrop-online.pages.dev/",
-    "signaling": "https://flowdrop-signaling.onrender.com/signal/v2"
+    "signaling": "https://flowdrop-signaling.onrender.com/signal/v2",
+    "source": "236535df1adfe88474da3ba45ad73cec99bea174",
+    "render_id": "dep-db96g8rl550s73ctk5dg",
+    "pages_id": "173ba695-b61b-4ba8-a840-26879a26ea56",
+    "automatic_deployments": false,
+    "hosting": "existing Cloudflare Pages Free and Render Free"
   },
   "windows_zip_sha256": "CF8E76E3D14FA88FA3D77F2629BBFCE155E58A1C38F7BA05B7DBB1EBF5590E18",
   "physical_cross_network_verified": false,
@@ -46,6 +51,63 @@
     "Shared Coming Soon heading selector corrected",
     "Leave-room test now waits for completed departure before navigating",
     "Secondary text contrast corrected after axe failure",
-    "Parallel browser trace directory collision resolved with separate room output directory"
+    "Parallel browser trace directory collision resolved with separate room output directory",
+    "First hosted browser run: 8 passed, 2 timing failures, 1 local-clock-only skip. Tests now wait for actual peer connection before Select All/Send; no production source change.",
+    "Second hosted run: 9 passed, 1 reload/batch scenario timed out, 1 local-clock skip. The test now awaits Connected after full reload; the complete isolated multi-peer scenario then passed (35.2 seconds). Final complete hosted rerun: 10 passed, 1 local-clock-only skip."
+  ],
+  "public_service": {
+    "website": "https://flowdrop-online.pages.dev",
+    "signaling": "https://flowdrop-signaling.onrender.com/signal/v2",
+    "scope": "public HTTPS/WSS service checks",
+    "physical_cross_network_verified": false,
+    "frontend_revision": "workspace-v3-20261016",
+    "integrity_guard": true,
+    "backend_revision": "workspace-v3-20261016",
+    "exact_origin_cors": true,
+    "automatic_authorized_join": true,
+    "websocket_members": true,
+    "rename_broadcast": true,
+    "addressed_signaling": true,
+    "creator_lock": true,
+    "credentials_excluded_from_roster": true
+  },
+  "legacy_public_service": {
+    "website": "https://flowdrop-online.pages.dev",
+    "signaling": "https://flowdrop-signaling.onrender.com/signal",
+    "scope": "public HTTP/WSS service checks",
+    "physical_cross_network_transfer_verified": false,
+    "frontend": true,
+    "configuration_checked": true,
+    "pages_release_validated": true,
+    "health": true,
+    "exact_origin_cors": true,
+    "websocket_authorization": true,
+    "six_digit_join": true,
+    "owner_approval": true,
+    "metadata_routing": true,
+    "turn_configured": false
+  },
+  "public_browser": {
+    "passed": 10,
+    "skipped": 1,
+    "seconds": 72,
+    "skip": "Clock injection is local-test-only; rotation tested locally with actual channels and paused bytes",
+    "scope": "Public HTTPS/WSS with isolated same-PC Chromium contexts and actual saved-byte comparisons",
+    "physical_cross_network_verified": false
+  },
+  "tested_file_sizes_bytes": [
+    1048583,
+    5,
+    262151,
+    2,
+    3,
+    33554435,
+    16003,
+    1048593
+  ],
+  "screenshots": [
+    ".flowdrop/workspace-live.jpg",
+    ".flowdrop/workspace-390.png",
+    ".flowdrop/workspace-1440.png"
   ]
 }

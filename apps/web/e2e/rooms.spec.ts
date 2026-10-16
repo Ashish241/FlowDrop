@@ -115,6 +115,12 @@ test("named room auto-join, three real peers, rename and recipient-isolated tran
     await expect(
       a.getByRole("checkbox", { name: "Select Tablet", exact: true }),
     ).toBeVisible();
+    for (const name of ["Phone", "Tablet"])
+      await expect(
+        a.getByRole("listitem").filter({
+          has: a.getByRole("checkbox", { name: `Select ${name}`, exact: true }),
+        }),
+      ).toContainText("Connected");
     await a.getByRole("button", { name: "Select All", exact: true }).click();
     await expect(
       a
@@ -226,6 +232,9 @@ test("named room auto-join, three real peers, rename and recipient-isolated tran
     await expect(
       b.getByRole("list", { name: "Connected Devices" }),
     ).toContainText("Renamed while waiting");
+    await expect(b.locator(".room-heading [role=status]")).toHaveText(
+      "Connected",
+    );
     // Explicit batch acceptance authorizes only the displayed manifest.
     await a.getByRole("button", { name: "Unlock Room", exact: true }).click();
     await b.getByRole("button", { name: "Select All", exact: true }).click();
@@ -319,6 +328,9 @@ test("pause, rename during byte transfer, resume, cancellation and text stay ind
       b = await bc.newPage();
     const code = await create(a, "Sender");
     await join(b, code, "Receiver");
+    await expect(a.locator(".room-heading [role=status]")).toHaveText(
+      "Connected",
+    );
     await a
       .getByRole("checkbox", { name: "Select Receiver", exact: true })
       .check();

@@ -33,10 +33,26 @@ Tests use actual Chromium DataChannels and compare received bytes, including mul
 
 Camera browser tests feed synthetic video frames through the real QR decoder; they are not physical camera tests. Public browser peers run on the same PC; they do not establish different-network connectivity. TURN relay, physical phone transfers/scanning, mobile background suspension and clean-device acceptance remain external gates.
 
+## Main files changed
+
+- `apps/web/src/online-main.tsx`, `online-style.css`: Online-only shell, canonical routes, four cards and responsive workspace.
+- `room-dashboard.tsx`: persistent composer, recipients, room status, heartbeat/reconnect, global text history and device list.
+- `online.tsx`: compact room transfer view over the preserved protocol and integrity safeguards.
+- `invitation-scanner.tsx`, `room-utils.ts` and unit tests: camera decoding, invitation validation, attachment merging and sizes.
+- `services/signaling/rooms.py`, `tests/test_named_rooms.py`: bounded active room renewal and atomic invitation rotation.
+- `scripts/product_host.py`: disposable test clock; `verify_rooms_deployment.py`: public policy/revision checks.
+- `apps/web/e2e/workspace.spec.ts`, existing room/product tests and Playwright configs: new acceptance checks and regression adaptations. `vite.config.ts` identifies the release.
+
 ## Preserved artifact
 
 `dist/FlowDrop-windows.zip` SHA-256 remains `CF8E76E3D14FA88FA3D77F2629BBFCE155E58A1C38F7BA05B7DBB1EBF5590E18`. Windows binaries were not rebuilt or replaced.
 
 ## Release evidence
 
-Deployment pending final verification. Previous working checkpoint: `1587f9fb4039a3e3f5ec31eb59b5276e115bf25f`; previous public frontend `06d2c48`, backend `5859e74` remain rollback references. See `WORKSPACE_VERIFICATION.json` for final results and deployment identities.
+Both existing free projects successfully deployed source `236535df1adfe88474da3ba45ad73cec99bea174`, backend first. Render deployment `dep-db96g8rl550s73ctk5dg` is Live; Pages deployment `173ba695-b61b-4ba8-a840-26879a26ea56` published assets successfully. Public frontend and backend report `workspace-v3-20261016`. Public HTTPS/WSS v2 origin, membership, rename, routing and locking checks passed; legacy v1 service checks passed and report TURN unconfigured. Final complete hosted browser suite: **10 passed, 1 skipped (1.2 minutes)**. The skipped clock injection is deliberately unavailable in production; invitation rotation was tested locally with actual pending offers and paused byte transfers. Public browser tests verify actual saved bytes on the new workspace, including bidirectional/multi-recipient transfers, batch approval, independent decline, pause/resume/cancel, rename, reconnection, text, responsive navigation and synthetic QR decoding. Both peer roles display the new room UI. All peers remain on this PC.
+
+Initial hosted runs exposed timing assumptions: Select All/Send were clicked before actual peer readiness, and a post-reload batch raced recovery. Tests now wait for Connected. The complete multi-peer scenario passed independently, followed by the clean full hosted run above. Earlier failures are preserved in the evidence record. The local combined trace collision and contrast correction are likewise recorded. No provider restart persistence or physical-device success is inferred from these checks. Previous working checkpoint: `1587f9fb4039a3e3f5ec31eb59b5276e115bf25f`; previous public frontend `06d2c48`, backend `5859e74` remain rollback references. See `WORKSPACE_VERIFICATION.json` for final results and deployment identities.
+
+## Physical acceptance still required
+
+Use a PC on Wi-Fi and a phone with Wi-Fi disabled on cellular data. Reload the public website on both; Create Room on the PC, enter a device name on the phone and scan the invitation or type its code. Select the phone on the PC, attach a known file, click Send, accept on the phone and verify the saved file opens and matches the original. Repeat phone to PC with both a small file and a larger file, recording browser/device, networks, byte size, SHA-256 where available, duration and any error. Repeat QR scanning with real cameras, denial/re-enable behavior, lock/end, idle/background and pause/resume. Different-network failures may require TURN; no relay is configured. This checklist has not been executed on physical devices by the agent.
