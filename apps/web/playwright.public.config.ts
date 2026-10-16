@@ -9,6 +9,7 @@ export default defineConfig({
   testMatch: [
     "rooms.spec.ts",
     "workspace.spec.ts",
+    "delivery.spec.ts",
     "integration-product.spec.ts",
   ],
   timeout: 120000,

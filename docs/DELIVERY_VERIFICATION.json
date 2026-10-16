@@ -1,0 +1,56 @@
+{
+  "date": "2026-10-17",
+  "previous_checkpoint": "770c351590c0f76cd43f5c1450bca2726004e5ed",
+  "local": {
+    "backend": {
+      "passed": 84,
+      "skipped": 7
+    },
+    "frontend_units": 19,
+    "desktop_browser": 8,
+    "combined_browser": {
+      "passed": 20,
+      "skipped": 1
+    },
+    "vite_rooms": 3,
+    "online_browser": {
+      "passed": 13,
+      "seconds": 78
+    },
+    "lint_typescript_builds": "passed"
+  },
+  "features": [
+    "stable attachment/recipient/attempt ledger",
+    "partial-success retention",
+    "verified-recipient retry exclusion",
+    "individual file cleanup after all intended recipients verify",
+    "new eligible identity auto-selection",
+    "local manual preference preservation",
+    "explicit Send and per-recipient acceptance",
+    "correlated room control IDs"
+  ],
+  "deployment": {
+    "status": "pending",
+    "website": "https://flowdrop-online.pages.dev/",
+    "signaling": "https://flowdrop-signaling.onrender.com/signal/v2",
+    "rollback_pages_id": "173ba695-b61b-4ba8-a840-26879a26ea56",
+    "backend_unchanged": true,
+    "hosting": "existing Pages Free and Render Free",
+    "automatic_deployments": false
+  },
+  "windows_zip_sha256": "CF8E76E3D14FA88FA3D77F2629BBFCE155E58A1C38F7BA05B7DBB1EBF5590E18",
+  "physical_cross_network_verified": false,
+  "turn_relay_verified": false,
+  "physical_camera_verified": false,
+  "limits": [
+    "Room state remains single-instance memory; provider restart requires new room",
+    "Full reload requires file reselection and fresh local selection preferences",
+    "In-page reconnection retains original File references; interrupted files retry from the beginning",
+    "TURN remains unconfigured",
+    "Physical network and camera acceptance remain external"
+  ],
+  "initial_failures": [
+    "Obsolete existing tests assumed no automatic recipients and manual composer clearing; updated to explicit recipient choices and verified automatic clearing",
+    "An obsolete run was interrupted after expectation failures; final runs are separate"
+  ]
+}

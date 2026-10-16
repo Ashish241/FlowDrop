@@ -180,6 +180,9 @@ test("named room auto-join, three real peers, rename and recipient-isolated tran
     const reverse = Buffer.from([0, 255, 13, 10, 42]);
     await selectFile(b, "reverse.bin", reverse);
     await b
+      .getByRole("button", { name: "Clear Selection", exact: true })
+      .click();
+    await b
       .getByRole("checkbox", {
         name: "Select Renamed while waiting",
         exact: true,
@@ -193,6 +196,9 @@ test("named room auto-join, three real peers, rename and recipient-isolated tran
     await a
       .getByRole("checkbox", { name: "Select Tablet", exact: true })
       .check();
+    await a
+      .getByRole("checkbox", { name: "Select Late device", exact: true })
+      .uncheck();
     await selectFile(a, "multi.bin", Buffer.alloc(262151, 22));
     await a.getByRole("button", { name: "Send to Selected Devices" }).click();
     await expect(

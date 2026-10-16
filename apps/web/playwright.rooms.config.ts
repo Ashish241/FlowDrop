@@ -4,6 +4,7 @@ export default defineConfig({
   testMatch: [
     "rooms.spec.ts",
     "workspace.spec.ts",
+    "delivery.spec.ts",
     "integration-product.spec.ts",
   ],
   workers: 1,

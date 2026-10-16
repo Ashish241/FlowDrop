@@ -70,6 +70,8 @@ export default defineConfig(({ mode }) => {
                 version: "0.4.1",
                 revision: "workspace-v3-20261016",
                 integrityGuard: true,
+                recipientDeliveryLedger: true,
+                autoSelectNewMembers: true,
                 signaling: env.VITE_SIGNAL_URL || "/signal",
                 pagesRelease,
                 publicEndpointValidated: pagesRelease,

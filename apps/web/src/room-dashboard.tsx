@@ -18,6 +18,14 @@ import {
 } from "lucide-react";
 import { formatSize, mergeAttachments } from "./room-utils";
 import { InvitationScanner } from "./invitation-scanner";
+import {
+  allVerified,
+  selectNewMembers,
+  terminal,
+  updateDelivery,
+  type AttachmentTransfer,
+  type DeliveryUpdate,
+} from "./room-delivery";
 import { OnlinePanel, type RoomTransferHandle } from "./online";
 type Member = {
   id: string;
@@ -106,6 +114,48 @@ export function RoomDashboard({
     Array<{ id: string; name: string; state: string }>
   >([]);
   const [files, setFiles] = useState<File[]>([]);
+  const [deliveries, setDeliveries] = useState<AttachmentTransfer[]>([]);
+  const deliveryRef = useRef<AttachmentTransfer[]>([]);
+  const attachmentIds = useRef(new WeakMap<File, string>());
+  const seenMembers = useRef(new Set<string>());
+  const dispatched = useRef(new Set<string>());
+  function dispatchFiles(recipient: string, rows: AttachmentTransfer[]) {
+    const pending = rows.filter(
+      (row) => !dispatched.current.has(row.recipients[recipient].attempt),
+    );
+    if (!pending.length) return;
+    const handle = handles.current.get(recipient);
+    if (!handle) {
+      notify("Wait for this device to reconnect before sending.");
+      return;
+    }
+    pending.forEach((row) =>
+      dispatched.current.add(row.recipients[recipient].attempt),
+    );
+    void handle.sendFiles(
+      pending.map((row) => row.file),
+      pending.map((row) => ({
+        attachment: row.id,
+        attempt: row.recipients[recipient].attempt,
+      })),
+    );
+  }
+  function saveDeliveries(rows: AttachmentTransfer[]) {
+    const completed = new Set(rows.filter(allVerified).slice(-10));
+    const retained = rows.filter(
+      (row) => !allVerified(row) || completed.has(row),
+    );
+    deliveryRef.current = retained;
+    setDeliveries(retained);
+  }
+  function deliveryUpdate(recipient: string, update: DeliveryUpdate) {
+    const rows = updateDelivery(deliveryRef.current, recipient, update);
+    saveDeliveries(rows);
+    const completed = rows.filter(allVerified).map((row) => row.file);
+    setFiles((previous) =>
+      previous.filter((file) => !completed.includes(file)),
+    );
+  }
   const [message, setMessage] = useState("");
   const [invite, setInvite] = useState(false);
   const [notice, setNotice] = useState("");
@@ -172,6 +222,7 @@ export function RoomDashboard({
     let members: Member[] = [];
     let resync = false;
     const identity = session;
+    seenMembers.current = new Set();
     function send(data: unknown) {
       if (ws.current?.readyState === WebSocket.OPEN)
         ws.current.send(JSON.stringify(data));
@@ -368,9 +419,31 @@ export function RoomDashboard({
                     .slice(0, 8),
                 );
                 members = event.members;
-                setSelected((ids) =>
-                  ids.filter((id) => members.some((m) => m.id === id)),
+                for (const row of deliveryRef.current)
+                  for (const [id, delivery] of Object.entries(row.recipients))
+                    if (
+                      !terminal(delivery.state) &&
+                      !members.some((member) => member.id === id)
+                    )
+                      deliveryUpdate(id, {
+                        attachment: row.id,
+                        attempt: delivery.attempt,
+                        state: "Failed",
+                        progress: delivery.progress,
+                      });
+                // Observe new identities once; unrelated roster events never undo a local choice.
+                const newlySelected = selectNewMembers(
+                  [],
+                  seenMembers.current,
+                  members,
+                  identity.member,
                 );
+                setSelected((ids) => [
+                  ...new Set([
+                    ...ids.filter((id) => members.some((m) => m.id === id)),
+                    ...newlySelected,
+                  ]),
+                ]);
               } else if (event.type === "error") setError(event.message);
               else if (
                 ["offer", "answer", "ice", "retry"].includes(event.type) &&
@@ -524,6 +597,7 @@ export function RoomDashboard({
       setFiles([]);
       setMessage("");
       setMessages([]);
+      saveDeliveries([]);
       setDeparted([]);
       setStatus("Waiting");
       setError("");
@@ -538,6 +612,7 @@ export function RoomDashboard({
         setMessage("");
         setDeparted([]);
         setMessages([]);
+        saveDeliveries([]);
         onHome?.();
       } else setError(String(reason));
     } finally {
@@ -600,7 +675,11 @@ export function RoomDashboard({
       );
       return;
     }
-    if (selectedReady.length !== selected.length) {
+    if (
+      selected.some(
+        (id) => eligible.some((member) => member.id === id) && !ready(id),
+      )
+    ) {
       notify(
         "A selected device is reconnecting. Wait or change your selection.",
       );
@@ -608,12 +687,87 @@ export function RoomDashboard({
       setTimeout(() => setHighlight(false), 1800);
       return;
     }
-    const batch = [...files],
-      recipients = [...selected];
+    const recipients = [...selectedReady];
+    if (!recipients.length) {
+      notify("Select an available device before sending.");
+      return;
+    }
+    const rows = [...deliveryRef.current];
+    for (const file of files) {
+      let id = attachmentIds.current.get(file);
+      if (!id) {
+        id = crypto.randomUUID();
+        attachmentIds.current.set(file, id);
+      }
+      if (!rows.some((row) => row.id === id))
+        rows.push({
+          id,
+          file,
+          recipients: Object.fromEntries(
+            recipients.map((recipient) => [
+              recipient,
+              {
+                attempt: crypto.randomUUID(),
+                state: "Preparing",
+                progress: 0,
+                name: snapshot?.members.find(
+                  (member) => member.id === recipient,
+                )?.name,
+              },
+            ]),
+          ),
+        });
+    }
+    saveDeliveries(rows);
     notify(
-      `Preparing ${batch.length} ${batch.length === 1 ? "file" : "files"} for ${recipients.length} ${recipients.length === 1 ? "device" : "devices"}…`,
+      "Preparing selected files. Existing deliveries retain their original recipients.",
     );
-    for (const id of recipients) void handles.current.get(id)?.sendFiles(batch);
+    for (const id of recipients) {
+      const batch = rows.filter(
+        (row) =>
+          files.includes(row.file) && row.recipients[id]?.state === "Preparing",
+      );
+      dispatchFiles(id, batch);
+    }
+  }
+  function retryDelivery(attachment: string, recipient: string) {
+    const row = deliveryRef.current.find((item) => item.id === attachment),
+      before = row?.recipients[recipient];
+    if (
+      !row ||
+      !before ||
+      before.state === "Verified" ||
+      !terminal(before.state)
+    )
+      return;
+    if (!files.includes(row.file)) {
+      notify("This attachment was removed. Select it again to send.");
+      return;
+    }
+    if (
+      !eligible.some((member) => member.id === recipient) ||
+      !ready(recipient)
+    ) {
+      notify("Wait for this device to reconnect before retrying.");
+      return;
+    }
+    const attempt = crypto.randomUUID();
+    const updated = {
+      ...row,
+      recipients: {
+        ...row.recipients,
+        [recipient]: {
+          ...before,
+          attempt,
+          state: "Preparing" as const,
+          progress: 0,
+        },
+      },
+    };
+    saveDeliveries(
+      deliveryRef.current.map((item) => (item === row ? updated : item)),
+    );
+    dispatchFiles(recipient, [updated]);
   }
   const roomStatus =
     status === "Connected"
@@ -1169,6 +1323,88 @@ export function RoomDashboard({
                   <h2>File Transfers</h2>
                   <span className="badge">Live</span>
                 </div>
+                {deliveries.map((row) => (
+                  <details
+                    className="delivery-summary"
+                    key={row.id}
+                    open
+                    data-attachment-id={row.id}
+                  >
+                    <summary>
+                      {row.file.name} ·{" "}
+                      {allVerified(row) ? "Verified ✓" : "Delivery status"}
+                    </summary>
+                    <ul aria-label={`Recipients for ${row.file.name}`}>
+                      {Object.entries(row.recipients)
+                        .filter(([, delivery]) => !delivery.hidden)
+                        .map(([id, delivery]) => (
+                          <li key={id} data-recipient-id={id}>
+                            <span>
+                              {snapshot?.members.find(
+                                (member) => member.id === id,
+                              )?.name ||
+                                delivery.name ||
+                                "Unavailable device"}{" "}
+                              — {delivery.state}
+                              {delivery.state === "Verified"
+                                ? " ✓"
+                                : delivery.state === "Sending"
+                                  ? ` ${delivery.progress.toFixed(0)}%`
+                                  : ""}
+                            </span>
+                            {!terminal(delivery.state) && (
+                              <progress
+                                aria-label="Recipient delivery progress"
+                                max={100}
+                                value={delivery.progress}
+                              />
+                            )}
+                            {terminal(delivery.state) &&
+                              delivery.state !== "Verified" && (
+                                <button
+                                  className="quiet"
+                                  onClick={() => retryDelivery(row.id, id)}
+                                >
+                                  Retry
+                                </button>
+                              )}
+                            {delivery.state === "Verified" && (
+                              <button
+                                className="quiet"
+                                aria-label={`Hide completed ${delivery.name || id}`}
+                                onClick={() =>
+                                  saveDeliveries(
+                                    deliveryRef.current.map((item) =>
+                                      item.id === row.id
+                                        ? {
+                                            ...item,
+                                            recipients: {
+                                              ...item.recipients,
+                                              [id]: {
+                                                ...delivery,
+                                                hidden: true,
+                                              },
+                                            },
+                                          }
+                                        : item,
+                                    ),
+                                  )
+                                }
+                              >
+                                Dismiss
+                              </button>
+                            )}
+                          </li>
+                        ))}
+                    </ul>
+                    {allVerified(row) && (
+                      <small>
+                        Integrity verified by every intended recipient. Browser
+                        disk saving is not confirmed.
+                      </small>
+                    )}
+                  </details>
+                ))}
                 {departed.length > 0 && (
                   <ul aria-label="Disconnected recipients">
                     {departed.map((m) => (
@@ -1212,6 +1448,8 @@ export function RoomDashboard({
                               ),
                             onNotice: (value) =>
                               notify(`${displayName(m)}: ${value}`),
+                            onTransfer: (update) =>
+                              deliveryUpdate(m.id, update),
                             register: (handle) => {
                               if (handle) handles.current.set(m.id, handle);
                               else handles.current.delete(m.id);
@@ -1220,11 +1458,27 @@ export function RoomDashboard({
                         />
                         <button
                           className="quiet"
-                          disabled={!files.length || !ready(m.id)}
+                          disabled={
+                            !ready(m.id) ||
+                            !deliveries.some(
+                              (row) =>
+                                files.includes(row.file) &&
+                                row.recipients[m.id] &&
+                                terminal(row.recipients[m.id].state) &&
+                                row.recipients[m.id].state !== "Verified",
+                            )
+                          }
                           onClick={() =>
-                            void handles.current
-                              .get(m.id)
-                              ?.sendFiles([...files])
+                            (() => {
+                              const row = deliveryRef.current.find(
+                                (item) =>
+                                  files.includes(item.file) &&
+                                  item.recipients[m.id] &&
+                                  terminal(item.recipients[m.id].state) &&
+                                  item.recipients[m.id].state !== "Verified",
+                              );
+                              if (row) retryDelivery(row.id, m.id);
+                            })()
                           }
                         >
                           Retry files to this device

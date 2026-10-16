@@ -23,6 +23,8 @@ def verify(website, signaling):
         metadata = client.get(origin + "/DEPLOYMENT_INFO.json").json()
         assert metadata["revision"] == "workspace-v3-20261016"
         assert metadata.get("integrityGuard") is True
+        assert metadata.get("recipientDeliveryLedger") is True
+        assert metadata.get("autoSelectNewMembers") is True
         assert metadata["signaling"].rstrip("/") == signaling.rstrip("/")
         health = client.get(endpoint + "/health")
         health.raise_for_status()
@@ -94,6 +96,8 @@ def verify(website, signaling):
             result.update(
                 frontend_revision=metadata["revision"],
                 integrity_guard=True,
+                recipient_delivery_ledger=True,
+                auto_select_new_members=True,
                 backend_revision=health.json()["revision"],
                 exact_origin_cors=True,
                 automatic_authorized_join=True,

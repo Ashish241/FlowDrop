@@ -184,7 +184,6 @@ test("attachments add/remove/clear, reconnect persistence and precise send feedb
     await expect(a.locator(".peer-transfer [role=status]")).toContainText(
       "File transferred successfully",
     );
-    await a.getByRole("button", { name: "Clear Files", exact: true }).click();
     await expect(a.locator(".attachment")).toHaveCount(0);
     await a
       .getByRole("region", { name: "Share Text", exact: true })

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import QRCode from "qrcode";
 import { formatSize } from "./room-utils";
+import { type DeliveryState, type DeliveryUpdate } from "./room-delivery";
 import { createSHA256 } from "hash-wasm";
 import { hashFile } from "./hash";
 import { recordTransfer } from "./transfer-history";
@@ -28,7 +29,10 @@ type Session = {
   code_expires?: number;
 };
 export type RoomTransferHandle = {
-  sendFiles: (files: File[]) => Promise<void>;
+  sendFiles: (
+    files: File[],
+    tracking?: Array<{ attachment: string; attempt: string }>,
+  ) => Promise<void>;
   sendText: (text: string) => boolean;
 };
 export type RoomLink = {
@@ -39,6 +43,7 @@ export type RoomLink = {
   remoteName: string;
   onMessage?: (text: string) => void;
   onNotice?: (status: string) => void;
+  onTransfer?: (update: DeliveryUpdate) => void;
   register: (handle: RoomTransferHandle | undefined) => void;
 };
 type Meta = {
@@ -65,6 +70,17 @@ export function OnlinePanel({
 } = {}) {
   const roomCallbacks = useRef(roomLink);
   roomCallbacks.current = roomLink;
+  const tracked = useRef<{ attachment: string; attempt: string } | undefined>(
+    undefined,
+  );
+  function reportDelivery(state: DeliveryState, progress = 0) {
+    if (tracked.current)
+      roomCallbacks.current?.onTransfer?.({
+        ...tracked.current,
+        state,
+        progress,
+      });
+  }
   const acceptedBatch = useRef<
     | {
         id: string;
@@ -319,6 +335,7 @@ export function OnlinePanel({
       incoming.current = undefined;
       setOffer(undefined);
       setStatus("Peer disconnected; retry by reconnecting.");
+      reportDelivery("Failed");
     };
     dc.onmessage = (e) => {
       if (channel.current !== dc) return;
@@ -329,9 +346,28 @@ export function OnlinePanel({
         }
         try {
           const data = JSON.parse(e.data);
+          if (
+            data.id !== undefined &&
+            [
+              "accept",
+              "ack",
+              "verified",
+              "reject",
+              "cancel",
+              "pause",
+              "finish",
+            ].includes(data.type) &&
+            data.id !== transferRecord.current?.id
+          )
+            return;
           if (data.type === "pause" && typeof data.paused === "boolean") {
             remotePaused.current = data.paused;
             setPaused(localPaused.current || remotePaused.current);
+            reportDelivery(
+              localPaused.current || remotePaused.current
+                ? "Paused"
+                : "Sending",
+            );
             return;
           }
           if (data.type === "ack") {
@@ -407,7 +443,19 @@ export function OnlinePanel({
                 typeof data.sha256 !== "string" ||
                 !/^[a-f0-9]{64}$/.test(data.sha256)
               ) {
-                dc.send(JSON.stringify({ type: "reject" }));
+                dc.send(
+                  JSON.stringify({
+                    type: "reject",
+                    ...(roomLink
+                      ? {
+                          id:
+                            typeof data.id === "string"
+                              ? data.id.slice(0, 64)
+                              : undefined,
+                        }
+                      : {}),
+                  }),
+                );
                 return;
               }
               if (
@@ -415,7 +463,19 @@ export function OnlinePanel({
                 data.size < 0 ||
                 data.size > 20 * 1024 ** 3
               ) {
-                dc.send(JSON.stringify({ type: "reject" }));
+                dc.send(
+                  JSON.stringify({
+                    type: "reject",
+                    ...(roomLink
+                      ? {
+                          id:
+                            typeof data.id === "string"
+                              ? data.id.slice(0, 64)
+                              : undefined,
+                        }
+                      : {}),
+                  }),
+                );
                 setStatus("Online file limit is 20 GiB.");
                 return;
               }
@@ -446,8 +506,10 @@ export function OnlinePanel({
               }
               setReceived(undefined);
             } else if (data.type === "accept") {
+              reportDelivery("Accepted");
               accept.current?.();
             } else if (data.type === "reject" || data.type === "cancel") {
+              reportDelivery(data.type === "reject" ? "Declined" : "Cancelled");
               localPaused.current = remotePaused.current = false;
               setPaused(false);
               userCancelled.current = true;
@@ -500,7 +562,12 @@ export function OnlinePanel({
                     ...items,
                   ].slice(0, 10),
                 );
-                dc.send(JSON.stringify({ type: "verified" }));
+                dc.send(
+                  JSON.stringify({
+                    type: "verified",
+                    ...(roomLink ? { id: transferRecord.current?.id } : {}),
+                  }),
+                );
               }
               incoming.current = undefined;
               setOffer(undefined);
@@ -511,12 +578,15 @@ export function OnlinePanel({
               acked.current === transferRecord.current?.size
             ) {
               verified.current?.();
+              reportDelivery("Verified", 100);
               if (transferRecord.current)
                 setCompletedTransfers((items) =>
                   [
                     "Sent " +
                       transferRecord.current!.name +
-                      " · " + formatSize(transferRecord.current!.size) + " · Integrity verified",
+                      " · " +
+                      formatSize(transferRecord.current!.size) +
+                      " · Integrity verified",
                     ...items,
                   ].slice(0, 10),
                 );
@@ -540,7 +610,13 @@ export function OnlinePanel({
             hash.current.update(new Uint8Array(bytes));
             offset.current += bytes.byteLength;
             await sink.current.write(new Uint8Array(bytes));
-            dc.send(JSON.stringify({ type: "ack", received: offset.current }));
+            dc.send(
+              JSON.stringify({
+                type: "ack",
+                received: offset.current,
+                ...(roomLink ? { id: transferRecord.current?.id } : {}),
+              }),
+            );
             setPercent(
               incoming.current.size
                 ? Math.min(99.9, (offset.current / incoming.current.size) * 100)
@@ -979,6 +1055,7 @@ export function OnlinePanel({
       }
       if (cancelled.current || sourceSession !== session.current) return;
       setStatus("Waiting for receiver approval");
+      reportDelivery("Request sent");
       await new Promise<void>((resolve) => {
         accept.current = resolve;
         dc.send(
@@ -1001,6 +1078,7 @@ export function OnlinePanel({
       });
       if (cancelled.current) return;
       setStatus("Transferring file with receiver acknowledgements");
+      reportDelivery("Sending");
       for (let start = 0; start < file.size; start += 65536) {
         await waitWhilePaused();
         if (cancelled.current) break;
@@ -1059,8 +1137,14 @@ export function OnlinePanel({
             else resolve();
           };
         });
-        dc.send(JSON.stringify({ type: "finish" }));
+        dc.send(
+          JSON.stringify({
+            type: "finish",
+            ...(roomLink ? { id: transferRecord.current?.id } : {}),
+          }),
+        );
         setStatus("Sent; receiver verifies the hash.");
+        reportDelivery("Verifying", 99.9);
         await verification;
         completed = true;
         await forgetFile(transferRecord.current!.id).catch(() => undefined);
@@ -1143,16 +1227,27 @@ export function OnlinePanel({
       if (incoming.current !== approved || channel.current !== receivingChannel)
         return;
       setStatus(String(e));
-      channel.current?.send(JSON.stringify({ type: "reject" }));
+      channel.current?.send(
+        JSON.stringify({
+          type: "reject",
+          ...(roomLink ? { id: transferRecord.current?.id } : {}),
+        }),
+      );
       incoming.current = undefined;
       setOffer(undefined);
       return;
     }
-    channel.current?.send(JSON.stringify({ type: "accept" }));
+    channel.current?.send(
+      JSON.stringify({
+        type: "accept",
+        ...(roomLink ? { id: transferRecord.current?.id } : {}),
+      }),
+    );
     setStatus("Receiving and verifying file");
     setOffer(undefined);
   }
   function cancelTransfer() {
+    reportDelivery("Cancelled");
     localPaused.current = remotePaused.current = false;
     setPaused(false);
     userCancelled.current = true;
@@ -1166,7 +1261,12 @@ export function OnlinePanel({
     verified.current?.(new Error("Transfer cancelled"));
     for (const waiter of creditWaiters.current.splice(0))
       waiter(new Error("Transfer cancelled"));
-    channel.current?.send(JSON.stringify({ type: "cancel" }));
+    channel.current?.send(
+      JSON.stringify({
+        type: "cancel",
+        ...(roomLink ? { id: transferRecord.current?.id } : {}),
+      }),
+    );
     setStatus("Transfer cancelled");
 
     fileQueue.current = [];
@@ -1177,7 +1277,11 @@ export function OnlinePanel({
     localPaused.current = !localPaused.current;
     setPaused(localPaused.current || remotePaused.current);
     channel.current.send(
-      JSON.stringify({ type: "pause", paused: localPaused.current }),
+      JSON.stringify({
+        type: "pause",
+        paused: localPaused.current,
+        ...(roomLink ? { id: transferRecord.current?.id } : {}),
+      }),
     );
   }
   async function endShare() {
@@ -1225,8 +1329,15 @@ export function OnlinePanel({
     if (roomLink.channel.readyState === "open")
       roomLink.channel.onopen?.(new Event("open"));
     roomLink.register({
-      async sendFiles(files) {
+      async sendFiles(files, tracking) {
         if (sending.current || incoming.current) {
+          tracking?.forEach((item) =>
+            roomCallbacks.current?.onTransfer?.({
+              ...item,
+              state: "Failed",
+              progress: 0,
+            }),
+          );
           setStatus("Finish the current transfer first.");
           return;
         }
@@ -1239,9 +1350,22 @@ export function OnlinePanel({
             mime: f.type || "application/octet-stream",
           })),
         };
-        for (const file of files) {
-          if (!(await send(file))) break;
+        for (let index = 0; index < files.length; index++) {
+          tracked.current = tracking?.[index];
+          const completed = await send(files[index]);
+          if (!completed) {
+            reportDelivery("Failed");
+            tracking?.slice(index + 1).forEach((item) =>
+              roomCallbacks.current?.onTransfer?.({
+                ...item,
+                state: "Failed",
+                progress: 0,
+              }),
+            );
+            break;
+          }
         }
+        tracked.current = undefined;
         outgoingBatch.current = undefined;
       },
       sendText(value) {
@@ -1253,10 +1377,28 @@ export function OnlinePanel({
       },
     });
     return () => {
+      reportDelivery("Failed");
       roomLink.register(undefined);
       close();
     };
   }, [roomLink?.channel]);
+  useEffect(() => {
+    if (
+      sending.current &&
+      tracked.current &&
+      acked.current < (transferRecord.current?.size || 0)
+    )
+      reportDelivery(
+        paused
+          ? "Paused"
+          : /Waiting for receiver approval/.test(status)
+            ? "Waiting for approval"
+            : /Transferring/.test(status)
+              ? "Sending"
+              : "Preparing",
+        percent,
+      );
+  }, [percent, paused, status]);
   function humanState(value: string) {
     if (/Completed|Delivered/.test(value))
       return "File transferred successfully. Integrity verified.";
@@ -1325,7 +1467,12 @@ export function OnlinePanel({
               </button>
               <button
                 onClick={() => {
-                  channel.current?.send(JSON.stringify({ type: "reject" }));
+                  channel.current?.send(
+                    JSON.stringify({
+                      type: "reject",
+                      ...(roomLink ? { id: transferRecord.current?.id } : {}),
+                    }),
+                  );
                   incoming.current = undefined;
                   setOffer(undefined);
                   setStatus("File declined");
@@ -1567,7 +1714,11 @@ export function OnlinePanel({
           localPaused.current = !localPaused.current;
           setPaused(localPaused.current || remotePaused.current);
           channel.current?.send(
-            JSON.stringify({ type: "pause", paused: localPaused.current }),
+            JSON.stringify({
+              type: "pause",
+              paused: localPaused.current,
+              ...(roomLink ? { id: transferRecord.current?.id } : {}),
+            }),
           );
         }}
       >
@@ -1579,7 +1730,12 @@ export function OnlinePanel({
           <button onClick={() => void acceptFile()}>Accept file</button>{" "}
           <button
             onClick={() => {
-              channel.current?.send(JSON.stringify({ type: "reject" }));
+              channel.current?.send(
+                JSON.stringify({
+                  type: "reject",
+                  ...(roomLink ? { id: transferRecord.current?.id } : {}),
+                }),
+              );
               setOffer(undefined);
               incoming.current = undefined;
             }}
@@ -1899,7 +2055,12 @@ export function OnlinePanel({
           <button
             className="secondary"
             onClick={() => {
-              channel.current?.send(JSON.stringify({ type: "reject" }));
+              channel.current?.send(
+                JSON.stringify({
+                  type: "reject",
+                  ...(roomLink ? { id: transferRecord.current?.id } : {}),
+                }),
+              );
               incoming.current = undefined;
               setOffer(undefined);
               setStatus("File declined");

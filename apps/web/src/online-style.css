@@ -1068,3 +1068,38 @@ pre {
     scroll-behavior: auto !important;
   }
 }
+.delivery-summary {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 12px;
+  margin: 12px 0;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+.delivery-summary summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+.delivery-summary ul {
+  list-style: none;
+  padding: 0;
+  margin-bottom: 0;
+}
+.delivery-summary li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 0;
+}
+.delivery-summary li span {
+  flex: 1 1 150px;
+}
+.delivery-summary progress {
+  width: 100%;
+  height: 4px;
+  accent-color: var(--accent);
+}
+.delivery-summary small {
+  color: var(--muted);
+}

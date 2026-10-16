@@ -7,6 +7,7 @@ export default defineConfig({
     "**/post-connection.spec.ts",
     "**/rooms.spec.ts",
     "**/workspace.spec.ts",
+    "**/delivery.spec.ts",
   ],
   timeout: 60000,
   workers: 1,
