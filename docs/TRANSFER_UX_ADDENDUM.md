@@ -35,7 +35,9 @@ Initial existing-test assertions assumed empty selection and manual file clearin
 
 ## Deployment and limits
 
-Only the existing authorized Cloudflare Pages Free frontend needs deployment; the Render Free backend is unchanged and will be verified for compatibility. Automatic deployments remain paused. No new accounts, projects, billing, dependencies or secrets are introduced. Exact deployment identity, source commit and public results will be recorded after deployment.
+Only the existing authorized Cloudflare Pages Free frontend needs deployment; the Render Free backend is unchanged and will be verified for compatibility. Automatic deployments remain paused. No new accounts, projects, billing, dependencies or secrets are introduced. Manually deployed source `fade6cfd1d8e357f316489716e5f1832393c7306` on Pages deployment `f902f348-6a52-4a65-86ed-9837402ea3f9`; assets published successfully. Render remains on existing deployment `dep-db96g8rl550s73ctk5dg`. Public metadata confirms `recipientDeliveryLedger: true` and `autoSelectNewMembers: true`; HTTPS/WSS CORS, membership, rename, addressed routing and locking checks passed.
+
+Final full public browser suite: **12 passed, 1 skipped (1.9m)**. The skipped production clock-control case is deliberately local-only; rotation passed locally with actual pending offers and paused transfers. Both new scenarios passed publicly: 262,163-byte saved-byte equality for partial-success/retry, exactly one offer/download to the already verified recipient, zero existing offers to the late member, automatic file removal after the other recipient verified, distinct new-identity selection, and separate 3/4-byte batch completion. Existing real bidirectional/multi-peer/32 MiB hash, pause/resume/cancel, reconnect, text, QR decoder, Optical Share, navigation and accessibility checks also passed. All peers were on this PC; this is not physical cross-network verification. The actual public screenshot is `.flowdrop/delivery-public-verified.png`.
 
 Windows executable and ZIP are preserved. ZIP SHA-256: `CF8E76E3D14FA88FA3D77F2629BBFCE155E58A1C38F7BA05B7DBB1EBF5590E18`.
 

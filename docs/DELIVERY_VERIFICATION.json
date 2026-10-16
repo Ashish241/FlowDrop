@@ -15,7 +15,7 @@
     "vite_rooms": 3,
     "online_browser": {
       "passed": 13,
-      "seconds": 78
+      "duration_reported": "1.3m"
     },
     "lint_typescript_builds": "passed"
   },
@@ -30,13 +30,16 @@
     "correlated room control IDs"
   ],
   "deployment": {
-    "status": "pending",
+    "status": "live; public HTTPS/WSS and full browser acceptance passed",
     "website": "https://flowdrop-online.pages.dev/",
     "signaling": "https://flowdrop-signaling.onrender.com/signal/v2",
     "rollback_pages_id": "173ba695-b61b-4ba8-a840-26879a26ea56",
     "backend_unchanged": true,
     "hosting": "existing Pages Free and Render Free",
-    "automatic_deployments": false
+    "automatic_deployments": false,
+    "source": "fade6cfd1d8e357f316489716e5f1832393c7306",
+    "pages_id": "f902f348-6a52-4a65-86ed-9837402ea3f9",
+    "render_id": "dep-db96g8rl550s73ctk5dg"
   },
   "windows_zip_sha256": "CF8E76E3D14FA88FA3D77F2629BBFCE155E58A1C38F7BA05B7DBB1EBF5590E18",
   "physical_cross_network_verified": false,
@@ -52,5 +55,47 @@
   "initial_failures": [
     "Obsolete existing tests assumed no automatic recipients and manual composer clearing; updated to explicit recipient choices and verified automatic clearing",
     "An obsolete run was interrupted after expectation failures; final runs are separate"
-  ]
+  ],
+  "public_service": {
+    "website": "https://flowdrop-online.pages.dev",
+    "signaling": "https://flowdrop-signaling.onrender.com/signal/v2",
+    "scope": "public HTTPS/WSS service checks",
+    "physical_cross_network_verified": false,
+    "frontend_revision": "workspace-v3-20261016",
+    "integrity_guard": true,
+    "recipient_delivery_ledger": true,
+    "auto_select_new_members": true,
+    "backend_revision": "workspace-v3-20261016",
+    "exact_origin_cors": true,
+    "automatic_authorized_join": true,
+    "websocket_members": true,
+    "rename_broadcast": true,
+    "addressed_signaling": true,
+    "creator_lock": true,
+    "credentials_excluded_from_roster": true
+  },
+  "public_browser": {
+    "passed": 12,
+    "skipped": 1,
+    "duration_reported": "1.9m",
+    "skip": "Clock injection is only exposed by the disposable local test host; invitation and active-transfer rotation passed locally",
+    "scope": "Actual public HTTPS/WSS, same-PC isolated Chromium contexts, real DataChannels and saved-byte comparisons",
+    "physical_cross_network_verified": false
+  },
+  "public_new_scenarios": {
+    "partial_success_retry": true,
+    "failed_channel_retry": true,
+    "verified_recipient_offer_count": 1,
+    "late_member_existing_offer_count": 0,
+    "retained_then_cleared_attachment": true,
+    "auto_selection_and_manual_preferences": true,
+    "new_identity_rejoin": true,
+    "batch_individual_cleanup": true,
+    "saved_payload_sizes_bytes": [
+      262163,
+      3,
+      4
+    ]
+  },
+  "public_screenshot": ".flowdrop/delivery-public-verified.png"
 }
