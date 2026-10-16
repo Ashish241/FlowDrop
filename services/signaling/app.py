@@ -309,6 +309,9 @@ def create_app():
             if member and room["sockets"].get(member) is ws:
                 room["sockets"].pop(member, None)
 
+    from services.signaling.rooms import install_rooms
+
+    install_rooms(app, allowed)
     return app
 
 

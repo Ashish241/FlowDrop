@@ -1,20 +1,26 @@
 import { useState } from "react";
 import { createRoot } from "react-dom/client";
 import { Zap, Moon, ArrowUpRight } from "lucide-react";
-import { OnlinePanel } from "./online";
+import { RoomDashboard } from "./room-dashboard";
 import { OpticalPanel } from "./optical";
 import "./style.css";
 import "./online-style.css";
 function OnlineApp() {
   const [page, setPage] = useState(
-    location.hash.includes("online-room") ? "Receive Files" : "Home",
+    location.hash.includes("room=")
+      ? "Join Room"
+      : sessionStorage.getItem("flowdrop-room-v2")
+        ? "Create Room"
+        : "Home",
   );
-  const [started, setStarted] = useState(location.hash.includes("online-room"));
-  const sharing = ["Send Files", "Receive Files", "Share Text"].includes(page);
+  const [started, setStarted] = useState(
+    location.hash.includes("room=") ||
+      !!sessionStorage.getItem("flowdrop-room-v2"),
+  );
+  const sharing = ["Create Room", "Join Room"].includes(page);
   function choose(next: string) {
     setPage(next);
-    if (["Send Files", "Receive Files", "Share Text"].includes(next))
-      setStarted(true);
+    if (["Create Room", "Join Room"].includes(next)) setStarted(true);
   }
   return (
     <div className="online-app">
@@ -65,7 +71,7 @@ function OnlineApp() {
         </section>
         {page === "Home" && (
           <div className="home-actions">
-            {["Send Files", "Receive Files"].map((name, i) => (
+            {["Create Room", "Join Room"].map((name, i) => (
               <button
                 key={name}
                 aria-label={name}
@@ -75,7 +81,9 @@ function OnlineApp() {
                 <ArrowUpRight />
                 <span>{name}</span>
                 <small>
-                  {i ? "Join with a sharing code" : "Choose files to share"}
+                  {i
+                    ? "Join with a sharing code"
+                    : "Start a private sharing room"}
                 </small>
               </button>
             ))}
@@ -83,16 +91,14 @@ function OnlineApp() {
         )}
         <nav className="simple-nav" aria-label="Online navigation">
           {[
-            "Send Files",
-            "Receive Files",
-            "Share Text",
+            "Create Room",
+            "Join Room",
             "Optical Share",
             "Send Later — Coming Soon",
           ]
             .filter(
               (item) =>
-                page !== "Home" ||
-                !["Send Files", "Receive Files"].includes(item),
+                page !== "Home" || !["Create Room", "Join Room"].includes(item),
             )
             .map((item) => (
               <button
@@ -106,7 +112,9 @@ function OnlineApp() {
         </nav>
         {started && (
           <div hidden={!sharing}>
-            <OnlinePanel consumer folders mode={page} />
+            <RoomDashboard
+              action={page === "Join Room" ? "Join Room" : "Create Room"}
+            />
           </div>
         )}
         {page === "Optical Share" && <OpticalPanel />}
@@ -120,9 +128,9 @@ function OnlineApp() {
           <section className="panel">
             <h2>Three steps. That’s it.</h2>
             <ol>
-              <li>Choose files and continue.</li>
+              <li>Enter your device name and create or join a room.</li>
               <li>Share the code or QR with someone you trust.</li>
-              <li>Approve their connection. They accept the files.</li>
+              <li>Choose recipients. Each recipient accepts the files.</li>
             </ol>
             <p>
               Keep both pages open until the transfer completes. Files travel

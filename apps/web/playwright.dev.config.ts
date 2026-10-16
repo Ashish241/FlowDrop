@@ -1,8 +1,9 @@
 import { defineConfig } from "@playwright/test";
 export default defineConfig({
   testDir: "e2e",
-  testMatch: "post-connection.spec.ts",
-  timeout: 90000,
+  testMatch: "rooms.spec.ts",
+  timeout: 120000,
+  expect: { timeout: 30000 },
   workers: 1,
   outputDir: "../../.flowdrop/post-connection-dev",
   use: {

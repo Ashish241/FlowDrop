@@ -26,6 +26,18 @@ type Session = {
   pairing_code?: string;
   code_expires?: number;
 };
+export type RoomTransferHandle = {
+  sendFiles: (files: File[]) => Promise<void>;
+  sendText: (text: string) => void;
+};
+export type RoomLink = {
+  channel: RTCDataChannel;
+  room: string;
+  token: string;
+  member: string;
+  remoteName: string;
+  register: (handle: RoomTransferHandle | undefined) => void;
+};
 type Meta = {
   type: "file";
   id: string;
@@ -33,13 +45,38 @@ type Meta = {
   size: number;
   sha256: string;
   mime?: string;
+  batch?: string;
+  count?: number;
+  batchFiles?: Array<{ name: string; size: number; mime: string }>;
 };
 export function OnlinePanel({
   folders = false,
   consumer = false,
   mode = "Send Files",
-}: { folders?: boolean; consumer?: boolean; mode?: string } = {}) {
+  roomLink,
+}: {
+  folders?: boolean;
+  consumer?: boolean;
+  mode?: string;
+  roomLink?: RoomLink;
+} = {}) {
+  const acceptedBatch = useRef<
+    | {
+        id: string;
+        remaining: Array<{ name: string; size: number; mime: string }>;
+      }
+    | undefined
+  >(undefined);
+  const outgoingBatch = useRef<
+    | {
+        id: string;
+        count: number;
+        files: Array<{ name: string; size: number; mime: string }>;
+      }
+    | undefined
+  >(undefined);
   const [phase, setPhase] = useState<ConnectionPhase>("IDLE");
+  const [completedTransfers, setCompletedTransfers] = useState<string[]>([]);
   const [downloads, setDownloads] = useState<
     Array<{ name: string; blob: Blob }>
   >([]);
@@ -217,6 +254,7 @@ export function OnlinePanel({
     return r.json();
   }
   function close() {
+    acceptedBatch.current = undefined;
     clearTimeout(connectionTimer.current);
     setConnected(false);
     setPhase("DISCONNECTED");
@@ -340,6 +378,27 @@ export function OnlinePanel({
                 data.id.length > 64 ||
                 typeof data.name !== "string" ||
                 data.name.length > 255 ||
+                (data.mime !== undefined &&
+                  (typeof data.mime !== "string" || data.mime.length > 100)) ||
+                (data.batch !== undefined &&
+                  (typeof data.batch !== "string" ||
+                    data.batch.length > 64 ||
+                    !Number.isSafeInteger(data.count) ||
+                    data.count < 1 ||
+                    data.count > 128 ||
+                    !Array.isArray(data.batchFiles) ||
+                    data.batchFiles.length !== data.count ||
+                    data.batchFiles.some(
+                      (f: { name?: unknown; size?: unknown; mime?: unknown }) =>
+                        !f ||
+                        typeof f.name !== "string" ||
+                        f.name.length > 255 ||
+                        !Number.isSafeInteger(f.size) ||
+                        Number(f.size) < 0 ||
+                        Number(f.size) > 20 * 1024 ** 3 ||
+                        typeof f.mime !== "string" ||
+                        f.mime.length > 100,
+                    ))) ||
                 typeof data.sha256 !== "string" ||
                 !/^[a-f0-9]{64}$/.test(data.sha256)
               ) {
@@ -370,6 +429,16 @@ export function OnlinePanel({
               };
               hash.current = undefined;
               setOffer(data);
+              if (
+                typeof data.batch === "string" &&
+                acceptedBatch.current?.id === data.batch &&
+                acceptedBatch.current?.remaining[0]?.name === data.name &&
+                acceptedBatch.current?.remaining[0]?.size === data.size &&
+                acceptedBatch.current?.remaining[0]?.mime === data.mime
+              ) {
+                acceptedBatch.current?.remaining.shift();
+                void acceptFile(data);
+              }
               setReceived(undefined);
             } else if (data.type === "accept") {
               accept.current?.();
@@ -412,12 +481,27 @@ export function OnlinePanel({
                     : "Completed · SHA-256 verified; handed to browser downloads",
                 );
                 setPercent(100);
+                setCompletedTransfers((items) =>
+                  [
+                    "Received " + meta.name + " · Integrity verified",
+                    ...items,
+                  ].slice(0, 10),
+                );
                 dc.send(JSON.stringify({ type: "verified" }));
               }
               incoming.current = undefined;
               setOffer(undefined);
             } else if (data.type === "verified") {
               verified.current?.();
+              if (transferRecord.current)
+                setCompletedTransfers((items) =>
+                  [
+                    "Sent " +
+                      transferRecord.current!.name +
+                      " · Integrity verified",
+                    ...items,
+                  ].slice(0, 10),
+                );
               setStatus("Delivered · receiver SHA-256 verified");
               setPercent(100);
             } else if (
@@ -885,6 +969,13 @@ export function OnlinePanel({
             size: file.size,
             mime: file.type || "application/octet-stream",
             sha256: digest,
+            ...(outgoingBatch.current
+              ? {
+                  batch: outgoingBatch.current.id,
+                  count: outgoingBatch.current.count,
+                  batchFiles: outgoingBatch.current.files,
+                }
+              : {}),
           }),
         );
       });
@@ -995,10 +1086,10 @@ export function OnlinePanel({
       await drainQueue();
     } else setStatus("Ready to share. Your files are selected.");
   }
-  async function acceptFile() {
-    if (!offer) return;
+  async function acceptFile(meta = offer) {
+    if (!meta) return;
 
-    const approved = offer;
+    const approved = meta;
     setOffer(undefined);
     const receivingChannel = channel.current;
     const decoder = await createSHA256();
@@ -1101,6 +1192,48 @@ export function OnlinePanel({
       );
     }
   }
+  useEffect(() => {
+    if (!roomLink) return;
+    session.current = {
+      room: roomLink.room,
+      token: roomLink.token,
+      member: roomLink.member,
+      expires: Date.now() / 1000 + 3600,
+    };
+    setSharing(true);
+    bind(roomLink.channel);
+    if (roomLink.channel.readyState === "open")
+      roomLink.channel.onopen?.(new Event("open"));
+    roomLink.register({
+      async sendFiles(files) {
+        if (sending.current || incoming.current) {
+          setStatus("Finish the current transfer first.");
+          return;
+        }
+        outgoingBatch.current = {
+          id: crypto.randomUUID(),
+          count: files.length,
+          files: files.map((f) => ({
+            name: f.name,
+            size: f.size,
+            mime: f.type || "application/octet-stream",
+          })),
+        };
+        for (const file of files) {
+          if (!(await send(file))) break;
+        }
+        outgoingBatch.current = undefined;
+      },
+      sendText(value) {
+        if (channel.current?.readyState === "open")
+          channel.current.send(JSON.stringify({ type: "text", text: value }));
+      },
+    });
+    return () => {
+      roomLink.register(undefined);
+      close();
+    };
+  }, [roomLink?.channel]);
   const technicalPanel = (
     <section className="panel">
       <h2>Online peer-to-peer</h2>
@@ -1408,7 +1541,7 @@ export function OnlinePanel({
       data-member={session.current?.member || "none"}
     >
       <p role="status" className={failure ? "flow-state error" : "flow-state"}>
-        {label}
+        {roomLink ? status : label}
       </p>
       {sharing && !connected && (
         <p>
@@ -1416,7 +1549,7 @@ export function OnlinePanel({
           will become available automatically.
         </p>
       )}
-      {(mode !== "Receive Files" || sharing) && (
+      {!roomLink && (mode !== "Receive Files" || sharing) && (
         <div
           className="dropzone"
           hidden={false}
@@ -1522,36 +1655,39 @@ export function OnlinePanel({
           </p>
         </div>
       )}
-      {sharing && !connected && session.current?.member === "owner" && (
-        <div className="invitation">
-          <h2>Your sharing code</h2>
-          {pairingCode ? (
-            <strong data-testid="pairing-code" className="code">
-              {pairingCode.slice(0, 3)} {pairingCode.slice(3)}
-            </strong>
-          ) : (
-            <p>Code expired. Start a new share.</p>
-          )}
-          <p>Expires in 10 minutes. Only approve someone you know.</p>
-          {qr && <img src={qr} alt="Scan online room invitation" />}
-          <button
-            className="secondary"
-            onClick={() =>
-              void navigator.clipboard
-                .writeText(invitation)
-                .then(() => setCopyStatus("Link copied"))
-                .catch(() =>
-                  setCopyStatus(
-                    "Copy unavailable. Open the invitation link to copy it.",
-                  ),
-                )
-            }
-          >
-            Copy Invitation Link
-          </button>
-          {copyStatus && <p>{copyStatus}</p>}
-        </div>
-      )}
+      {!roomLink &&
+        sharing &&
+        !connected &&
+        session.current?.member === "owner" && (
+          <div className="invitation">
+            <h2>Your sharing code</h2>
+            {pairingCode ? (
+              <strong data-testid="pairing-code" className="code">
+                {pairingCode.slice(0, 3)} {pairingCode.slice(3)}
+              </strong>
+            ) : (
+              <p>Code expired. Start a new share.</p>
+            )}
+            <p>Expires in 10 minutes. Only approve someone you know.</p>
+            {qr && <img src={qr} alt="Scan online room invitation" />}
+            <button
+              className="secondary"
+              onClick={() =>
+                void navigator.clipboard
+                  .writeText(invitation)
+                  .then(() => setCopyStatus("Link copied"))
+                  .catch(() =>
+                    setCopyStatus(
+                      "Copy unavailable. Open the invitation link to copy it.",
+                    ),
+                  )
+              }
+            >
+              Copy Invitation Link
+            </button>
+            {copyStatus && <p>{copyStatus}</p>}
+          </div>
+        )}
       {pending && (
         <div className="incoming">
           <h2>Someone wants to connect</h2>
@@ -1570,7 +1706,35 @@ export function OnlinePanel({
       {offer && (
         <div className="incoming">
           <h2>{offer.name}</h2>
+          {roomLink && (
+            <p>
+              From {roomLink.remoteName} �{" "}
+              {offer.mime || "application/octet-stream"}
+            </p>
+          )}
           <p>{offer.size.toLocaleString()} bytes</p>
+          {offer.batch && (offer.count || 0) > 1 && (
+            <ul aria-label="Batch files">
+              {offer.batchFiles?.map((f, i) => (
+                <li key={i}>
+                  {f.name} · {f.size.toLocaleString()} bytes · {f.mime}
+                </li>
+              ))}
+            </ul>
+          )}
+          {offer.batch && (offer.count || 0) > 1 && (
+            <button
+              onClick={() => {
+                acceptedBatch.current = {
+                  id: offer.batch!,
+                  remaining: (offer.batchFiles || []).slice(1),
+                };
+                void acceptFile();
+              }}
+            >
+              Accept batch ({offer.count} files)
+            </button>
+          )}
           <button className="primary" onClick={() => void acceptFile()}>
             Accept file
           </button>
@@ -1617,6 +1781,16 @@ export function OnlinePanel({
           </button>
         </div>
       )}
+      {roomLink && completedTransfers.length > 0 && (
+        <details>
+          <summary>Completed transfers</summary>
+          <ul>
+            {completedTransfers.map((item, i) => (
+              <li key={i}>{item}</li>
+            ))}
+          </ul>
+        </details>
+      )}
       {downloads.map((item, i) => (
         <button
           key={i}
@@ -1633,7 +1807,7 @@ export function OnlinePanel({
           Save {item.name}
         </button>
       ))}
-      {failure && (
+      {!roomLink && failure && (
         <div className="flow-error">
           <p>
             {/expired|revoked|404/.test(status)
@@ -1740,15 +1914,17 @@ export function OnlinePanel({
           Receive another file
         </button>
       )}
-      {sharing && (
+      {!roomLink && sharing && (
         <button className="secondary end-share" onClick={() => void endShare()}>
           End share
         </button>
       )}
-      <details className="advanced">
-        <summary>Advanced connection diagnostics</summary>
-        {technicalPanel}
-      </details>
+      {!roomLink && (
+        <details className="advanced">
+          <summary>Advanced connection diagnostics</summary>
+          {technicalPanel}
+        </details>
+      )}
     </section>
   );
 }

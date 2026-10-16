@@ -6,12 +6,7 @@ if (process.env.FLOWDROP_PUBLIC_URL !== "https://flowdrop-online.pages.dev")
   );
 export default defineConfig({
   testDir: "e2e",
-  testMatch: [
-    "consumer-online.spec.ts",
-    "post-connection.spec.ts",
-    "online-product.spec.ts",
-    "integration-product.spec.ts",
-  ],
+  testMatch: ["rooms.spec.ts", "integration-product.spec.ts"],
   timeout: 120000,
   expect: { timeout: 30000 },
   workers: 1,

@@ -7,18 +7,14 @@ const selected = process.argv
   ?.replace("--project=", "");
 export default defineConfig({
   testDir: "e2e",
-  timeout: 90000,
+  timeout: 120000,
+  expect: { timeout: 30000 },
   workers: 1,
   use: { headless: true, trace: "retain-on-failure" },
   projects: [
     {
       name: "online",
-      testMatch: [
-        "online-product.spec.ts",
-        "integration-product.spec.ts",
-        "consumer-online.spec.ts",
-        "post-connection.spec.ts",
-      ],
+      testMatch: ["integration-product.spec.ts", "rooms.spec.ts"],
       use: { baseURL: "http://127.0.0.1:8770" },
     },
     {
