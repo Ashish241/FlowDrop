@@ -1,0 +1,89 @@
+{
+  "source_commit": "1505894f925b31a807b1127a79a9fd493e898b65",
+  "pages_deployment": "ad70e9bf-65ba-4caa-9416-62f77b49c08f",
+  "revision": "session-controls-20261016",
+  "public_services": {
+    "website": "https://flowdrop-online.pages.dev",
+    "signaling": "https://flowdrop-signaling.onrender.com/signal",
+    "scope": "public HTTP/WSS service checks",
+    "physical_cross_network_transfer_verified": false,
+    "frontend": true,
+    "configuration_checked": true,
+    "pages_release_validated": true,
+    "health": true,
+    "exact_origin_cors": true,
+    "websocket_authorization": true,
+    "six_digit_join": true,
+    "owner_approval": true,
+    "metadata_routing": true,
+    "turn_configured": false
+  },
+  "actual_browser_states": {
+    "website": "https://flowdrop-online.pages.dev",
+    "snapshots": [
+      {
+        "peers": [
+          {
+            "connection": "closed",
+            "ice": "closed"
+          },
+          {
+            "connection": "connected",
+            "ice": "connected"
+          }
+        ],
+        "channels": [
+          "open"
+        ],
+        "websockets": [
+          1
+        ],
+        "ui": "Connected",
+        "phase": "READY_TO_TRANSFER",
+        "membership": "owner",
+        "selected": [
+          "a-to-b.bin1024.0 KB"
+        ]
+      },
+      {
+        "peers": [
+          {
+            "connection": "closed",
+            "ice": "closed"
+          },
+          {
+            "connection": "connected",
+            "ice": "connected"
+          }
+        ],
+        "channels": [
+          "open"
+        ],
+        "websockets": [
+          1
+        ],
+        "ui": "Connected",
+        "phase": "READY_TO_TRANSFER",
+        "membership": "receiver",
+        "selected": []
+      }
+    ]
+  },
+  "public_results": {
+    "existing_scenarios_passed_together": 8,
+    "new_normal_screen_scenario_passed_separately": 1,
+    "clean_nine_test_run": false,
+    "first_run": "6 passed, 3 local network/DNS navigation failures",
+    "second_run": "8 passed, 1 ICE HTTP 429",
+    "isolated_run": "1 passed (13.6s)"
+  },
+  "verified_download_bytes": {
+    "a_to_b": 1048583,
+    "b_to_a": 7,
+    "exact_equality": true
+  },
+  "scope": "Real public HTTPS/WSS services, real WebRTC between isolated browser contexts on one PC",
+  "physical_cross_network_verified": false,
+  "turn_relay_verified": false,
+  "windows_zip_sha256": "CF8E76E3D14FA88FA3D77F2629BBFCE155E58A1C38F7BA05B7DBB1EBF5590E18"
+}
