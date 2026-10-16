@@ -140,3 +140,82 @@ class NamedRoomTests(unittest.TestCase):
             404,
         )
         self.assertEqual(self.join(a).status_code, 404)
+
+    def test_rotation_is_atomic_and_preserves_membership(self):
+        app = create_app()
+        stamp = [10000.0]
+        app.state.room_clock = lambda: stamp[0]
+        client = TestClient(app)
+        a = client.post("/v2/rooms", json={"name": "Owner"}).json()
+        b = client.post(
+            "/v2/rooms/" + a["code"] + "/join", json={"name": "Peer"}
+        ).json()
+        path = "/v2/rooms/" + a["room"] + "/ws"
+        with client.websocket_connect(path, headers=ORIGIN) as sa:
+            sa.send_text(a["token"])
+            sa.receive_json()
+            with client.websocket_connect(path, headers=ORIGIN) as sb:
+                sb.send_text(b["token"])
+                sb.receive_json()
+                sa.receive_json()
+                stamp[0] += 601
+                sa.send_json({"type": "ping"})
+                frames = [sa.receive_json(), sa.receive_json()]
+                updated = next(frame for frame in frames if frame["type"] == "members")
+                self.assertNotEqual(updated["code"], a["code"])
+                self.assertEqual(
+                    {m["id"] for m in updated["members"]}, {a["member"], b["member"]}
+                )
+                self.assertEqual(sb.receive_json()["code"], updated["code"])
+                self.assertEqual(
+                    client.post(
+                        "/v2/rooms/" + a["code"] + "/join", json={"name": "Old"}
+                    ).status_code,
+                    404,
+                )
+                # Consecutive pings at the same time must not rotate twice.
+                sb.send_json({"type": "ping"})
+                self.assertEqual(sb.receive_json()["type"], "pong")
+                c = client.post(
+                    "/v2/rooms/" + updated["code"] + "/join", json={"name": "New"}
+                ).json()
+                self.assertEqual(c["room"], a["room"])
+                sa.receive_json()
+                sb.receive_json()
+                sa.send_json(
+                    {"type": "offer", "to": b["member"], "sdp": "after-rotation"}
+                )
+                self.assertEqual(sb.receive_json()["sdp"], "after-rotation")
+
+    def test_authenticated_heartbeats_extend_idle_room_and_keep_absolute_bound(self):
+        app = create_app()
+        stamp = [10000.0]
+        app.state.room_clock = lambda: stamp[0]
+        client = TestClient(app)
+        a = client.post("/v2/rooms", json={"name": "Owner"}).json()
+        with client.websocket_connect(
+            "/v2/rooms/" + a["room"] + "/ws", headers=ORIGIN
+        ) as ws:
+            ws.send_text(a["token"])
+            ws.receive_json()
+            # Advance less than invitation lifetime per step, well beyond old one-hour expiry.
+            for _ in range(8):
+                stamp[0] += 500
+                ws.send_json({"type": "ping"})
+                frame = ws.receive_json()
+                if frame["type"] == "members":
+                    frame = ws.receive_json()
+                self.assertEqual(frame["type"], "pong")
+            response = client.get(
+                "/v2/rooms/" + a["room"] + "/ice",
+                headers={"Authorization": "Bearer " + a["token"]},
+            )
+            self.assertEqual(response.status_code, 200)
+        stamp[0] += 3601
+        self.assertEqual(
+            client.get(
+                "/v2/rooms/" + a["room"] + "/ice",
+                headers={"Authorization": "Bearer " + a["token"]},
+            ).status_code,
+            404,
+        )

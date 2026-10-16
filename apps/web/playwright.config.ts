@@ -6,6 +6,7 @@ export default defineConfig({
     "**/consumer-online.spec.ts",
     "**/post-connection.spec.ts",
     "**/rooms.spec.ts",
+    "**/workspace.spec.ts",
   ],
   timeout: 60000,
   workers: 1,

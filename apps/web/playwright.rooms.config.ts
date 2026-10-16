@@ -1,8 +1,13 @@
 import { defineConfig } from "@playwright/test";
 export default defineConfig({
   testDir: "e2e",
-  testMatch: ["rooms.spec.ts", "integration-product.spec.ts"],
+  testMatch: [
+    "rooms.spec.ts",
+    "workspace.spec.ts",
+    "integration-product.spec.ts",
+  ],
   workers: 1,
+  outputDir: "../../.flowdrop/rooms-browser-results",
   timeout: 120000,
   expect: { timeout: 30000 },
   use: {

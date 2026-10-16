@@ -2,6 +2,7 @@
 
 import argparse
 import os
+import time
 from contextlib import asynccontextmanager
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -34,6 +35,16 @@ def main():
                     yield
 
             app = FastAPI(lifespan=lifespan)
+            # Test-only controllable clock: never part of the deployed service.
+            clock_offset = {"seconds": 0.0}
+            child.state.room_clock = lambda: time.time() + clock_offset["seconds"]
+
+            @app.post("/__test__/clock")
+            async def advance_clock():
+                clock_offset["seconds"] += 601
+                await child.state.rotate_invitations()
+                return {"advanced": 601}
+
             app.mount("/signal", child)
             app.mount("/", StaticFiles(directory="apps/web/dist-online", html=True))
         uvicorn.run(

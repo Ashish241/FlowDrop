@@ -1,0 +1,51 @@
+{
+  "revision": "workspace-v3-20261016",
+  "previous_checkpoint": "1587f9fb4039a3e3f5ec31eb59b5276e115bf25f",
+  "local": {
+    "pytest": {
+      "passed": 84,
+      "skipped": 7
+    },
+    "frontend_unit": 17,
+    "online_production": 11,
+    "desktop": 8,
+    "vite_rooms": 3,
+    "axe_home_workspace": "passed",
+    "widths": [
+      360,
+      390,
+      768,
+      1024,
+      1440,
+      1920
+    ],
+    "lint_typescript_builds": "passed",
+    "combined": {
+      "passed": 20,
+      "skipped": 1,
+      "skip": "Positive TURN relay not configured/verified"
+    }
+  },
+  "deployment": {
+    "status": "pending",
+    "website": "https://flowdrop-online.pages.dev/",
+    "signaling": "https://flowdrop-signaling.onrender.com/signal/v2"
+  },
+  "windows_zip_sha256": "CF8E76E3D14FA88FA3D77F2629BBFCE155E58A1C38F7BA05B7DBB1EBF5590E18",
+  "physical_cross_network_verified": false,
+  "physical_camera_verified": false,
+  "turn_relay_verified": false,
+  "limitations": [
+    "Existing free single-instance memory only; provider restart erases rooms",
+    "Full browser reload requires file reselection",
+    "Synthetic camera tests are not physical camera tests",
+    "Same-PC public peers do not prove different-network connectivity",
+    "TURN and physical cross-network device acceptance remain external gates"
+  ],
+  "initial_failures": [
+    "Shared Coming Soon heading selector corrected",
+    "Leave-room test now waits for completed departure before navigating",
+    "Secondary text contrast corrected after axe failure",
+    "Parallel browser trace directory collision resolved with separate room output directory"
+  ]
+}

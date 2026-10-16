@@ -18,14 +18,24 @@ test("Coming Soon makes no cloud calls; optical reconstructs real QR images offl
     .getByRole("button", { name: "Send Later — Coming Soon", exact: true })
     .click();
   await expect(
-    page.getByRole("heading", {
-      name: "Send Later — Coming Soon",
-      exact: true,
-      level: 2,
-    }),
+    page
+      .getByRole("heading", {
+        name: "Send Later — Coming Soon",
+        exact: true,
+      })
+      .first(),
   ).toBeVisible();
   await expect(page.locator("input[type=file]")).toHaveCount(0);
   expect(cloud).toEqual([]);
+  if (
+    await page
+      .getByRole("button", { name: "Back to Home", exact: true })
+      .count()
+  )
+    await page
+      .getByRole("button", { name: "Back to Home", exact: true })
+      .first()
+      .click();
   await page
     .getByRole("navigation")
     .getByRole("button", { name: "Optical Share", exact: true })

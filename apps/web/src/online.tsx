@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import QRCode from "qrcode";
+import { formatSize } from "./room-utils";
 import { createSHA256 } from "hash-wasm";
 import { hashFile } from "./hash";
 import { recordTransfer } from "./transfer-history";
@@ -28,7 +29,7 @@ type Session = {
 };
 export type RoomTransferHandle = {
   sendFiles: (files: File[]) => Promise<void>;
-  sendText: (text: string) => void;
+  sendText: (text: string) => boolean;
 };
 export type RoomLink = {
   channel: RTCDataChannel;
@@ -36,6 +37,8 @@ export type RoomLink = {
   token: string;
   member: string;
   remoteName: string;
+  onMessage?: (text: string) => void;
+  onNotice?: (status: string) => void;
   register: (handle: RoomTransferHandle | undefined) => void;
 };
 type Meta = {
@@ -60,6 +63,8 @@ export function OnlinePanel({
   mode?: string;
   roomLink?: RoomLink;
 } = {}) {
+  const roomCallbacks = useRef(roomLink);
+  roomCallbacks.current = roomLink;
   const acceptedBatch = useRef<
     | {
         id: string;
@@ -456,7 +461,11 @@ export function OnlinePanel({
               sink.current?.abort();
               sink.current = undefined;
               setOffer(undefined);
-              setStatus("Transfer cancelled or rejected.");
+              setStatus(
+                roomLink && data.type === "reject"
+                  ? "Transfer declined by receiver."
+                  : "Transfer cancelled or rejected.",
+              );
             } else if (data.type === "finish" && incoming.current) {
               const meta = incoming.current;
               if (
@@ -483,7 +492,11 @@ export function OnlinePanel({
                 setPercent(100);
                 setCompletedTransfers((items) =>
                   [
-                    "Received " + meta.name + " · Integrity verified",
+                    "Received " +
+                      meta.name +
+                      " · " +
+                      formatSize(meta.size) +
+                      " · Integrity verified",
                     ...items,
                   ].slice(0, 10),
                 );
@@ -503,7 +516,7 @@ export function OnlinePanel({
                   [
                     "Sent " +
                       transferRecord.current!.name +
-                      " · Integrity verified",
+                      " · " + formatSize(transferRecord.current!.size) + " · Integrity verified",
                     ...items,
                   ].slice(0, 10),
                 );
@@ -513,8 +526,10 @@ export function OnlinePanel({
               data.type === "text" &&
               typeof data.text === "string" &&
               data.text.length <= 65536
-            )
+            ) {
               setMessages((h) => [data.text, ...h].slice(0, 100));
+              roomCallbacks.current?.onMessage?.(data.text);
+            }
           } else if (incoming.current && hash.current && sink.current) {
             const bytes = e.data as ArrayBuffer;
             if (
@@ -1230,8 +1245,11 @@ export function OnlinePanel({
         outgoingBatch.current = undefined;
       },
       sendText(value) {
-        if (channel.current?.readyState === "open")
-          channel.current.send(JSON.stringify({ type: "text", text: value }));
+        const payload = JSON.stringify({ type: "text", text: value });
+        if (channel.current?.readyState !== "open" || payload.length > 65536)
+          return false;
+        channel.current.send(payload);
+        return true;
       },
     });
     return () => {
@@ -1239,6 +1257,147 @@ export function OnlinePanel({
       close();
     };
   }, [roomLink?.channel]);
+  function humanState(value: string) {
+    if (/Completed|Delivered/.test(value))
+      return "File transferred successfully. Integrity verified.";
+    if (/declined|rejected/i.test(value))
+      return "Transfer declined by receiver.";
+    if (/cancel/i.test(value)) return "Transfer cancelled.";
+    if (/failed|Error:|timed out/i.test(value))
+      return "Transfer failed. Retry.";
+    if (/Incoming file/.test(value)) return "Incoming file request.";
+    if (/Waiting for receiver approval/.test(value))
+      return "File request sent. Waiting for receiver approval.";
+    if (/Checking file/.test(value)) return "Preparing file…";
+    if (/Transferring|Receiving and/.test(value)) return "Transfer started.";
+    if (/receiver verifies/.test(value)) return "Verifying received file…";
+    if (/disconnect/i.test(value))
+      return "Connection interrupted. Retry when reconnected.";
+    return connected ? "Ready for files" : "Connecting…";
+  }
+  useEffect(() => {
+    if (roomLink && transferRecord.current)
+      roomCallbacks.current?.onNotice?.(humanState(status));
+  }, [status]);
+  if (roomLink)
+    return (
+      <section
+        className="peer-transfer"
+        aria-label="File sharing"
+        data-channel-state={channel.current?.readyState || "none"}
+      >
+        <p className="flow-state" role="status">
+          {humanState(status)}
+        </p>
+        {offer && (
+          <div className="incoming">
+            <h3>{offer.name}</h3>
+            <p>
+              From {roomLink.remoteName} · {formatSize(offer.size)} ·{" "}
+              {offer.mime || "File"}
+            </p>
+            {offer.batch && (offer.count || 0) > 1 && (
+              <ul aria-label="Batch files">
+                {offer.batchFiles?.map((f, i) => (
+                  <li key={i}>
+                    {f.name} · {formatSize(f.size)}
+                  </li>
+                ))}
+              </ul>
+            )}
+            <div className="flow-actions">
+              {offer.batch && (offer.count || 0) > 1 && (
+                <button
+                  className="primary"
+                  onClick={() => {
+                    acceptedBatch.current = {
+                      id: offer.batch!,
+                      remaining: (offer.batchFiles || []).slice(1),
+                    };
+                    void acceptFile();
+                  }}
+                >
+                  Accept batch ({offer.count} files)
+                </button>
+              )}
+              <button className="primary" onClick={() => void acceptFile()}>
+                Accept file
+              </button>
+              <button
+                onClick={() => {
+                  channel.current?.send(JSON.stringify({ type: "reject" }));
+                  incoming.current = undefined;
+                  setOffer(undefined);
+                  setStatus("File declined");
+                }}
+              >
+                Decline
+              </button>
+            </div>
+          </div>
+        )}
+        {transferRecord.current && (
+          <div className="transfer-card">
+            {!offer && (
+              <>
+                <h3>{transferRecord.current.name}</h3>
+                <p>
+                  {transferRecord.current.direction === "Send" ? "To" : "From"}{" "}
+                  {roomLink.remoteName} ·{" "}
+                  {formatSize(transferRecord.current.size)}
+                </p>
+              </>
+            )}
+            <progress
+              aria-label="Transfer progress"
+              value={percent}
+              max={100}
+            />
+            <p>
+              {percent.toFixed(1)}% · {formatSize(metrics.speed)}/s
+              {metrics.eta ? ` · ${Math.ceil(metrics.eta)}s remaining` : ""}
+            </p>
+            {/Completed|Delivered/.test(status) && (
+              <p className="success">Integrity verified.</p>
+            )}
+          </div>
+        )}
+        {(busy || incoming.current) && (
+          <div className="flow-actions">
+            <button disabled={!connected} onClick={togglePause}>
+              {localPaused.current ? "Resume transfer" : "Pause transfer"}
+            </button>
+            <button onClick={cancelTransfer}>Cancel transfer</button>
+          </div>
+        )}
+        {downloads.map((item, i) => (
+          <button
+            key={i}
+            onClick={() => {
+              const url = URL.createObjectURL(item.blob);
+              const a = document.createElement("a");
+              a.href = url;
+              a.download = item.name;
+              a.click();
+              setTimeout(() => URL.revokeObjectURL(url), 10000);
+              setDownloads((items) => items.filter((entry) => entry !== item));
+            }}
+          >
+            Save {item.name}
+          </button>
+        ))}
+        {completedTransfers.length > 0 && (
+          <details>
+            <summary>Completed transfers</summary>
+            <ul className="completed-list">
+              {completedTransfers.map((item, i) => (
+                <li key={i}>{item}</li>
+              ))}
+            </ul>
+          </details>
+        )}
+      </section>
+    );
   const technicalPanel = (
     <section className="panel">
       <h2>Online peer-to-peer</h2>
@@ -1711,12 +1870,6 @@ export function OnlinePanel({
       {offer && (
         <div className="incoming">
           <h2>{offer.name}</h2>
-          {roomLink && (
-            <p>
-              From {roomLink.remoteName} �{" "}
-              {offer.mime || "application/octet-stream"}
-            </p>
-          )}
           <p>{offer.size.toLocaleString()} bytes</p>
           {offer.batch && (offer.count || 0) > 1 && (
             <ul aria-label="Batch files">

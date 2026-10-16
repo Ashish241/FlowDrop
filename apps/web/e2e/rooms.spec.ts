@@ -10,7 +10,9 @@ async function create(page: Page, name: string) {
     .last()
     .click();
   await expect(page.getByTestId("room-code")).toHaveText(/\d{6}/);
+  await page.getByRole("button", { name: "Show QR code", exact: true }).click();
   await expect(page.getByAltText("Scan room invitation")).toBeVisible();
+  await page.getByRole("button", { name: "Hide QR code", exact: true }).click();
   return (await page.getByTestId("room-code").innerText()).trim();
 }
 async function join(page: Page, code: string, name: string) {
@@ -25,6 +27,12 @@ async function join(page: Page, code: string, name: string) {
   ).toContainText(name);
 }
 async function selectFile(page: Page, name: string, buffer: Buffer) {
+  if (
+    await page.getByRole("button", { name: "Clear Files", exact: true }).count()
+  )
+    await page
+      .getByRole("button", { name: "Clear Files", exact: true })
+      .click();
   await page
     .getByLabel("Choose files", { exact: true })
     .setInputFiles({ name, mimeType: "application/octet-stream", buffer });
@@ -108,7 +116,11 @@ test("named room auto-join, three real peers, rename and recipient-isolated tran
       a.getByRole("checkbox", { name: "Select Tablet", exact: true }),
     ).toBeVisible();
     await a.getByRole("button", { name: "Select All", exact: true }).click();
-    await expect(a.getByText("2 selected", { exact: true })).toBeVisible();
+    await expect(
+      a
+        .getByRole("region", { name: "Device selection", exact: true })
+        .getByText("2 selected", { exact: true }),
+    ).toBeVisible();
     await a.getByRole("button", { name: "Clear Selection" }).click();
     const bytes = Buffer.alloc(1048583, 57);
     await selectFile(a, "forward.bin", bytes);
@@ -139,13 +151,13 @@ test("named room auto-join, three real peers, rename and recipient-isolated tran
     });
     await expect(
       a
-        .locator(".recipient-transfer pre")
+        .locator(".message-history pre")
         .filter({ hasText: "control-order-check" }),
     ).toHaveCount(1);
     await expect(
       a
         .locator(".recipient-transfer .flow-state")
-        .filter({ hasText: "Delivered" }),
+        .filter({ hasText: "File transferred successfully" }),
     ).toHaveCount(0);
     // A late member is never added to the active recipient snapshot.
     await join(d, code, "Late device");
@@ -186,10 +198,13 @@ test("named room auto-join, three real peers, rename and recipient-isolated tran
     await b.getByRole("button", { name: "Decline", exact: true }).click();
     await accept(c, Buffer.alloc(262151, 22));
     await expect(
-      a.getByText("Transfer cancelled or rejected.", { exact: true }),
+      a
+        .locator(".peer-transfer .flow-state")
+        .filter({ hasText: "Transfer declined by receiver." }),
     ).toBeVisible();
     await a.getByRole("button", { name: "Lock Room", exact: true }).click();
     await d.getByRole("button", { name: "Leave Room" }).click();
+    await expect(d.locator(".home-actions button")).toHaveCount(4);
     await d.goto("/#room=" + code);
     await d.getByLabel("Device name", { exact: true }).fill("Locked out");
     await d
@@ -223,6 +238,10 @@ test("named room auto-join, three real peers, rename and recipient-isolated tran
         exact: true,
       })
       .check();
+    if (
+      await b.getByRole("button", { name: "Clear Files", exact: true }).count()
+    )
+      await b.getByRole("button", { name: "Clear Files", exact: true }).click();
     await b.getByLabel("Choose files", { exact: true }).setInputFiles([
       {
         name: "batch-one.bin",
@@ -291,6 +310,7 @@ test("name consent and invalid room feedback", async ({ page }) => {
 
 test("pause, rename during byte transfer, resume, cancellation and text stay independent", async ({
   browser,
+  request,
 }, info) => {
   const ac = await browser.newContext(),
     bc = await browser.newContext();
@@ -329,6 +349,14 @@ test("pause, rename during byte transfer, resume, cancellation and text stay ind
     await expect(
       a.getByRole("list", { name: "Connected Devices" }),
     ).toContainText("Receiver renamed");
+    if (info.project.use.baseURL === "http://127.0.0.1:8770") {
+      const oldCode = (await a.getByTestId("room-code").innerText()).trim();
+      expect((await request.post("/__test__/clock")).status()).toBe(200);
+      await expect(a.getByTestId("room-code")).not.toHaveText(oldCode);
+      await expect(
+        b.getByRole("button", { name: "Resume transfer", exact: true }),
+      ).toBeVisible();
+    }
     await b
       .getByRole("button", { name: "Resume transfer", exact: true })
       .click();
@@ -356,17 +384,22 @@ test("pause, rename during byte transfer, resume, cancellation and text stay ind
         .getByRole("button", { name: "Select All", exact: true })
         .click();
       expect(target).toBeTruthy();
-      await sender.locator(".room-dashboard > .text-share > summary").click();
       await sender
-        .locator(".room-dashboard > .text-share")
+        .getByRole("region", { name: "Share Text", exact: true })
+        .getByLabel("Message", { exact: true })
+        .focus();
+      await sender
+        .getByRole("region", { name: "Share Text", exact: true })
         .getByLabel("Message", { exact: true })
         .fill("<script>literal</script>");
       await sender
-        .getByRole("button", { name: "Send text to Selected Devices" })
+        .getByRole("button", { name: "Send Text", exact: true })
         .click();
-      const detail = receiver.locator(".recipient-transfer .text-share");
-      await detail.locator("summary").click();
-      await expect(detail.locator("pre").last()).toHaveText(
+      const detail = receiver.getByRole("region", {
+        name: "Share Text",
+        exact: true,
+      });
+      await expect(detail.locator("pre").first()).toHaveText(
         "<script>literal</script>",
       );
     }

@@ -1,44 +1,114 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
-import { Zap, Moon, ArrowUpRight } from "lucide-react";
+import {
+  Zap,
+  Moon,
+  Plus,
+  LogIn,
+  ScanLine,
+  Clock,
+  ArrowUpRight,
+} from "lucide-react";
 import { RoomDashboard } from "./room-dashboard";
 import { OpticalPanel } from "./optical";
-import "./style.css";
 import "./online-style.css";
+type Route = "home" | "create" | "join" | "room" | "optical" | "later";
+function route(): Route {
+  const hash = location.hash;
+  if (new URLSearchParams(hash.slice(1)).has("room")) return "join";
+  const path = hash.replace(/^#\/?/, "").toLowerCase();
+  if (["home", "create", "join", "room", "optical", "later"].includes(path))
+    return path as Route;
+  if (hash.includes("online-room")) return "join";
+  return sessionStorage.getItem("flowdrop-room-v2") ? "room" : "home";
+}
+const cards = [
+  {
+    route: "create",
+    title: "Create Room",
+    text: "A private space for your devices.",
+    icon: Plus,
+  },
+  {
+    route: "join",
+    title: "Join Room",
+    text: "Connect with a code or scan a QR.",
+    icon: LogIn,
+  },
+  {
+    route: "optical",
+    title: "Optical Share",
+    text: "Share small files, screen to camera.",
+    icon: ScanLine,
+  },
+  {
+    route: "later",
+    title: "Send Later — Coming Soon",
+    text: "Private links for another time.",
+    icon: Clock,
+  },
+] as const;
 function OnlineApp() {
-  const [page, setPage] = useState(
-    location.hash.includes("room=")
-      ? "Join Room"
-      : sessionStorage.getItem("flowdrop-room-v2")
-        ? "Create Room"
-        : "Home",
-  );
-  const [started, setStarted] = useState(
-    location.hash.includes("room=") ||
+  const [page, setPage] = useState<Route>(route),
+    [started, setStarted] = useState(() =>
+      ["create", "join", "room"].includes(route()),
+    ),
+    [active, setActive] = useState(
       !!sessionStorage.getItem("flowdrop-room-v2"),
+    );
+  const [action, setAction] = useState<"Create Room" | "Join Room">(() =>
+    route() === "join" ? "Join Room" : "Create Room",
   );
-  const sharing = ["Create Room", "Join Room"].includes(page);
-  function choose(next: string) {
+  useEffect(() => {
+    function sync() {
+      const next = route();
+      setPage(next);
+      if (["create", "join", "room"].includes(next)) {
+        setStarted(true);
+        if (next !== "room")
+          setAction(next === "join" ? "Join Room" : "Create Room");
+      }
+    }
+    window.addEventListener("hashchange", sync);
+    window.addEventListener("popstate", sync);
+    return () => {
+      window.removeEventListener("hashchange", sync);
+      window.removeEventListener("popstate", sync);
+    };
+  }, []);
+  function go(next: Route) {
+    if (active && ["create", "join"].includes(next)) next = "room";
+    location.hash = "/" + next;
     setPage(next);
-    if (["Create Room", "Join Room"].includes(next)) setStarted(true);
+    if (["create", "join", "room"].includes(next)) {
+      setStarted(true);
+      if (next !== "room")
+        setAction(next === "join" ? "Join Room" : "Create Room");
+    }
   }
+  const inWorkspace = page === "room" && active;
   return (
     <div className="online-app">
       <header className="site-header">
         <button
           className="brand"
-          onClick={() => choose("Home")}
+          onClick={() => go("home")}
           aria-label="FlowDrop home"
         >
           <Zap fill="currentColor" />
-          FlowDrop
+          FlowDrop<span className="brand-tag">SHARE WITHOUT LIMITS</span>
         </button>
-        <div>
-          <button className="quiet" onClick={() => choose("How It Works")}>
-            How It Works
-          </button>
+        <div className="header-actions">
+          {page !== "home" && (
+            <button className="quiet" onClick={() => go("home")}>
+              Back to Home
+            </button>
+          )}
+          {page === "home" && active && (
+            <button onClick={() => go("room")}>Return to Room</button>
+          )}
           <button
-            className="quiet"
+            className="icon-button quiet"
             aria-label="Toggle theme"
             onClick={() => document.body.classList.toggle("dark")}
           >
@@ -47,102 +117,93 @@ function OnlineApp() {
         </div>
       </header>
       <main className="online-main">
-        {page !== "Home" && (
-          <button className="back-link" onClick={() => choose("Home")}>
-            ← Home
-          </button>
+        {page === "home" && (
+          <>
+            <section className="intro">
+              <span className="eyebrow">LESS FRICTION. MORE FLOW.</span>
+              <h1>Sharing, in your space.</h1>
+              <p>
+                Bring your devices together. Choose what to share.
+                <br />
+                No account. No installation. Just a connection.
+              </p>
+            </section>
+            <nav className="home-actions" aria-label="Sharing options">
+              {cards.map(({ route, title, text, icon: Icon }) => (
+                <button
+                  key={route}
+                  aria-label={title}
+                  className={
+                    "home-card " + (route === "create" ? "featured" : "")
+                  }
+                  onClick={() => go(route)}
+                >
+                  <span className="card-top">
+                    <Icon size={27} />
+                    <ArrowUpRight size={18} />
+                  </span>
+                  <strong>{title}</strong>
+                  <span>{text}</span>
+                </button>
+              ))}
+            </nav>
+            <div className="home-note">
+              <span className="status-dot" />
+              Private by choice. Files travel directly between your devices.
+            </div>
+          </>
         )}
-        <section className="intro">
-          <p className="eyebrow">LESS FRICTION. MORE FLOW.</p>
-          <h1>
-            {page === "Home"
-              ? "Share files instantly."
-              : page === "Send Later — Coming Soon"
-                ? "Send Later"
-                : page}
-          </h1>
-          <p>
-            {page === "Home"
-              ? "No login. No installation. Just share."
-              : sharing
-                ? "A little closer, wherever you are."
-                : ""}
-          </p>
-        </section>
-        {page === "Home" && (
-          <div className="home-actions">
-            {["Create Room", "Join Room"].map((name, i) => (
-              <button
-                key={name}
-                aria-label={name}
-                className={i ? "primary-action receive" : "primary-action"}
-                onClick={() => choose(name)}
-              >
-                <ArrowUpRight />
-                <span>{name}</span>
-                <small>
-                  {i
-                    ? "Join with a sharing code"
-                    : "Start a private sharing room"}
-                </small>
-              </button>
-            ))}
-          </div>
+        {["create", "join"].includes(page) && !active && (
+          <section className="entry-intro">
+            <span className="eyebrow">YOUR NEXT CONNECTION</span>
+            <h1>{page === "create" ? "Create Room" : "Join Room"}</h1>
+            <p>A familiar name helps everyone know who’s here.</p>
+          </section>
         )}
-        <nav className="simple-nav" aria-label="Online navigation">
-          {[
-            "Create Room",
-            "Join Room",
-            "Optical Share",
-            "Send Later — Coming Soon",
-          ]
-            .filter(
-              (item) =>
-                page !== "Home" || !["Create Room", "Join Room"].includes(item),
-            )
-            .map((item) => (
-              <button
-                key={item}
-                className={page === item ? "active" : ""}
-                onClick={() => choose(item)}
-              >
-                {item}
-              </button>
-            ))}
-        </nav>
         {started && (
-          <div hidden={!sharing}>
+          <div
+            hidden={!["create", "join", "room"].includes(page)}
+            className={inWorkspace ? "workspace-mount" : "entry-mount"}
+          >
             <RoomDashboard
-              action={page === "Join Room" ? "Join Room" : "Create Room"}
+              action={action}
+              onSessionChange={(value) => {
+                setActive(value);
+                if (value && ["create", "join"].includes(page)) {
+                  history.replaceState(null, "", location.pathname + "#/room");
+                  setPage("room");
+                }
+              }}
+              onHome={() => go("home")}
             />
           </div>
         )}
-        {page === "Optical Share" && <OpticalPanel />}
-        {page === "Send Later — Coming Soon" && (
-          <section className="panel coming-soon">
-            <h2>Send Later — Coming Soon</h2>
-            <p>Encrypted temporary links are on the way.</p>
+        {page === "optical" && (
+          <section className="standalone">
+            <div className="entry-intro">
+              <span className="eyebrow">SCREEN TO CAMERA</span>
+              <h1>Optical Share</h1>
+            </div>
+            <OpticalPanel />
           </section>
         )}
-        {page === "How It Works" && (
-          <section className="panel">
-            <h2>Three steps. That’s it.</h2>
-            <ol>
-              <li>Enter your device name and create or join a room.</li>
-              <li>Share the code or QR with someone you trust.</li>
-              <li>Choose recipients. Each recipient accepts the files.</li>
-            </ol>
+        {page === "later" && (
+          <section className="coming-soon panel">
+            <Clock size={36} />
+            <span className="eyebrow">ON THE HORIZON</span>
+            <h1>Send Later — Coming Soon</h1>
             <p>
-              Keep both pages open until the transfer completes. Files travel
-              over an encrypted connection. Restricted networks may need a
-              different connection.
+              Private links for another time. For now, create a room and share
+              live.
             </p>
+            <button onClick={() => go("create")}>Create Room</button>
           </section>
         )}
-        <footer>
-          Private sharing. Yours to control.<span>FlowDrop Online · 0.4.1</span>
-        </footer>
       </main>
+      <footer className="site-footer">
+        <span>Less friction. More flow.</span>
+        <span>FlowDrop Online · Private sharing</span>
+      </footer>
     </div>
   );
 }

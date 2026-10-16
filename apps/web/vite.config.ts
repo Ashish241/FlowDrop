@@ -68,7 +68,7 @@ export default defineConfig(({ mode }) => {
               {
                 product: "FlowDrop Online",
                 version: "0.4.1",
-                revision: "rooms-v2-20261016",
+                revision: "workspace-v3-20261016",
                 integrityGuard: true,
                 signaling: env.VITE_SIGNAL_URL || "/signal",
                 pagesRelease,

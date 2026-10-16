@@ -41,11 +41,32 @@ def install_rooms(app, allowed):
     router = APIRouter(prefix="/v2")
     rooms, codes, limits = {}, {}, {}
     ttl = 3600
+    app.state.room_clock = lambda: time.time()
+
+    def now():
+        return app.state.room_clock()
+
+    def issue_code():
+        for _ in range(32):
+            value = f"{secrets.randbelow(1000000):06d}"
+            if value not in codes:
+                return value
+        raise HTTPException(503, "Invitation capacity reached")
+
+    def rotate(rid, room):
+        if room["code_expires"] > now():
+            return False
+        code = issue_code()
+        old = room["code"]
+        codes[code] = rid
+        room["code"], room["code_expires"] = code, now() + 600
+        codes.pop(old, None)
+        return True
 
     def rate(request, bucket="join", maximum=20):
-        now = time.time()
+        stamp = now()
         key = (client_ip(request), bucket)
-        recent = [t for t in limits.get(key, []) if t > now - 60]
+        recent = [t for t in limits.get(key, []) if t > stamp - 60]
         if len(recent) >= maximum:
             raise HTTPException(
                 429,
@@ -54,18 +75,18 @@ def install_rooms(app, allowed):
             )
         if len(limits) >= 10000 and key not in limits:
             raise HTTPException(503, "Try again later")
-        limits[key] = recent + [now]
+        limits[key] = recent + [stamp]
         if request.headers.get("origin") and request.headers["origin"] not in allowed:
             raise HTTPException(403, "Origin denied")
         # Reap expired rooms on every request; socket readers also enforce expiry.
         for rid, room in list(rooms.items()):
-            if room["expires"] <= now:
+            if room["expires"] <= stamp:
                 rooms.pop(rid, None)
                 codes.pop(room["code"], None)
 
     def get_room(rid):
         room = rooms.get(rid)
-        if not room or room["expires"] <= time.time():
+        if not room or room["expires"] <= now():
             raise HTTPException(404, "Room expired or ended")
         return room
 
@@ -110,6 +131,13 @@ def install_rooms(app, allowed):
             except (RuntimeError, TimeoutError, WebSocketDisconnect):
                 pass
 
+    async def rotate_due():
+        for rid, room in list(rooms.items()):
+            if room["expires"] > now() and rotate(rid, room):
+                await broadcast(room, "invitation")
+
+    app.state.rotate_invitations = rotate_due
+
     def member(room, name, kind):
         mid, token = secrets.token_hex(12), secrets.token_urlsafe(32)
         room["members"][mid] = {
@@ -125,10 +153,13 @@ def install_rooms(app, allowed):
         return {
             "status": "ok",
             "protocol": 2,
-            "revision": "rooms-v2-20261016",
+            "revision": "workspace-v3-20261016",
             "topology": "addressed-mesh",
             "maxMembers": 8,
             "state": "single-instance-memory",
+            "invitationRotationSeconds": 600,
+            "idleRoomSeconds": ttl,
+            "maxRoomSeconds": 86400,
         }
 
     @router.post("/rooms")
@@ -136,17 +167,16 @@ def install_rooms(app, allowed):
         rate(request, "create")
         if len(rooms) >= 1000:
             raise HTTPException(503, "Room capacity reached")
-        code = f"{secrets.randbelow(1000000):06d}"
-        while code in codes:
-            code = f"{secrets.randbelow(1000000):06d}"
+        code = issue_code()
         rid = secrets.token_hex(16)
         room = {
             "members": {},
             "sockets": {},
             "locked": False,
             "code": code,
-            "code_expires": time.time() + 600,
-            "expires": time.time() + ttl,
+            "code_expires": now() + 600,
+            "expires": now() + ttl,
+            "absolute_expires": now() + 86400,
         }
         identity = member(room, body.name, body.kind)
         room["owner"] = identity["member"]
@@ -158,8 +188,9 @@ def install_rooms(app, allowed):
         rate(request)
         if len(code) != 6 or not code.isascii() or not code.isdigit():
             raise HTTPException(404, "Room code unavailable")
-        room = get_room(codes.get(code))
-        if room["code_expires"] <= time.time():
+        rid = codes.get(code)
+        room = get_room(rid)
+        if room["code_expires"] <= now():
             raise HTTPException(404, "Invitation expired")
         if room["locked"]:
             raise HTTPException(423, "Room is locked")
@@ -167,7 +198,7 @@ def install_rooms(app, allowed):
             raise HTTPException(409, "Room is full (8 devices)")
         identity = member(room, body.name, body.kind)
         await broadcast(room, "joined")
-        return {"room": codes[code], **identity, **public(room)}
+        return {"room": rid, **identity, **public(room)}
 
     @router.get("/rooms/{rid}/ice")
     async def ice(rid: str, request: Request):
@@ -220,25 +251,38 @@ def install_rooms(app, allowed):
             await broadcast(room, "connected")
             stamps = []
             while True:
-                remaining = room["expires"] - time.time()
+                remaining = room["expires"] - now()
                 if remaining <= 0 or rooms.get(rid) is not room:
                     await ws.close(code=4001, reason="Room expired")
                     break
-                raw = await asyncio.wait_for(ws.receive_text(), remaining)
+                if rotate(rid, room):
+                    await broadcast(room, "invitation")
+                try:
+                    raw = await asyncio.wait_for(
+                        ws.receive_text(),
+                        min(30, remaining, max(0.1, room["code_expires"] - now())),
+                    )
+                except TimeoutError:
+                    await ws.send_json({"type": "pong"})
+                    continue
                 if len(raw) > 65536:
                     await ws.close(code=1009)
                     break
-                now = time.time()
-                stamps = [t for t in stamps if t > now - 10]
+                stamp = now()
+                stamps = [t for t in stamps if t > stamp - 10]
                 if len(stamps) >= 200:
                     await ws.close(code=1008)
                     break
-                stamps.append(now)
+                stamps.append(stamp)
                 data = json.loads(raw)
                 if not isinstance(data, dict):
                     raise TypeError("Invalid event")
                 kind = data.get("type")
-                if kind == "rename":
+                # A valid authenticated heartbeat or signal refreshes idle lifetime.
+                room["expires"] = min(now() + ttl, room["absolute_expires"])
+                if kind == "ping":
+                    await ws.send_json({"type": "pong"})
+                elif kind == "rename":
                     # The authenticated identity is the only rename target.
                     if set(data) != {"type", "name"}:
                         await ws.send_json(
@@ -306,7 +350,7 @@ def install_rooms(app, allowed):
                 room["sockets"].pop(identity["id"], None)
                 await broadcast(room, "disconnected")
             try:
-                await ws.close(code=4001 if room["expires"] <= time.time() else 1000)
+                await ws.close(code=4001 if room["expires"] <= now() else 1000)
             except RuntimeError:
                 pass
 

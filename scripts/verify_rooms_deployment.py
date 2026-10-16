@@ -21,13 +21,17 @@ def verify(website, signaling):
         trust_env=False, timeout=80, headers={"Origin": origin}
     ) as client:
         metadata = client.get(origin + "/DEPLOYMENT_INFO.json").json()
-        assert metadata["revision"] == "rooms-v2-20261016"
+        assert metadata["revision"] == "workspace-v3-20261016"
         assert metadata.get("integrityGuard") is True
         assert metadata["signaling"].rstrip("/") == signaling.rstrip("/")
         health = client.get(endpoint + "/health")
         health.raise_for_status()
         assert health.json()["protocol"] == 2
         assert health.json()["revision"] == metadata["revision"]
+        assert health.json()["state"] == "single-instance-memory"
+        assert health.json()["invitationRotationSeconds"] == 600
+        assert health.json()["idleRoomSeconds"] == 3600
+        assert health.json()["maxRoomSeconds"] == 86400
         preflight = client.options(
             endpoint + "/rooms",
             headers={
