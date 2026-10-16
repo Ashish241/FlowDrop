@@ -40,6 +40,11 @@ test("Coming Soon makes no cloud calls; optical reconstructs real QR images offl
     .getByRole("navigation")
     .getByRole("button", { name: "Optical Share", exact: true })
     .click();
+  await expect(
+    page.getByText("Decoder ready · processing runs in a Web Worker", {
+      exact: true,
+    }),
+  ).toBeVisible();
   await context.setOffline(true);
   const bytes = Buffer.from([
     0,
@@ -97,7 +102,7 @@ test("optical sender controls and denied camera permission have useful states", 
     .getByPlaceholder("Text to display as QR frames")
     .fill("Unicode 🌍 <script>not executable</script>\n".repeat(10));
   await page
-    .getByRole("button", { name: "Create frames", exact: true })
+    .getByRole("button", { name: "Start Transfer", exact: true })
     .click();
   await expect(page.getByAltText(/Optical frame/)).toBeVisible();
   await page.getByRole("button", { name: "Pause frames", exact: true }).click();

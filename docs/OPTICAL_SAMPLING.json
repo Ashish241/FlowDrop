@@ -1,0 +1,11 @@
+{
+  "scope": "Actual raster decoding with phase-locked synthetic sampling; not physical",
+  "originalBytes": 65536,
+  "attempts": 246,
+  "decoded": 246,
+  "receivedBeforeRecovery": 82,
+  "recoveryFrames": 82,
+  "complete": true,
+  "sha256": "fd3623ef92dc587838fcebecdfd88e5288178c52a0b905294d8d0ee9ef0d2634",
+  "storedPayloadBytes": 65536
+}

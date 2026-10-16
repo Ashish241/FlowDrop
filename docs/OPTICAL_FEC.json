@@ -1,0 +1,21 @@
+{
+  "scope": "Seeded synthetic erasures and reordering, not physical camera loss",
+  "originalBytes": 65536,
+  "lostDataFrames": 29,
+  "results": [
+    {
+      "parity": 0,
+      "missingBeforeRecovery": 29,
+      "fecRecovered": 0,
+      "selectiveFrames": 29,
+      "verified": true
+    },
+    {
+      "parity": 2,
+      "missingBeforeRecovery": 24,
+      "fecRecovered": 7,
+      "selectiveFrames": 24,
+      "verified": true
+    }
+  ]
+}

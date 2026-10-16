@@ -10,6 +10,7 @@ export default defineConfig({
     "rooms.spec.ts",
     "workspace.spec.ts",
     "delivery.spec.ts",
+    "optical-reliable.spec.ts",
     "integration-product.spec.ts",
   ],
   timeout: 120000,

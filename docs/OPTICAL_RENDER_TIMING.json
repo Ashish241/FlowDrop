@@ -1,0 +1,8 @@
+{
+  "scope": "Browser image-load event timings; not physical camera FPS",
+  "configuredDwellMs": 1000,
+  "intervalsMs": [
+    1046.300000000745,
+    1038.699999999255
+  ]
+}

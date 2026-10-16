@@ -25,6 +25,8 @@ def verify(website, signaling):
         assert metadata.get("integrityGuard") is True
         assert metadata.get("recipientDeliveryLedger") is True
         assert metadata.get("autoSelectNewMembers") is True
+        assert metadata.get("opticalProtocol") == 3
+        assert metadata.get("opticalRecovery") is True
         assert metadata["signaling"].rstrip("/") == signaling.rstrip("/")
         health = client.get(endpoint + "/health")
         health.raise_for_status()
@@ -98,6 +100,8 @@ def verify(website, signaling):
                 integrity_guard=True,
                 recipient_delivery_ledger=True,
                 auto_select_new_members=True,
+                optical_protocol=3,
+                optical_recovery=True,
                 backend_revision=health.json()["revision"],
                 exact_origin_cors=True,
                 automatic_authorized_join=True,

@@ -6,6 +6,7 @@ export type OpticalPayload = {
   text?: string;
   name: string;
   mime: string;
+  sha256?: string;
 };
 type Frame = {
   v: 1 | 2;
@@ -167,12 +168,14 @@ export class OpticalCollector {
         blob: result,
         name: frame.name!,
         mime: frame.mime!,
+        sha256: frame.hash,
       };
     return {
       kind: "text",
       blob: result,
       name: "optical.txt",
       mime: "text/plain",
+      sha256: frame.hash,
       text: new TextDecoder("utf-8", { fatal: true }).decode(
         await result.arrayBuffer(),
       ),

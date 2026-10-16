@@ -1,0 +1,81 @@
+{
+  "date": "2026-10-17",
+  "previous_checkpoint": "539d67aa52c580b6ff4b8af93a51ada43b2813bc",
+  "reported_physical_failure": {
+    "approximate_bytes": 65536,
+    "frames": 328,
+    "cycles": 2,
+    "post_fix_physical_verified": false,
+    "exact_camera_failure_reason": "not directly established; original captures/counters unavailable"
+  },
+  "local": {
+    "backend": {
+      "passed": 84,
+      "skipped": 7
+    },
+    "frontend_units": 30,
+    "online_full_run": {
+      "passed": 16,
+      "duration_reported": "2.7m"
+    },
+    "additional_timing_and_browser_fec": 2,
+    "final_optical_subset": {
+      "passed": 7,
+      "duration_reported": "1.1m"
+    },
+    "desktop_full": 8,
+    "combined": {
+      "passed": 20,
+      "skipped": 1
+    },
+    "lint_typescript": "passed",
+    "build_warnings": [
+      "Online main chunk exceeds Vite 500 KB advisory; approximately 680 KB minified / 268 KB gzip",
+      "Existing Starlette TestClient deprecation warning"
+    ],
+    "final_desktop_optical_subset": 2,
+    "vite_rooms": 3,
+    "guarded_pages_build": "passed",
+    "final_desktop_build": "passed"
+  },
+  "optical": {
+    "fixture_bytes": 65536,
+    "fixture_sha256": "fd3623ef92dc587838fcebecdfd88e5288178c52a0b905294d8d0ee9ef0d2634",
+    "legacy_frames": 328,
+    "default_data_frames": 164,
+    "default_parity_frames": 42,
+    "default_total_frames": 206,
+    "default_dwell_ms": 1000,
+    "default_estimated_cycle_seconds": 206,
+    "fec_library": "@digitaldefiance/reed-solomon-erasure.wasm@1.0.2",
+    "fec_capacity": "up to configured parity erasures per group, provided enough other group shards arrive",
+    "full_64k_browser_case": "actual sender QR images, deliberate loss/duplicate/interruption, reverse recovery QR, offline contexts and exact saved-byte comparison",
+    "synthetic_video_case": "real worker camera pipeline with canvas-generated video; not physical",
+    "retained_frame_payload_test_upper_bound_bytes": 200000
+  },
+  "deployment": {
+    "status": "pending",
+    "website": "https://flowdrop-online.pages.dev/",
+    "signaling": "https://flowdrop-signaling.onrender.com/signal/v2",
+    "rollback_pages_id": "f902f348-6a52-4a65-86ed-9837402ea3f9",
+    "backend_unchanged": true,
+    "automatic_deployments": false,
+    "hosting": "existing Cloudflare Pages Free + Render Free"
+  },
+  "windows_zip_sha256": "CF8E76E3D14FA88FA3D77F2629BBFCE155E58A1C38F7BA05B7DBB1EBF5590E18",
+  "physical_phone_verified": false,
+  "physical_optical_verified": false,
+  "limits": [
+    "No post-fix physical optical verification; a camera-class inventory exposed no usable camera to the agent",
+    "Synthetic QR measurements are not phone-camera measurements or physical throughput guarantees",
+    "Loss beyond FEC capacity needs explicit QR/manual recovery",
+    "v3 sending requires an updated receiver; legacy v1/v2 input remains supported",
+    "No authentication from CRC/SHA checksums",
+    "Windows binaries remain unchanged",
+    "Existing free backend rooms still disappear on provider restart; TURN is unconfigured"
+  ],
+  "initial_failures": [
+    "An overly optimistic benchmark assertion assumed every dense raster would decode; actual failures are now recorded and bounded scale fallback is measured separately",
+    "Manual-recovery textarea labeling was corrected; the final scenario passed"
+  ]
+}

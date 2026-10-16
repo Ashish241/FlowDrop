@@ -72,6 +72,8 @@ export default defineConfig(({ mode }) => {
                 integrityGuard: true,
                 recipientDeliveryLedger: true,
                 autoSelectNewMembers: true,
+                opticalProtocol: 3,
+                opticalRecovery: true,
                 signaling: env.VITE_SIGNAL_URL || "/signal",
                 pagesRelease,
                 publicEndpointValidated: pagesRelease,

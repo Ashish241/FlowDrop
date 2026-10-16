@@ -8,6 +8,7 @@ export default defineConfig({
     "**/rooms.spec.ts",
     "**/workspace.spec.ts",
     "**/delivery.spec.ts",
+    "**/optical-reliable.spec.ts",
   ],
   timeout: 60000,
   workers: 1,

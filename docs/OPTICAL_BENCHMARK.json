@@ -1,0 +1,179 @@
+{
+  "scope": "Synthetic QR raster sampling on this PC; not a physical camera benchmark",
+  "originalBytes": 65536,
+  "legacy": {
+    "frames": 328,
+    "firstQrCharacters": 477,
+    "firstQrVersion": 17,
+    "payloadBytes": 200,
+    "encoding": "JSON + Base64url",
+    "oneCycleEstimateSeconds": 196.79999999999998
+  },
+  "candidates": [
+    {
+      "chunkSize": 200,
+      "dataFrames": 328,
+      "parityFrames": 82,
+      "totalFrames": 410,
+      "rawBinaryHeaderBytes": 115,
+      "qrCharacters": 477,
+      "qrVersion": 13,
+      "errorCorrection": "M",
+      "quietZoneModules": 4,
+      "captures": [
+        {
+          "width": 600,
+          "blur": false,
+          "decoded": 4,
+          "samples": 4,
+          "meanDecodeMs": 59.63375000000002,
+          "primaryDecoded": 4,
+          "meanPrimaryMs": 53.99907500000009
+        },
+        {
+          "width": 360,
+          "blur": false,
+          "decoded": 4,
+          "samples": 4,
+          "meanDecodeMs": 18.318800000000067,
+          "primaryDecoded": 4,
+          "meanPrimaryMs": 18.369725000000017
+        },
+        {
+          "width": 240,
+          "blur": true,
+          "decoded": 4,
+          "samples": 4,
+          "meanDecodeMs": 8.949250000000006,
+          "primaryDecoded": 4,
+          "meanPrimaryMs": 9.692450000000008
+        }
+      ],
+      "oneCycleEstimateSeconds": 410
+    },
+    {
+      "chunkSize": 400,
+      "dataFrames": 164,
+      "parityFrames": 42,
+      "totalFrames": 206,
+      "rawBinaryHeaderBytes": 115,
+      "qrCharacters": 777,
+      "qrVersion": 18,
+      "errorCorrection": "M",
+      "quietZoneModules": 4,
+      "captures": [
+        {
+          "width": 600,
+          "blur": false,
+          "decoded": 4,
+          "samples": 4,
+          "meanDecodeMs": 32.24107500000008,
+          "primaryDecoded": 4,
+          "meanPrimaryMs": 31.252274999999997
+        },
+        {
+          "width": 360,
+          "blur": false,
+          "decoded": 4,
+          "samples": 4,
+          "meanDecodeMs": 15.661624999999958,
+          "primaryDecoded": 4,
+          "meanPrimaryMs": 14.690374999999904
+        },
+        {
+          "width": 240,
+          "blur": true,
+          "decoded": 1,
+          "samples": 4,
+          "meanDecodeMs": 37.33134999999993,
+          "primaryDecoded": 1,
+          "meanPrimaryMs": 13.839025000000106
+        }
+      ],
+      "oneCycleEstimateSeconds": 206
+    },
+    {
+      "chunkSize": 600,
+      "dataFrames": 110,
+      "parityFrames": 28,
+      "totalFrames": 138,
+      "rawBinaryHeaderBytes": 115,
+      "qrCharacters": 1077,
+      "qrVersion": 22,
+      "errorCorrection": "M",
+      "quietZoneModules": 4,
+      "captures": [
+        {
+          "width": 600,
+          "blur": false,
+          "decoded": 4,
+          "samples": 4,
+          "meanDecodeMs": 29.630475000000047,
+          "primaryDecoded": 4,
+          "meanPrimaryMs": 37.45570000000009
+        },
+        {
+          "width": 360,
+          "blur": false,
+          "decoded": 1,
+          "samples": 4,
+          "meanDecodeMs": 44.50532499999997,
+          "primaryDecoded": 1,
+          "meanPrimaryMs": 21.106724999999983
+        },
+        {
+          "width": 240,
+          "blur": true,
+          "decoded": 4,
+          "samples": 4,
+          "meanDecodeMs": 14.209325000000035,
+          "primaryDecoded": 4,
+          "meanPrimaryMs": 16.49537499999974
+        }
+      ],
+      "oneCycleEstimateSeconds": 138
+    },
+    {
+      "chunkSize": 800,
+      "dataFrames": 82,
+      "parityFrames": 22,
+      "totalFrames": 104,
+      "rawBinaryHeaderBytes": 115,
+      "qrCharacters": 1377,
+      "qrVersion": 25,
+      "errorCorrection": "M",
+      "quietZoneModules": 4,
+      "captures": [
+        {
+          "width": 600,
+          "blur": false,
+          "decoded": 4,
+          "samples": 4,
+          "meanDecodeMs": 56.42662500000006,
+          "primaryDecoded": 1,
+          "meanPrimaryMs": 39.94092499999999
+        },
+        {
+          "width": 360,
+          "blur": false,
+          "decoded": 4,
+          "samples": 4,
+          "meanDecodeMs": 22.828525000000013,
+          "primaryDecoded": 4,
+          "meanPrimaryMs": 20.579275000000052
+        },
+        {
+          "width": 240,
+          "blur": true,
+          "decoded": 1,
+          "samples": 4,
+          "meanDecodeMs": 31.68850000000009,
+          "primaryDecoded": 1,
+          "meanPrimaryMs": 14.297549999999887
+        }
+      ],
+      "oneCycleEstimateSeconds": 104
+    }
+  ],
+  "default": "400-byte conservative profile; verify on actual phones before increasing density"
+}
