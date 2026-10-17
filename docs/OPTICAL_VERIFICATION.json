@@ -56,14 +56,22 @@
     "retained_frame_payload_test_upper_bound_bytes": 200000
   },
   "deployment": {
-    "status": "initial optical release live; verified portrait capture correction pending manual deployment",
+    "status": "successfully deployed and publicly verified",
     "website": "https://flowdrop-online.pages.dev/",
     "signaling": "https://flowdrop-signaling.onrender.com/signal/v2",
     "rollback_pages_id": "f902f348-6a52-4a65-86ed-9837402ea3f9",
     "backend_unchanged": true,
     "automatic_deployments": false,
     "hosting": "existing Cloudflare Pages Free + Render Free",
-    "initial_optical_pages_id": "0d58c03d-2948-4bcc-b868-dfe867c2a620"
+    "initial_optical_pages_id": "0d58c03d-2948-4bcc-b868-dfe867c2a620",
+    "source_commit": "ccc356ceff1f61c69637aac8fd4aa364fa8089d8",
+    "pages_id": "ec70164f-7da3-4e45-85b8-b16d90791fc5",
+    "public_service": "passed",
+    "public_optical_final": {
+      "passed": 7,
+      "scope": "5 v3 cases plus 2 existing optical cases on final hosted source; 64 KiB with both browser contexts offline; synthetic camera only",
+      "screenshot": ".flowdrop/optical-public-64k-verified.png"
+    }
   },
   "windows_zip_sha256": "CF8E76E3D14FA88FA3D77F2629BBFCE155E58A1C38F7BA05B7DBB1EBF5590E18",
   "physical_phone_verified": false,
@@ -79,6 +87,51 @@
   ],
   "initial_failures": [
     "An overly optimistic benchmark assertion assumed every dense raster would decode; actual failures are now recorded and bounded scale fallback is measured separately",
-    "Manual-recovery textarea labeling was corrected; the final scenario passed"
-  ]
+    "Manual-recovery textarea labeling was corrected; the final scenario passed",
+    "Concurrent public recheck shared a Playwright output directory and lost trace files; excluded as invalid evidence. Final full run is sequential."
+  ],
+  "public_initial_run": {
+    "passed": 16,
+    "failed": 1,
+    "skipped": 1,
+    "failure": "reverse download in named-room test timed out; final complete run pending"
+  },
+  "public_intermediate_run": {
+    "passed": 16,
+    "failed": 1,
+    "skipped": 1,
+    "failure": "Playwright trace artifact ENOENT from overlapping output directory; excluded as clean-run evidence",
+    "named_room_test": "passed in 37.7 seconds",
+    "optical_tests": "all 7 passed"
+  },
+  "public_final_run": {
+    "passed": 17,
+    "skipped": 1,
+    "failed": 0,
+    "duration": "3.0m",
+    "source_commit": "ccc356ceff1f61c69637aac8fd4aa364fa8089d8",
+    "artifact_directory": ".flowdrop/optical-public-final-isolated",
+    "skip_reason": "server-clock manipulation is local-only; local rotation test passed",
+    "scope": "public HTTPS browser tests using same-PC isolated peers and synthetic optical acquisition; not physical camera or cross-network verification"
+  },
+  "public_service": {
+    "website": "https://flowdrop-online.pages.dev",
+    "signaling": "https://flowdrop-signaling.onrender.com/signal/v2",
+    "scope": "public HTTPS/WSS service checks",
+    "physical_cross_network_verified": false,
+    "frontend_revision": "workspace-v3-20261016",
+    "integrity_guard": true,
+    "recipient_delivery_ledger": true,
+    "auto_select_new_members": true,
+    "optical_protocol": 3,
+    "optical_recovery": true,
+    "backend_revision": "workspace-v3-20261016",
+    "exact_origin_cors": true,
+    "automatic_authorized_join": true,
+    "websocket_members": true,
+    "rename_broadcast": true,
+    "addressed_signaling": true,
+    "creator_lock": true,
+    "credentials_excluded_from_roster": true
+  }
 }
