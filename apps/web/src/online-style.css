@@ -1,15 +1,15 @@
 :root {
   font-family: "DM Sans", "Segoe UI", sans-serif;
-  color: #22382e;
-  background: #f5f7f3;
+  color: #182d40;
+  background: #f5f8fa;
   font-synthesis: none;
   --surface: #fff;
-  --canvas: #f5f7f3;
-  --ink: #22382e;
-  --muted: #58685e;
-  --line: #dfe7dd;
-  --accent: #285c43;
-  --soft: #edf3e8;
+  --canvas: #f5f8fa;
+  --ink: #182d40;
+  --muted: #526779;
+  --line: #dce5eb;
+  --accent: #096b70;
+  --soft: #e9f3f4;
   --shadow: 0 5px 24px #233d2d05;
 }
 * {
@@ -19,15 +19,16 @@ body {
   margin: 0;
   min-width: 320px;
 }
-body.dark {
+body.dark,
+:root[data-theme="dark"] {
   color-scheme: dark;
-  --surface: #202d26;
-  --canvas: #15231c;
-  --ink: #e8eee8;
-  --muted: #afc0b1;
-  --line: #3a4d40;
-  --accent: #a3d7ac;
-  --soft: #2b3e30;
+  --surface: #192838;
+  --canvas: #101b29;
+  --ink: #e5eff7;
+  --muted: #abc0d2;
+  --line: #32495c;
+  --accent: #83d9db;
+  --soft: #203c48;
   background: var(--canvas);
   color: var(--ink);
 }
@@ -1178,4 +1179,113 @@ pre {
 }
 .optical-panel input[type="file"] {
   max-width: 100%;
+}
+
+/* Shared Online visual identity; desktop LAN styling is independent. */
+body {
+  background: var(--canvas);
+  color: var(--ink);
+}
+.site-header {
+  background: var(--canvas);
+}
+.brand-mark {
+  flex: none;
+  border-radius: 10px;
+}
+.home-card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+}
+.home-card:hover {
+  transform: translateY(-4px);
+  border-color: var(--accent);
+}
+.home-card:active {
+  transform: translateY(-1px) scale(0.985);
+}
+.message-history li {
+  max-width: 88%;
+  border-radius: 16px 16px 16px 4px;
+  background: var(--soft);
+}
+.message-history .message-outgoing {
+  margin-left: auto;
+  border-radius: 16px 16px 4px 16px;
+  border-color: var(--accent);
+}
+.device-menu {
+  position: relative;
+}
+.device-menu summary {
+  cursor: pointer;
+  padding: 12px;
+  list-style: none;
+}
+.device-menu[open] button {
+  position: absolute;
+  right: 0;
+  top: 100%;
+  z-index: 5;
+  width: 170px;
+  box-shadow: var(--shadow);
+}
+.workspace-back {
+  margin: 14px 0;
+}
+.room-members li {
+  animation: member-arrive 180ms ease-out;
+}
+@keyframes member-arrive {
+  from {
+    opacity: 0;
+    transform: translateY(5px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.connection-banner {
+  background: var(--soft);
+  color: var(--ink);
+}
+.connection-banner:has(.recovery-spinner) {
+  min-height: 72px;
+}
+.recovery-spinner {
+  display: inline-block;
+  width: 18px;
+  height: 18px;
+  margin-right: 10px;
+  border: 2px solid var(--line);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: recovery-turn 1s linear infinite;
+}
+@keyframes recovery-turn {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+.information-banner {
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--soft);
+  color: var(--ink);
+}
+.ended-room {
+  max-width: 680px;
+  margin: 8vh auto;
 }

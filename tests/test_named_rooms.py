@@ -20,6 +20,70 @@ class NamedRoomTests(unittest.TestCase):
     def join(self, a, name="Phone"):
         return self.client.post("/v2/rooms/" + a["code"] + "/join", json={"name": name})
 
+    def test_host_refresh_preserves_room_and_revokes_old_invitation(self):
+        a = self.create()
+        b = self.join(a).json()
+        path = "/v2/rooms/" + a["room"]
+        auth = {"Authorization": "Bearer " + a["token"]}
+        guest = {"Authorization": "Bearer " + b["token"]}
+        self.assertEqual(
+            self.client.post(path + "/invitation", headers=guest).status_code, 403
+        )
+        self.assertEqual(self.client.post(path + "/invitation").status_code, 403)
+        with self.client.websocket_connect(path + "/ws", headers=ORIGIN) as ws:
+            ws.send_text(a["token"])
+            ws.receive_json()
+            ws.send_json({"type": "lock", "locked": True})
+            ws.receive_json()
+            result = self.client.post(path + "/invitation", headers=auth)
+            self.assertEqual(result.status_code, 200)
+            data = result.json()
+            self.assertTrue(data["locked"])
+            self.assertNotEqual(data["code"], a["code"])
+            self.assertEqual(data["owner"], a["owner"])
+            self.assertEqual(len(data["members"]), 2)
+            self.assertEqual(ws.receive_json()["code"], data["code"])
+            self.assertEqual(self.join(a).status_code, 404)
+            self.assertEqual(self.join(data).status_code, 423)
+            self.assertEqual(
+                self.client.get(path + "/ice", headers=guest).status_code, 200
+            )
+
+    def test_host_removal_revokes_token_socket_and_preserves_unrelated_member(self):
+        a = self.create()
+        b = self.join(a).json()
+        c = self.join(a, "Tablet").json()
+        path = "/v2/rooms/" + a["room"]
+        auth = {"Authorization": "Bearer " + a["token"]}
+        guest = {"Authorization": "Bearer " + b["token"]}
+        target = path + "/members/" + b["member"]
+        self.assertEqual(self.client.delete(target, headers=guest).status_code, 403)
+        self.assertEqual(
+            self.client.delete(
+                path + "/members/" + a["member"], headers=auth
+            ).status_code,
+            400,
+        )
+        with self.client.websocket_connect(path + "/ws", headers=ORIGIN) as ws:
+            ws.send_text(b["token"])
+            ws.receive_json()
+            self.assertEqual(self.client.delete(target, headers=auth).status_code, 200)
+            event = ws.receive()
+            self.assertEqual(event["type"], "websocket.close")
+            self.assertEqual(event["code"], 4003)
+        self.assertEqual(self.client.get(path + "/ice", headers=guest).status_code, 403)
+        self.assertEqual(
+            self.client.get(
+                path + "/ice", headers={"Authorization": "Bearer " + c["token"]}
+            ).status_code,
+            200,
+        )
+        with self.client.websocket_connect(path + "/ws", headers=ORIGIN) as ws:
+            ws.send_text(b["token"])
+            self.assertEqual(ws.receive()["type"], "websocket.close")
+        # Anonymous removal is revocation, not a permanent identity ban.
+        self.assertEqual(self.join(a).status_code, 200)
+
     def test_names_lock_membership_and_expiry(self):
         for name in ["", "  ", "x" * 33, "a\nname"]:
             self.assertEqual(
@@ -52,27 +116,35 @@ class NamedRoomTests(unittest.TestCase):
             )
 
     def test_auto_join_rename_authorization_and_addressed_routing(self):
+        def next_event(socket):
+            # Heartbeats can interleave when this test is paused by a busy host.
+            for _ in range(20):
+                value = socket.receive_json()
+                if value.get("type") != "pong":
+                    return value
+            self.fail("Expected a room event after heartbeat frames")
+
         a = self.create()
         b = self.join(a).json()
         c = self.join(a, "Tablet").json()
         path = "/v2/rooms/" + a["room"]
         with self.client.websocket_connect(path + "/ws", headers=ORIGIN) as sa:
             sa.send_text(a["token"])
-            sa.receive_json()
+            next_event(sa)
             with self.client.websocket_connect(path + "/ws", headers=ORIGIN) as sb:
                 sb.send_text(b["token"])
-                sb.receive_json()
-                sa.receive_json()
+                next_event(sb)
+                next_event(sa)
                 # No approval event: membership is already authenticated and active.
                 sb.send_json(
                     {"type": "rename", "name": "Renamed", "member": a["member"]}
                 )
-                self.assertEqual(sb.receive_json()["type"], "error")
+                self.assertEqual(next_event(sb)["type"], "error")
                 sb.send_json({"type": "lock", "locked": True})
-                self.assertEqual(sb.receive_json()["type"], "error")
+                self.assertEqual(next_event(sb)["type"], "error")
                 sb.send_json({"type": "rename", "name": "<script>safe</script>"})
-                event = sa.receive_json()
-                sb.receive_json()
+                event = next_event(sa)
+                next_event(sb)
                 self.assertEqual(
                     next(m for m in event["members"] if m["id"] == b["member"])["name"],
                     "<script>safe</script>",
@@ -85,17 +157,17 @@ class NamedRoomTests(unittest.TestCase):
                         "sdp": "real-routing",
                     }
                 )
-                event = sb.receive_json()
+                event = next_event(sb)
                 self.assertEqual(event["from"], a["member"])
                 self.assertEqual(event["sdp"], "real-routing")
                 sa.send_json({"type": "offer", "to": "outsider", "sdp": "no"})
-                self.assertEqual(sa.receive_json()["type"], "error")
+                self.assertEqual(next_event(sa)["type"], "error")
                 response = self.client.delete(
                     path + "/membership",
                     headers={"Authorization": "Bearer " + b["token"]},
                 )
                 self.assertEqual(response.json()["status"], "left")
-                self.assertEqual(sa.receive_json()["event"], "left")
+                self.assertEqual(next_event(sa)["event"], "left")
         self.assertEqual(
             self.client.get(
                 path + "/ice", headers={"Authorization": "Bearer " + b["token"]}

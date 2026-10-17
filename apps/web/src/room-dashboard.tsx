@@ -47,6 +47,7 @@ type Peer = {
   channel?: RTCDataChannel;
   candidates: RTCIceCandidateInit[];
   state: string;
+  offered?: boolean;
 };
 const base =
   ((import.meta as unknown as { env: Record<string, string> }).env
@@ -110,9 +111,6 @@ export function RoomDashboard({
   const [busy, setBusy] = useState(false);
   const [ended, setEnded] = useState(false);
   const [selected, setSelected] = useState<string[]>([]);
-  const [departed, setDeparted] = useState<
-    Array<{ id: string; name: string; state: string }>
-  >([]);
   const [files, setFiles] = useState<File[]>([]);
   const [deliveries, setDeliveries] = useState<AttachmentTransfer[]>([]);
   const deliveryRef = useRef<AttachmentTransfer[]>([]);
@@ -157,11 +155,45 @@ export function RoomDashboard({
     );
   }
   const [message, setMessage] = useState("");
+  const [hostPending, setHostPending] = useState(false);
+  const hostRequest = useRef(false);
   const [invite, setInvite] = useState(false);
   const [notice, setNotice] = useState("");
+  useEffect(() => {
+    if (!notice) return;
+    const timer = setTimeout(() => setNotice(""), 5000);
+    return () => clearTimeout(timer);
+  }, [notice]);
+  useEffect(() => {
+    if (session && location.hash.includes("/room"))
+      document.title =
+        "FlowDrop - " +
+        (status.startsWith("Reconnect") ? "Reconnecting" : "Sharing Room");
+  }, [session, status]);
+  useEffect(() => {
+    if (session) return;
+    const resetInvitation = () => {
+      setCode(new URLSearchParams(location.hash.slice(1)).get("room") || "");
+      setError("");
+      setInvite(false);
+    };
+    resetInvitation();
+    window.addEventListener("hashchange", resetInvitation);
+    window.addEventListener("popstate", resetInvitation);
+    return () => {
+      window.removeEventListener("hashchange", resetInvitation);
+      window.removeEventListener("popstate", resetInvitation);
+    };
+  }, [action, session]);
   const [highlight, setHighlight] = useState(false);
   const [messages, setMessages] = useState<
-    Array<{ from: string; text: string }>
+    Array<{
+      from: string;
+      text: string;
+      id?: string;
+      recipients?: string[];
+      acknowledged?: string[];
+    }>
   >([]);
   const picker = useRef<HTMLInputElement>(null),
     folderPicker = useRef<HTMLInputElement>(null);
@@ -248,6 +280,7 @@ export function RoomDashboard({
         p: Peer = { pc, candidates: [], state: "Connecting" };
       peers.current.set(id, p);
       pc.onicecandidate = (e) => {
+        if (disposed || peers.current.get(id) !== p) return;
         if (e.candidate)
           send({ type: "ice", to: id, candidate: e.candidate.toJSON() });
       };
@@ -275,6 +308,7 @@ export function RoomDashboard({
       }
       pc.ondatachannel = (e) => channel(e.channel);
       pc.onconnectionstatechange = () => {
+        if (disposed || peers.current.get(id) !== p) return;
         p.state =
           pc.connectionState === "connected"
             ? "Connected"
@@ -295,9 +329,16 @@ export function RoomDashboard({
     }
     async function offer(id: string) {
       const p = peer(id);
-      if (identity.member < id) {
-        await p.pc.setLocalDescription(await p.pc.createOffer());
-        send({ type: "offer", to: id, sdp: p.pc.localDescription!.sdp });
+      if (identity.member < id && !p.offered) {
+        p.offered = true;
+        try {
+          await p.pc.setLocalDescription(await p.pc.createOffer());
+          if (disposed || peers.current.get(id) !== p) return;
+          send({ type: "offer", to: id, sdp: p.pc.localDescription!.sdp });
+        } catch (reason) {
+          p.offered = false;
+          if (!disposed && peers.current.get(id) === p) throw reason;
+        }
       }
     }
     retryDevice.current = (id) => {
@@ -374,7 +415,12 @@ export function RoomDashboard({
                     destroy(id);
                 if (recovering)
                   for (const [id, p] of peers.current)
-                    if (p.channel?.readyState !== "open") destroy(id);
+                    if (p.channel?.readyState !== "open") {
+                      destroy(id);
+                      // Both ends must discard an unfinished negotiation. The stable
+                      // lower-ID initiator then creates the replacement offer.
+                      send({ type: "retry", to: id });
+                    }
                 for (const m of event.members as Member[])
                   if (
                     m.id !== identity.member &&
@@ -387,37 +433,6 @@ export function RoomDashboard({
                       peers.current.get(m.id)?.channel?.readyState === "closed")
                   )
                     await offer(m.id);
-                const gone = members.filter(
-                  (m) =>
-                    m.id !== identity.member &&
-                    m.online &&
-                    peers.current.get(m.id)?.channel?.readyState !== "open" &&
-                    !event.members.some(
-                      (next: Member) => next.id === m.id && next.online,
-                    ),
-                );
-                setDeparted((previous) =>
-                  [
-                    ...gone.map((m) => ({
-                      id: m.id,
-                      name: m.name,
-                      state: event.members.some(
-                        (next: Member) => next.id === m.id,
-                      )
-                        ? "Disconnected · interrupted files need retry"
-                        : "Left room · transfer stopped",
-                    })),
-                    ...previous,
-                  ]
-                    .filter(
-                      (m, i, all) =>
-                        all.findIndex((n) => n.id === m.id) === i &&
-                        !event.members.some(
-                          (next: Member) => next.id === m.id && next.online,
-                        ),
-                    )
-                    .slice(0, 8),
-                );
                 members = event.members;
                 for (const row of deliveryRef.current)
                   for (const [id, delivery] of Object.entries(row.recipients))
@@ -488,12 +503,14 @@ export function RoomDashboard({
         socket.onclose = (e) => {
           if (disposed || ws.current !== socket) return;
           clearInterval(heartbeat);
-          if (e.code === 4001 || e.code === 4002) {
+          if (e.code === 4001 || e.code === 4002 || e.code === 4003) {
             setStatus("Connection failed");
             setError(
-              e.code === 4002
-                ? "This session opened in another tab."
-                : "Room expired or ended. Start or join a new room.",
+              e.code === 4003
+                ? "The room host removed your device."
+                : e.code === 4002
+                  ? "This session opened in another tab."
+                  : "Room expired or ended. Start or join a new room.",
             );
             setEnded(true);
             sessionStorage.removeItem(sessionKey);
@@ -580,8 +597,49 @@ export function RoomDashboard({
       setBusy(false);
     }
   }
+  async function manageRoom(kind: "invitation" | "remove", member?: Member) {
+    if (!session || hostRequest.current) return;
+    if (
+      !window.confirm(
+        kind === "invitation"
+          ? "Refresh the invitation? The previous code and QR will stop working. Existing transfers will continue."
+          : "Remove this device from the room? Its active transfers will stop.",
+      )
+    )
+      return;
+    hostRequest.current = true;
+    setHostPending(true);
+    try {
+      await request(
+        `/rooms/${session.room}/${kind === "invitation" ? "invitation" : "members/" + member!.id}`,
+        kind === "invitation" ? "POST" : "DELETE",
+        undefined,
+        session.token,
+      );
+      notify(
+        kind === "invitation"
+          ? "New invitation ready."
+          : "Device removed. Lock the room or refresh its invitation to restrict rejoining.",
+      );
+    } catch (reason) {
+      setError(String(reason));
+    } finally {
+      hostRequest.current = false;
+      setHostPending(false);
+    }
+  }
   async function leave() {
     if (!session) return;
+    if (
+      !ended &&
+      deliveries.some((row) =>
+        Object.values(row.recipients).some(
+          (delivery) => !terminal(delivery.state),
+        ),
+      ) &&
+      !window.confirm("Leave this room? Active transfers will stop.")
+    )
+      return;
     setBusy(true);
     try {
       await request(
@@ -596,9 +654,10 @@ export function RoomDashboard({
       setSelected([]);
       setFiles([]);
       setMessage("");
+      setCode("");
+      setInvite(false);
       setMessages([]);
       saveDeliveries([]);
-      setDeparted([]);
       setStatus("Waiting");
       setError("");
       onHome?.();
@@ -610,7 +669,6 @@ export function RoomDashboard({
         setSelected([]);
         setFiles([]);
         setMessage("");
-        setDeparted([]);
         setMessages([]);
         saveDeliveries([]);
         onHome?.();
@@ -805,7 +863,16 @@ export function RoomDashboard({
         </div>
       )}
       {error && (
-        <p role="alert" className="error-banner">
+        <p
+          role="alert"
+          className={
+            /removed your device|room is locked|expired or ended|session opened/i.test(
+              error,
+            )
+              ? "information-banner"
+              : "error-banner"
+          }
+        >
           {error}
         </p>
       )}
@@ -883,8 +950,34 @@ export function RoomDashboard({
             No account needed. Only room members see your display name.
           </small>
         </form>
+      ) : ended ? (
+        <section className="panel ended-room">
+          <h1>
+            {error.includes("removed")
+              ? "You’ve left this room"
+              : "This room is closed"}
+          </h1>
+          <p>{error}</p>
+          <button onClick={() => void leave()}>Back to Home</button>
+          <button
+            onClick={() => {
+              void leave().then(() => {
+                location.hash = "/join";
+              });
+            }}
+          >
+            Join Another Room
+          </button>
+        </section>
       ) : (
         <>
+          <button
+            className="quiet workspace-back"
+            aria-label="Back to Home"
+            onClick={() => onHome?.()}
+          >
+            ← Back
+          </button>
           <div className="room-heading">
             <div>
               <span className="eyebrow">YOUR SHARED SPACE</span>
@@ -919,11 +1012,16 @@ export function RoomDashboard({
             </div>
           </div>
           {status !== "Connected" && (
-            <div className="connection-banner">
+            <div className="connection-banner" role="status">
               <span>
+                {status !== "Connection failed" && (
+                  <i className="recovery-spinner" aria-hidden="true" />
+                )}
                 {status.startsWith("Reconnect")
                   ? "Reconnecting… Your files are safe in this page."
-                  : "Connection unavailable. Your selected files are kept."}
+                  : status === "Connection failed"
+                    ? "Couldn’t reconnect. Your selected files are kept."
+                    : "Restoring your connection… Your selected files are kept."}
               </span>
               <button onClick={() => retry.current?.()}>
                 Retry Connection
@@ -947,6 +1045,15 @@ export function RoomDashboard({
                     {snapshot?.code}
                   </strong>
                   <div className="room-actions">
+                    {snapshot?.owner === session.member && (
+                      <button
+                        className="secondary"
+                        disabled={hostPending}
+                        onClick={() => void manageRoom("invitation")}
+                      >
+                        Refresh Invitation
+                      </button>
+                    )}
                     <button
                       className="secondary"
                       onClick={() => void copy(snapshot?.code || "", "Copied!")}
@@ -1151,15 +1258,27 @@ export function RoomDashboard({
                         notify("Wait for the selected devices to connect.");
                         return;
                       }
+                      const textId = crypto.randomUUID();
+                      const textRecipients: string[] = [];
                       let sent = 0;
                       for (const id of [...selected])
-                        if (handles.current.get(id)?.sendText(message)) sent++;
+                        if (
+                          handles.current.get(id)?.sendText(message, textId) &&
+                          (textRecipients.push(id), true)
+                        )
+                          sent++;
                       if (sent === selected.length) {
                         setMessages((items) =>
-                          [{ from: "You", text: message }, ...items].slice(
-                            0,
-                            30,
-                          ),
+                          [
+                            {
+                              from: "You",
+                              text: message,
+                              id: textId,
+                              recipients: textRecipients,
+                              acknowledged: [],
+                            },
+                            ...items,
+                          ].slice(0, 30),
                         );
                         setMessage("");
                         notify(
@@ -1177,9 +1296,26 @@ export function RoomDashboard({
                 {messages.length > 0 ? (
                   <ul className="message-history" aria-label="Text history">
                     {messages.map((item, i) => (
-                      <li key={i}>
+                      <li
+                        key={i}
+                        className={
+                          item.from === "You"
+                            ? "message-outgoing"
+                            : "message-incoming"
+                        }
+                      >
                         <span>{item.from}</span>
                         <pre>{item.text}</pre>
+                        {item.recipients && (
+                          <small>
+                            {item.acknowledged?.length ===
+                            item.recipients.length
+                              ? "Delivered"
+                              : "Awaiting receipt"}{" "}
+                            · {item.acknowledged?.length || 0}/
+                            {item.recipients.length}
+                          </small>
+                        )}
                         <button
                           className="quiet"
                           aria-label="Copy received text"
@@ -1260,6 +1396,22 @@ export function RoomDashboard({
                           }
                         />
                       )}{" "}
+                      {snapshot.owner === session.member &&
+                        m.id !== session.member && (
+                          <details className="device-menu">
+                            <summary
+                              aria-label={`Actions for ${displayName(m)}`}
+                            >
+                              •••
+                            </summary>
+                            <button
+                              disabled={hostPending}
+                              onClick={() => void manageRoom("remove", m)}
+                            >
+                              Remove from Room
+                            </button>
+                          </details>
+                        )}
                       {m.id !== session.member && m.online && !ready(m.id) && (
                         <button
                           className="quiet"
@@ -1405,15 +1557,6 @@ export function RoomDashboard({
                     )}
                   </details>
                 ))}
-                {departed.length > 0 && (
-                  <ul aria-label="Disconnected recipients">
-                    {departed.map((m) => (
-                      <li key={m.id}>
-                        {m.name} — {m.state}
-                      </li>
-                    ))}
-                  </ul>
-                )}
                 {!eligible.length && (
                   <div className="empty-transfers">
                     <Send size={25} />
@@ -1439,6 +1582,23 @@ export function RoomDashboard({
                             token: session.token,
                             member: session.member,
                             remoteName: displayName(m),
+                            onTextDelivered: (id) =>
+                              setMessages((items) =>
+                                items.map((item) =>
+                                  item.id === id &&
+                                  item.recipients?.includes(m.id)
+                                    ? {
+                                        ...item,
+                                        acknowledged: Array.from(
+                                          new Set([
+                                            ...(item.acknowledged || []),
+                                            m.id,
+                                          ]),
+                                        ),
+                                      }
+                                    : item,
+                                ),
+                              ),
                             onMessage: (text) =>
                               setMessages((items) =>
                                 [

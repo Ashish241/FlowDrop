@@ -1,0 +1,64 @@
+{
+  "date": "2026-10-18",
+  "baseline": "7aaf187",
+  "rollback": {
+    "pages": "ec70164f-7da3-4e45-85b8-b16d90791fc5",
+    "backend": "dep-db96g8rl550s73ctk5dg"
+  },
+  "local": {
+    "backend": {
+      "passed": 86,
+      "skipped": 7,
+      "duration_seconds": 5.34
+    },
+    "online_browser": {
+      "passed": 21,
+      "duration": "2.1m"
+    },
+    "desktop_browser": {
+      "passed": 8,
+      "duration_seconds": 26.4
+    },
+    "frontend_units": 31,
+    "ruff": "passed",
+    "eslint": "passed",
+    "builds": "TypeScript, Online, desktop frontend and guarded Pages passed",
+    "dark_theme_axe": "passed",
+    "responsive_widths": [
+      360,
+      390,
+      430,
+      768,
+      1024,
+      1440,
+      1920
+    ]
+  },
+  "deployment": {
+    "status": "verified source; awaiting manual backend-first deployment",
+    "website": "https://flowdrop-online.pages.dev/",
+    "signaling": "https://flowdrop-signaling.onrender.com/signal/v2",
+    "free_existing_projects_only": true,
+    "automatic_deployments": false
+  },
+  "physical_camera_verified": false,
+  "physical_cross_network_verified": false,
+  "turn_configured": false,
+  "windows_binaries_rebuilt": false,
+  "windows_zip_sha256": "CF8E76E3D14FA88FA3D77F2629BBFCE155E58A1C38F7BA05B7DBB1EBF5590E18",
+  "intermediate_failures": [
+    "Sandbox socket-backed pytest run was interrupted and rerun with authorized local networking.",
+    "Browser reconnect tests reproduced duplicate/stale offers and unfinished-peer reset races; fixed and deterministic test passed.",
+    "Retained Join form failed same-page invitation re-entry; hash/popstate synchronization fixed and full delivery test passed.",
+    "Concurrent CPU load allowed a legitimate heartbeat to precede an asserted room event; test now ignores heartbeat frames.",
+    "Initial theme script lint declarations were corrected; final lint passed."
+  ],
+  "limits": [
+    "Physical phone-camera and separate-network transfer remain unverified.",
+    "Single-instance in-memory rooms are lost on provider restart.",
+    "No TURN relay; restrictive networks may fail.",
+    "In-page selected File objects survive reconnect; full restart can require reselection.",
+    "Optical finite parity and 64 KiB cap; complete recovery tests do not prove physical camera reliability.",
+    "Online Vite chunk advisory remains documented."
+  ]
+}

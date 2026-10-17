@@ -53,8 +53,8 @@ def install_rooms(app, allowed):
                 return value
         raise HTTPException(503, "Invitation capacity reached")
 
-    def rotate(rid, room):
-        if room["code_expires"] > now():
+    def rotate(rid, room, force=False):
+        if not force and room["code_expires"] > now():
             return False
         code = issue_code()
         old = room["code"]
@@ -156,6 +156,8 @@ def install_rooms(app, allowed):
             "revision": "workspace-v3-20261016",
             "topology": "addressed-mesh",
             "maxMembers": 8,
+            "hostControls": True,
+            "manualInvitationRefresh": True,
             "state": "single-instance-memory",
             "invitationRotationSeconds": 600,
             "idleRoomSeconds": ttl,
@@ -229,6 +231,45 @@ def install_rooms(app, allowed):
         await broadcast(room, "left")
         return {"status": "left"}
 
+    def host(room, request):
+        identity = authorize(
+            room, request.headers.get("authorization", "").removeprefix("Bearer ")
+        )
+        if identity["id"] != room["owner"]:
+            raise HTTPException(403, "Host required")
+        return identity
+
+    @router.post("/rooms/{rid}/invitation")
+    async def refresh_invitation(rid: str, request: Request):
+        rate(request, "invitation", 6)
+        room = get_room(rid)
+        host(room, request)
+        rotate(rid, room, force=True)
+        await broadcast(room, "invitation")
+        return public(room)
+
+    @router.delete("/rooms/{rid}/members/{mid}")
+    async def remove_member(rid: str, mid: str, request: Request):
+        rate(request, "remove", 20)
+        room = get_room(rid)
+        host(room, request)
+        if mid == room["owner"]:
+            raise HTTPException(400, "Host cannot remove themselves")
+        if mid not in room["members"]:
+            raise HTTPException(404, "Device already left")
+        # Revoke before yielding: the old token can no longer authenticate or signal.
+        room["members"].pop(mid)
+        target = room["sockets"].pop(mid, None)
+        if target:
+            try:
+                await asyncio.wait_for(
+                    target.close(code=4003, reason="Removed by host"), 3
+                )
+            except (RuntimeError, TimeoutError, WebSocketDisconnect):
+                pass
+        await broadcast(room, "removed")
+        return {"status": "removed"}
+
     @router.websocket("/rooms/{rid}/ws")
     async def socket(ws: WebSocket, rid: str):
         if ws.headers.get("origin") not in allowed:
@@ -265,6 +306,9 @@ def install_rooms(app, allowed):
                 except TimeoutError:
                     await ws.send_json({"type": "pong"})
                     continue
+                if room["members"].get(mid) is not identity:
+                    await ws.close(code=4003, reason="Removed by host")
+                    break
                 if len(raw) > 65536:
                     await ws.close(code=1009)
                     break

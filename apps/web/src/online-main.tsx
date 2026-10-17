@@ -1,14 +1,6 @@
 import { useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
-import {
-  Zap,
-  Moon,
-  Plus,
-  LogIn,
-  ScanLine,
-  Clock,
-  ArrowUpRight,
-} from "lucide-react";
+import { Moon, Plus, LogIn, ScanLine, Clock, ArrowUpRight } from "lucide-react";
 import { RoomDashboard } from "./room-dashboard";
 import { OpticalPanel } from "./optical";
 import "./online-style.css";
@@ -86,6 +78,17 @@ function OnlineApp() {
         setAction(next === "join" ? "Join Room" : "Create Room");
     }
   }
+  useEffect(() => {
+    const names: Record<Route, string> = {
+      home: "Share Anything",
+      create: "Create Room",
+      join: "Join Room",
+      room: "Sharing Room",
+      optical: "Optical Share",
+      later: "Coming Soon",
+    };
+    document.title = "FlowDrop - " + names[page];
+  }, [page]);
   const inWorkspace = page === "room" && active;
   return (
     <div className="online-app">
@@ -95,11 +98,17 @@ function OnlineApp() {
           onClick={() => go("home")}
           aria-label="FlowDrop home"
         >
-          <Zap fill="currentColor" />
+          <img
+            className="brand-mark"
+            src="/flowdrop-mark.svg"
+            alt=""
+            width="36"
+            height="36"
+          />
           FlowDrop<span className="brand-tag">SHARE WITHOUT LIMITS</span>
         </button>
         <div className="header-actions">
-          {page !== "home" && (
+          {page !== "home" && !inWorkspace && (
             <button className="quiet" onClick={() => go("home")}>
               Back to Home
             </button>
@@ -110,7 +119,16 @@ function OnlineApp() {
           <button
             className="icon-button quiet"
             aria-label="Toggle theme"
-            onClick={() => document.body.classList.toggle("dark")}
+            onClick={() => {
+              const dark = document.documentElement.dataset.theme !== "dark";
+              try {
+                localStorage.setItem("flowdrop-theme", dark ? "dark" : "light");
+              } catch {
+                /* Private storage can be unavailable. */
+              }
+              document.documentElement.dataset.theme = dark ? "dark" : "light";
+              window.dispatchEvent(new Event("flowdrop-theme"));
+            }}
           >
             <Moon size={20} />
           </button>
@@ -133,9 +151,7 @@ function OnlineApp() {
                 <button
                   key={route}
                   aria-label={title}
-                  className={
-                    "home-card " + (route === "create" ? "featured" : "")
-                  }
+                  className="home-card"
                   onClick={() => go(route)}
                 >
                   <span className="card-top">

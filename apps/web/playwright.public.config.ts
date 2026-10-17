@@ -8,6 +8,7 @@ export default defineConfig({
   testDir: "e2e",
   testMatch: [
     "rooms.spec.ts",
+    "product-polish.spec.ts",
     "workspace.spec.ts",
     "delivery.spec.ts",
     "optical-reliable.spec.ts",

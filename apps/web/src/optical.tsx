@@ -485,7 +485,8 @@ export function OpticalPanel() {
       <h2>Optical Share</h2>
       <p>
         Screen to camera, with no communication network after this page and
-        Decoder ready have loaded. Text up to 16 KiB · files up to 64 KiB.
+        Decoder ready have loaded. Text up to 16 KiB · files up to 64 KiB. For
+        larger files or faster sharing, use Offline LAN or Online rooms.
       </p>
       <p role="status">{status}</p>
       <p className="muted">

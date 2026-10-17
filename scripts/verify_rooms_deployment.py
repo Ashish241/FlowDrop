@@ -3,8 +3,10 @@
 import argparse
 import json
 from pathlib import Path
+from time import perf_counter
 
 import httpx
+from websockets.exceptions import ConnectionClosed
 from websockets.sync.client import connect
 
 
@@ -27,10 +29,15 @@ def verify(website, signaling):
         assert metadata.get("autoSelectNewMembers") is True
         assert metadata.get("opticalProtocol") == 3
         assert metadata.get("opticalRecovery") is True
+        assert metadata.get("hostRoomControls") is True
+        assert metadata.get("textReceipts") is True
+        assert metadata.get("productDesign") == "navy-teal-20261018"
         assert metadata["signaling"].rstrip("/") == signaling.rstrip("/")
         health = client.get(endpoint + "/health")
         health.raise_for_status()
         assert health.json()["protocol"] == 2
+        assert health.json().get("hostControls") is True
+        assert health.json().get("manualInvitationRefresh") is True
         assert health.json()["revision"] == metadata["revision"]
         assert health.json()["state"] == "single-instance-memory"
         assert health.json()["invitationRotationSeconds"] == 600
@@ -44,7 +51,9 @@ def verify(website, signaling):
             },
         )
         assert preflight.headers["access-control-allow-origin"] == origin
+        started = perf_counter()
         response = client.post(endpoint + "/rooms", json={"name": "Verification PC"})
+        result["room_create_https_seconds"] = round(perf_counter() - started, 3)
         response.raise_for_status()
         owner = response.json()
         try:
@@ -95,6 +104,44 @@ def verify(website, signaling):
                         ).status_code
                         == 423
                     )
+                    path = endpoint + "/rooms/" + owner["room"]
+                    auth = {"Authorization": "Bearer " + owner["token"]}
+                    guest = {"Authorization": "Bearer " + member["token"]}
+                    assert (
+                        client.post(path + "/invitation", headers=guest).status_code
+                        == 403
+                    )
+                    refreshed = client.post(path + "/invitation", headers=auth)
+                    refreshed.raise_for_status()
+                    code = refreshed.json()["code"]
+                    assert code != owner["code"] and refreshed.json()["locked"]
+                    assert json.loads(a.recv(timeout=10))["code"] == code
+                    assert json.loads(b.recv(timeout=10))["code"] == code
+                    assert (
+                        client.post(
+                            endpoint + "/rooms/" + owner["code"] + "/join",
+                            json={"name": "Old invitation"},
+                        ).status_code
+                        == 404
+                    )
+                    assert (
+                        client.post(
+                            endpoint + "/rooms/" + code + "/join",
+                            json={"name": "Locked new invitation"},
+                        ).status_code
+                        == 423
+                    )
+                    target = path + "/members/" + member["member"]
+                    assert client.delete(target, headers=guest).status_code == 403
+                    removed = client.delete(target, headers=auth)
+                    removed.raise_for_status()
+                    assert len(json.loads(a.recv(timeout=10))["members"]) == 1
+                    try:
+                        b.recv(timeout=10)
+                        raise AssertionError("Removed socket remained open")
+                    except ConnectionClosed as closed:
+                        assert closed.rcvd.code == 4003
+                    assert client.get(path + "/ice", headers=guest).status_code == 403
             result.update(
                 frontend_revision=metadata["revision"],
                 integrity_guard=True,
@@ -109,6 +156,12 @@ def verify(website, signaling):
                 rename_broadcast=True,
                 addressed_signaling=True,
                 creator_lock=True,
+                host_refresh_preserves_lock=True,
+                old_invitation_revoked=True,
+                guest_admin_denied=True,
+                host_kick_revokes_token_and_socket=True,
+                product_design=metadata["productDesign"],
+                text_receipt_capability=True,
                 credentials_excluded_from_roster=True,
             )
         finally:

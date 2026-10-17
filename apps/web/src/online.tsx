@@ -33,7 +33,7 @@ export type RoomTransferHandle = {
     files: File[],
     tracking?: Array<{ attachment: string; attempt: string }>,
   ) => Promise<void>;
-  sendText: (text: string) => boolean;
+  sendText: (text: string, id?: string) => boolean;
 };
 export type RoomLink = {
   channel: RTCDataChannel;
@@ -42,6 +42,7 @@ export type RoomLink = {
   member: string;
   remoteName: string;
   onMessage?: (text: string) => void;
+  onTextDelivered?: (id: string) => void;
   onNotice?: (status: string) => void;
   onTransfer?: (update: DeliveryUpdate) => void;
   register: (handle: RoomTransferHandle | undefined) => void;
@@ -593,12 +594,24 @@ export function OnlinePanel({
               setStatus("Delivered · receiver SHA-256 verified");
               setPercent(100);
             } else if (
+              data.type === "text-received" &&
+              typeof data.id === "string" &&
+              /^[a-f0-9-]{36}$/.test(data.id)
+            ) {
+              roomCallbacks.current?.onTextDelivered?.(data.id);
+            } else if (
               data.type === "text" &&
               typeof data.text === "string" &&
               data.text.length <= 65536
             ) {
               setMessages((h) => [data.text, ...h].slice(0, 100));
               roomCallbacks.current?.onMessage?.(data.text);
+              if (
+                roomCallbacks.current &&
+                typeof data.id === "string" &&
+                /^[a-f0-9-]{36}$/.test(data.id)
+              )
+                dc.send(JSON.stringify({ type: "text-received", id: data.id }));
             }
           } else if (incoming.current && hash.current && sink.current) {
             const bytes = e.data as ArrayBuffer;
@@ -1368,8 +1381,12 @@ export function OnlinePanel({
         tracked.current = undefined;
         outgoingBatch.current = undefined;
       },
-      sendText(value) {
-        const payload = JSON.stringify({ type: "text", text: value });
+      sendText(value, id) {
+        const payload = JSON.stringify({
+          type: "text",
+          text: value,
+          ...(id ? { id } : {}),
+        });
         if (channel.current?.readyState !== "open" || payload.length > 65536)
           return false;
         channel.current.send(payload);

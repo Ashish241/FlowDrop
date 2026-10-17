@@ -51,7 +51,15 @@ export default defineConfig(({ mode }) => {
             return online
               ? html
                   .replace("/src/main.tsx", "/src/online-main.tsx")
-                  .replace("FlowDrop</title>", "FlowDrop Online</title>")
+                  .replace("/favicon.svg", "/flowdrop-mark.svg")
+                  .replace(
+                    "</head>",
+                    '<meta name="theme-color" content="#f5f8fa" /><script src="/theme-init.js"></script></head>',
+                  )
+                  .replace(
+                    "FlowDrop — Share anything</title>",
+                    "FlowDrop - Share Anything</title>",
+                  )
               : html;
           },
         },
@@ -72,6 +80,9 @@ export default defineConfig(({ mode }) => {
                 integrityGuard: true,
                 recipientDeliveryLedger: true,
                 autoSelectNewMembers: true,
+                hostRoomControls: true,
+                textReceipts: true,
+                productDesign: "navy-teal-20261018",
                 opticalProtocol: 3,
                 opticalRecovery: true,
                 signaling: env.VITE_SIGNAL_URL || "/signal",
