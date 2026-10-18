@@ -298,8 +298,32 @@ test("named room auto-join, three real peers, rename and recipient-isolated tran
         () => document.documentElement.scrollWidth <= innerWidth,
       ),
     ).toBe(true);
+    // Withhold close notifications: the explicit terminal event must suffice.
+    await b.evaluate(() => {
+      const w = window as unknown as {
+        roomTestSockets: WebSocket[];
+        roomEndEvents: number;
+      };
+      w.roomEndEvents = 0;
+      const socket = w.roomTestSockets.at(-1)!;
+      socket.addEventListener(
+        "close",
+        (event) => event.stopImmediatePropagation(),
+        {
+          capture: true,
+        },
+      );
+      socket.addEventListener("message", (event) => {
+        if (JSON.parse(event.data).type === "ended") w.roomEndEvents++;
+      });
+    });
     await a.getByRole("button", { name: "End Room", exact: true }).click();
     await expect(b.getByRole("alert")).toContainText(/expired|ended/);
+    expect(
+      await b.evaluate(
+        () => (window as unknown as { roomEndEvents: number }).roomEndEvents,
+      ),
+    ).toBe(1);
   } finally {
     await Promise.all(contexts.map((ctx) => ctx.close()));
   }

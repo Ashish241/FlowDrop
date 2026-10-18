@@ -249,6 +249,31 @@ class NamedRoomTests(unittest.TestCase):
             self.assertEqual(self.join(a, str(i)).status_code, 200)
         self.assertEqual(self.join(a).status_code, 409)
 
+    def test_end_notifies_connected_peer_and_closes_with_terminal_code(self):
+        from starlette.websockets import WebSocketDisconnect
+
+        a = self.create()
+        b = self.join(a).json()
+        path = "/v2/rooms/" + a["room"]
+        with self.client.websocket_connect(path + "/ws", headers=ORIGIN) as peer:
+            peer.send_text(b["token"])
+            peer.receive_json()
+            response = self.client.delete(
+                path + "/membership", headers={"Authorization": "Bearer " + a["token"]}
+            )
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(peer.receive_json(), {"type": "ended"})
+            with self.assertRaises(WebSocketDisconnect) as closed:
+                peer.receive_json()
+            self.assertEqual(closed.exception.code, 4001)
+            self.assertEqual(
+                self.client.get(
+                    path + "/ice", headers={"Authorization": "Bearer " + b["token"]}
+                ).status_code,
+                404,
+            )
+        self.assertEqual(self.join(a).status_code, 404)
+
     def test_end_revokes_all_tokens(self):
         a = self.create()
         b = self.join(a).json()

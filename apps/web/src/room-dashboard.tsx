@@ -433,12 +433,16 @@ export function RoomDashboard({
               const event = JSON.parse(e.data);
               lastHeartbeat.current = Date.now();
               if (revoked) return;
-              if (event.type === "removed") {
+              if (event.type === "removed" || event.type === "ended") {
                 revoked = true;
                 clearInterval(heartbeat);
                 clearTimeout(timer);
                 setStatus("Connection ended");
-                setError("The room host removed your device.");
+                setError(
+                  event.type === "ended"
+                    ? "Room expired or ended. Start or join a new room."
+                    : "The room host removed your device.",
+                );
                 setEnded(true);
                 sessionStorage.removeItem(sessionKey);
                 for (const [id] of peers.current) destroy(id);

@@ -224,8 +224,22 @@ def install_rooms(app, allowed):
         if identity["id"] == room["owner"]:
             rooms.pop(rid, None)
             codes.pop(room["code"], None)
-            for ws in list(room["sockets"].values()):
-                await ws.close(code=4001, reason="Room ended")
+            sockets = list(room["sockets"].values())
+            room["sockets"].clear()
+
+            async def end_socket(ws):
+                # Notify every peer before waiting for any close handshake.
+                # A lost control frame must not leave peers reconnecting.
+                try:
+                    await asyncio.wait_for(ws.send_json({"type": "ended"}), 3)
+                except (RuntimeError, TimeoutError, WebSocketDisconnect):
+                    pass
+                try:
+                    await asyncio.wait_for(ws.close(code=4001, reason="Room ended"), 30)
+                except (RuntimeError, TimeoutError, WebSocketDisconnect):
+                    pass
+
+            await asyncio.gather(*(end_socket(ws) for ws in sockets))
             return {"status": "ended"}
         room["members"].pop(identity["id"])
         ws = room["sockets"].pop(identity["id"], None)
