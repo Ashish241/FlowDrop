@@ -51,16 +51,22 @@
     }
   },
   "deployment": {
-    "status": "explicit transport verified locally; awaiting manual service configuration/deployment",
+    "status": "BLOCKED: backend deployed; strict public close-frame gate failed; frontend correction not deployed",
     "website": "https://flowdrop-online.pages.dev/",
     "signaling": "https://flowdrop-signaling.onrender.com/signal/v2",
     "free_existing_projects_only": true,
     "automatic_deployments": false,
     "source_commit": "8076ed557693e2a174ae39d1fc2f8461678a9081",
-    "backend_deployment": "dep-db9t1qajnfac73dhm2q0",
+    "backend_deployment": "dep-dba8nlgm7kps73ftjaog",
     "backend_https_wss": "passed before frontend deployment",
     "initial_pages_deployment": "35f51697-1f2d-409f-86e7-10f3ff1010ba",
-    "corrective_backend_deployment": "dep-dba3v0om7kps73fcm5rg"
+    "corrective_backend_deployment": "dep-dba3v0om7kps73fcm5rg",
+    "backend_source_commit": "4257560035a0b4d71c69a6076acfe2689171ba67",
+    "backend_duration_seconds": 41.7,
+    "backend_start_command_transport": "websockets",
+    "frontend_source_commit": "8076ed557693e2a174ae39d1fc2f8461678a9081",
+    "frontend_deployment": "35f51697-1f2d-409f-86e7-10f3ff1010ba",
+    "frontend_correction_deployed": false
   },
   "physical_camera_verified": false,
   "physical_cross_network_verified": false,
@@ -79,6 +85,7 @@
     "On the public automatic/SansIO transport the removed event arrived but no close frame was received (1006). The strict gate failed. The existing handshake-awaiting transport is selected explicitly and retested; close observation remains mandatory."
   ],
   "limits": [
+    "Mandatory public removed-event plus actual 4003 close-frame gate remains failed; corrected frontend release is withheld.",
     "Physical phone-camera and separate-network transfer remain unverified.",
     "Single-instance in-memory rooms are lost on provider restart.",
     "No TURN relay; restrictive networks may fail.",
@@ -94,5 +101,37 @@
     "duration": "4.3m",
     "source": "8076ed5",
     "failure": "Host-removal UI received membership-required error instead of a terminal removed state; strict socket check timed out. This is not a verified removal pass."
+  },
+  "public_transport_retest": {
+    "date": "2026-10-18",
+    "backend_source": "4257560",
+    "strict_gate": "FAILED",
+    "python_default_compression": {
+      "removal_event": true,
+      "close_frame": false,
+      "abnormal_code": 1006
+    },
+    "python_uncompressed": {
+      "removal_event": true,
+      "close_frame": false,
+      "abnormal_code": 1006
+    },
+    "chromium": {
+      "events": [
+        "members",
+        "removed"
+      ],
+      "close": {
+        "code": 1006,
+        "reason": "",
+        "clean": false
+      }
+    },
+    "independent_invalid_token_close": {
+      "close_frame": false
+    },
+    "nonexistent_room_handshake": "HTTP 403 rejected",
+    "final_full_public_suite": "not run: backend prerequisite failed",
+    "root_cause": "Unresolved on public hosting path; transport selection did not fix it. Proxy/provider cause is not proven."
   }
 }
