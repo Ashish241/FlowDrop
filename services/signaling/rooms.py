@@ -271,8 +271,10 @@ def install_rooms(app, allowed):
             except (RuntimeError, TimeoutError, WebSocketDisconnect):
                 pass
             try:
+                # The transport's own close includes handshake and TCP teardown.
+                # Do not cancel it at the same 10 s deadline as its first phase.
                 await asyncio.wait_for(
-                    target.close(code=4003, reason="Removed by host"), 10
+                    target.close(code=4003, reason="Removed by host"), 30
                 )
             except (RuntimeError, TimeoutError, WebSocketDisconnect):
                 pass
