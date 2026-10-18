@@ -15,6 +15,7 @@ import {
   Pencil,
   Lock,
   Unlock,
+  RefreshCw,
 } from "lucide-react";
 import { formatSize, mergeAttachments } from "./room-utils";
 import { InvitationScanner } from "./invitation-scanner";
@@ -157,6 +158,13 @@ export function RoomDashboard({
     );
   }
   const [message, setMessage] = useState("");
+  const [refreshOpen, setRefreshOpen] = useState(false);
+  const [refreshError, setRefreshError] = useState("");
+  const refreshDialog = useRef<HTMLDialogElement>(null);
+  useEffect(() => {
+    if (refreshOpen) refreshDialog.current?.showModal();
+    else refreshDialog.current?.close();
+  }, [refreshOpen]);
   const [hostPending, setHostPending] = useState(false);
   const hostRequest = useRef(false);
   const [invite, setInvite] = useState(false);
@@ -708,32 +716,78 @@ export function RoomDashboard({
       setBusy(false);
     }
   }
+  function sendMessage() {
+    if (!message.trim()) return;
+
+    if (!selected.length) {
+      notify("Select at least one device to share text.");
+      return;
+    }
+    if (selectedReady.length !== selected.length) {
+      notify("Wait for the selected devices to connect.");
+      return;
+    }
+    const textId = crypto.randomUUID();
+    const textRecipients: string[] = [];
+    let sent = 0;
+    for (const id of [...selected])
+      if (
+        handles.current.get(id)?.sendText(message, textId) &&
+        (textRecipients.push(id), true)
+      )
+        sent++;
+    if (sent === selected.length) {
+      setMessages((items) =>
+        [
+          {
+            from: "You",
+            text: message,
+            id: textId,
+            recipients: textRecipients,
+            acknowledged: [],
+          },
+          ...items,
+        ].slice(0, 30),
+      );
+      setMessage("");
+      notify(`Text shared with ${sent} ${sent === 1 ? "device" : "devices"}.`);
+    } else
+      notify(
+        "Text could not be shared with every selected device. Reconnect or try a shorter message.",
+      );
+  }
   async function manageRoom(kind: "invitation" | "remove", member?: Member) {
     if (!session || hostRequest.current) return;
     if (
+      kind === "remove" &&
       !window.confirm(
-        kind === "invitation"
-          ? "Refresh the invitation? The previous code and QR will stop working. Existing transfers will continue."
-          : "Remove this device from the room? Its active transfers will stop.",
+        "Remove this device from the room? Its active transfers will stop.",
       )
     )
       return;
     hostRequest.current = true;
     setHostPending(true);
+    setRefreshError("");
     try {
-      await request(
+      const updated = await request(
         `/rooms/${session.room}/${kind === "invitation" ? "invitation" : "members/" + member!.id}`,
         kind === "invitation" ? "POST" : "DELETE",
         undefined,
         session.token,
       );
+      if (kind === "invitation") {
+        setSnapshot(updated);
+        setRefreshOpen(false);
+      }
       notify(
         kind === "invitation"
           ? "New invitation ready."
           : "Device removed. Lock the room or refresh its invitation to restrict rejoining.",
       );
     } catch (reason) {
-      setError(String(reason));
+      if (kind === "invitation")
+        setRefreshError("Could not refresh the invitation. Please try again.");
+      else setError(String(reason));
     } finally {
       hostRequest.current = false;
       setHostPending(false);
@@ -962,6 +1016,46 @@ export function RoomDashboard({
       aria-label="Room dashboard"
       data-revision={revision}
     >
+      <dialog
+        ref={refreshDialog}
+        className="invitation-dialog"
+        aria-labelledby="refresh-title"
+        aria-describedby="refresh-description"
+        onCancel={(event) => {
+          event.preventDefault();
+          if (!hostPending) setRefreshOpen(false);
+        }}
+      >
+        <div className="dialog-symbol">
+          <RefreshCw size={24} />
+        </div>
+        <h2 id="refresh-title">Refresh invitation?</h2>
+        <p id="refresh-description">
+          A new room code and QR will be generated. Connected devices will
+          remain connected.
+        </p>
+        {refreshError && (
+          <p role="alert" className="dialog-error">
+            {refreshError}
+          </p>
+        )}
+        <div className="room-actions">
+          <button
+            className="secondary"
+            autoFocus
+            disabled={hostPending}
+            onClick={() => setRefreshOpen(false)}
+          >
+            Cancel
+          </button>
+          <button
+            disabled={hostPending}
+            onClick={() => void manageRoom("invitation")}
+          >
+            {hostPending ? "Refreshing…" : "Refresh Code"}
+          </button>
+        </div>
+      </dialog>
       {notice && (
         <div className="toast" role="status" aria-live="polite">
           <span>{notice}</span>
@@ -1160,7 +1254,10 @@ export function RoomDashboard({
                       <button
                         className="secondary"
                         disabled={hostPending}
-                        onClick={() => void manageRoom("invitation")}
+                        onClick={() => {
+                          setRefreshError("");
+                          setRefreshOpen(true);
+                        }}
                       >
                         Refresh Invitation
                       </button>
@@ -1343,67 +1440,6 @@ export function RoomDashboard({
                   <h2>Share Text</h2>
                   <span className="badge">{selected.length} selected</span>
                 </div>
-                <label className="sr-only" htmlFor="room-message">
-                  Message
-                </label>
-                <textarea
-                  id="room-message"
-                  placeholder="A thought, a link, a little code…"
-                  maxLength={12000}
-                  value={message}
-                  onChange={(e) => setMessage(e.target.value)}
-                />
-                <div className="room-actions">
-                  <button className="quiet" onClick={() => setMessages([])}>
-                    Clear history
-                  </button>
-                  <button
-                    className="secondary"
-                    disabled={!message.trim()}
-                    onClick={() => {
-                      if (!selected.length) {
-                        notify("Select at least one device to share text.");
-                        return;
-                      }
-                      if (selectedReady.length !== selected.length) {
-                        notify("Wait for the selected devices to connect.");
-                        return;
-                      }
-                      const textId = crypto.randomUUID();
-                      const textRecipients: string[] = [];
-                      let sent = 0;
-                      for (const id of [...selected])
-                        if (
-                          handles.current.get(id)?.sendText(message, textId) &&
-                          (textRecipients.push(id), true)
-                        )
-                          sent++;
-                      if (sent === selected.length) {
-                        setMessages((items) =>
-                          [
-                            {
-                              from: "You",
-                              text: message,
-                              id: textId,
-                              recipients: textRecipients,
-                              acknowledged: [],
-                            },
-                            ...items,
-                          ].slice(0, 30),
-                        );
-                        setMessage("");
-                        notify(
-                          `Text shared with ${sent} ${sent === 1 ? "device" : "devices"}.`,
-                        );
-                      } else
-                        notify(
-                          "Text could not be shared with every selected device. Reconnect or try a shorter message.",
-                        );
-                    }}
-                  >
-                    <Send size={16} /> Send Text
-                  </button>
-                </div>
                 {messages.length > 0 ? (
                   <ul className="message-history" aria-label="Text history">
                     {messages.map((item, i) => (
@@ -1443,6 +1479,41 @@ export function RoomDashboard({
                     automatically.
                   </p>
                 )}
+                <div className="chat-composer">
+                  <label className="sr-only" htmlFor="room-message">
+                    Message
+                  </label>
+                  <textarea
+                    id="room-message"
+                    placeholder="A thought, a link, a little code…"
+                    maxLength={12000}
+                    value={message}
+                    onChange={(e) => setMessage(e.target.value)}
+                    onKeyDown={(event) => {
+                      if (
+                        event.key === "Enter" &&
+                        !event.shiftKey &&
+                        !event.nativeEvent.isComposing &&
+                        !/Android|iPhone|iPad/i.test(navigator.userAgent)
+                      ) {
+                        event.preventDefault();
+                        sendMessage();
+                      }
+                    }}
+                  />
+                  <div className="room-actions">
+                    <button className="quiet" onClick={() => setMessages([])}>
+                      Clear history
+                    </button>
+                    <button
+                      className="secondary"
+                      disabled={!message.trim()}
+                      onClick={sendMessage}
+                    >
+                      <Send size={16} /> Send Text
+                    </button>
+                  </div>
+                </div>
               </section>
             </div>
             <aside className="workspace-aside">

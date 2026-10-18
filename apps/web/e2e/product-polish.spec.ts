@@ -10,6 +10,15 @@ test("system theme, explicit preference, titles and equal cards survive navigati
   await expect(page).toHaveTitle("FlowDrop - Share Anything");
   await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
   expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+  for (const theme of ["dark", "light"]) {
+    await page.emulateMedia({ colorScheme: theme as "dark" | "light" });
+    const header = await page.locator(".site-header").evaluate((el) => ({
+      border: getComputedStyle(el).borderBottomWidth,
+      shadow: getComputedStyle(el).boxShadow,
+    }));
+    expect(header).toEqual({ border: "0px", shadow: "none" });
+  }
+  await page.emulateMedia({ colorScheme: "dark" });
   await expect(page.locator('link[rel="icon"]')).toHaveAttribute(
     "href",
     "/flowdrop-mark.svg",
@@ -95,6 +104,29 @@ test("host invitation refresh and removal preserve unrelated verified transfer",
     await expect(b.locator(".message-incoming pre")).toHaveText(
       "Unicode receipt ✓",
     );
+    const longText =
+      "<script>alert('safe text')</script> ✓\nhttps://example.com/" +
+      "x".repeat(350);
+    await a.getByLabel("Message", { exact: true }).fill(longText);
+    await a.getByLabel("Message", { exact: true }).press("Shift+Enter");
+    await expect(a.getByLabel("Message", { exact: true })).toHaveValue(
+      longText + "\n",
+    );
+    await a.getByLabel("Message", { exact: true }).press("Enter");
+    await expect(b.locator(".message-incoming pre").first()).toHaveText(
+      longText.trim(),
+    );
+    await a.setViewportSize({ width: 390, height: 844 });
+    expect(
+      await a.evaluate(
+        () => document.documentElement.scrollWidth <= innerWidth,
+      ),
+    ).toBe(true);
+    await a.screenshot({
+      path: "../../.flowdrop/ui-polish-mobile-chat.png",
+      fullPage: true,
+    });
+    await a.setViewportSize({ width: 1280, height: 900 });
     const bytes = Buffer.from([0, 255, 13, 10, 44, 88]);
     await a.getByLabel("Choose files", { exact: true }).setInputFiles({
       name: "survive.bin",
@@ -110,6 +142,59 @@ test("host invitation refresh and removal preserve unrelated verified transfer",
     await a
       .getByRole("button", { name: "Refresh Invitation", exact: true })
       .click();
+    const modal = a.getByRole("dialog", { name: "Refresh invitation?" });
+    await expect(modal).toBeVisible();
+    await expect(
+      modal.getByRole("button", { name: "Cancel", exact: true }),
+    ).toBeFocused();
+    await modal.getByRole("button", { name: "Cancel", exact: true }).click();
+    await expect(a.getByTestId("room-code")).toHaveText(old);
+    let refreshRequests = 0;
+    await a.route("**/v2/rooms/*/invitation", async (route) => {
+      refreshRequests++;
+      if (refreshRequests === 1)
+        await route.fulfill({
+          status: 503,
+          contentType: "application/json",
+          body: '{"detail":"Temporary test failure"}',
+        });
+      else {
+        await new Promise((resolve) => setTimeout(resolve, 400));
+        await route.continue();
+      }
+    });
+    await a
+      .getByRole("button", { name: "Refresh Invitation", exact: true })
+      .click();
+    await a.keyboard.press("Escape");
+    await expect(modal).not.toBeVisible();
+    await a
+      .getByRole("button", { name: "Refresh Invitation", exact: true })
+      .click();
+    const viewport = a.viewportSize()!;
+    await expect
+      .poll(async () => {
+        const box = await modal.boundingBox();
+        return Math.max(
+          Math.abs(box!.x + box!.width / 2 - viewport.width / 2),
+          Math.abs(box!.y + box!.height / 2 - viewport.height / 2),
+        );
+      })
+      .toBeLessThan(3);
+    await modal
+      .getByRole("button", { name: "Refresh Code", exact: true })
+      .click();
+    await expect(modal.getByRole("alert")).toContainText("Please try again");
+    await expect(a.getByTestId("room-code")).toHaveText(old);
+    await a.screenshot({ path: "../../.flowdrop/ui-polish-invitation.png" });
+    await modal
+      .getByRole("button", { name: "Refresh Code", exact: true })
+      .click();
+    await expect(
+      modal.getByRole("button", { name: "Refreshing…", exact: true }),
+    ).toBeDisabled();
+    await expect(modal).not.toBeVisible();
+    expect(refreshRequests).toBe(2);
     await expect(a.getByTestId("room-code")).not.toHaveText(old);
     await expect(
       a.getByRole("button", { name: "Unlock Room", exact: true }),
@@ -309,14 +394,12 @@ test("a removed offline device stops recovery after membership rejection", async
       .last()
       .click();
     await expect(
-      a
-        .getByRole("listitem")
-        .filter({
-          has: a.getByRole("checkbox", {
-            name: "Select Offline phone",
-            exact: true,
-          }),
+      a.getByRole("listitem").filter({
+        has: a.getByRole("checkbox", {
+          name: "Select Offline phone",
+          exact: true,
         }),
+      }),
     ).toContainText("Connected");
     await b.evaluate(() =>
       (

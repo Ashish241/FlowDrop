@@ -1,7 +1,7 @@
 import { test, expect, type Page } from "@playwright/test";
 import { readFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
-async function open(page: Page) {
+async function open(page: Page, receive = false) {
   await page.goto("/");
   await page
     .getByRole("button", { name: "Optical Share", exact: true })
@@ -11,6 +11,13 @@ async function open(page: Page) {
       exact: true,
     }),
   ).toBeVisible();
+  await page
+    .getByRole("button", {
+      name: receive ? "Receive via Camera" : "Send via Screen",
+    })
+    .click();
+  if (!receive)
+    await page.getByText("Advanced display settings", { exact: true }).click();
 }
 async function png(page: Page, alt: RegExp) {
   const src = await page.getByAltText(alt).getAttribute("src");
@@ -47,7 +54,7 @@ test("64 KiB actual sender QRs reconstruct offline after loss, interrupted scans
     const a = await ac.newPage(),
       b = await bc.newPage();
     await open(a);
-    await open(b);
+    await open(b, true);
     await a.getByLabel("Optical content type").selectOption("file");
     await a.getByLabel("Parity per 8 data frames").selectOption("0");
     let seed = 742519;
@@ -212,7 +219,7 @@ test("synthetic camera video reaches real worker decoder and completes single-fr
       { src },
     );
     const b = await bc.newPage();
-    await open(b);
+    await open(b, true);
     await b.getByLabel("Camera resolution").selectOption("720");
     await b.getByRole("button", { name: "Start camera", exact: true }).click();
     await expect(b.getByRole("status")).toContainText(
@@ -241,7 +248,7 @@ test("manual missing-frame recovery works without cameras and preserves multifra
     const a = await ac.newPage(),
       b = await bc.newPage();
     await open(a);
-    await open(b);
+    await open(b, true);
     const message = "Unicode 多言語 🌍\n".repeat(50);
     await a.getByLabel("Optical text", { exact: true }).fill(message);
     await a.getByLabel("Parity per 8 data frames").selectOption("0");
@@ -365,7 +372,7 @@ test("browser WASM parity reconstructs a binary file from one data QR and two pa
     const a = await ac.newPage(),
       b = await bc.newPage();
     await open(a);
-    await open(b);
+    await open(b, true);
     await a.getByLabel("Optical content type").selectOption("file");
     await a.getByLabel("Compress only when smaller").uncheck();
     let seed = 9876;

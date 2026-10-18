@@ -45,6 +45,7 @@ test("Coming Soon makes no cloud calls; optical reconstructs real QR images offl
       exact: true,
     }),
   ).toBeVisible();
+  await page.getByRole("button", { name: "Receive via Camera" }).click();
   await context.setOffline(true);
   const bytes = Buffer.from([
     0,
@@ -98,6 +99,7 @@ test("optical sender controls and denied camera permission have useful states", 
     .getByRole("navigation")
     .getByRole("button", { name: "Optical Share", exact: true })
     .click();
+  await page.getByRole("button", { name: "Send via Screen" }).click();
   await page
     .getByPlaceholder("Text to display as QR frames")
     .fill("Unicode 🌍 <script>not executable</script>\n".repeat(10));
@@ -113,6 +115,7 @@ test("optical sender controls and denied camera permission have useful states", 
     .getByRole("button", { name: "Restart frames", exact: true })
     .click();
   await expect(page.getByAltText(/Optical frame 1 of/)).toBeVisible();
+  await page.getByRole("button", { name: "Receive via Camera" }).click();
   await page.getByRole("button", { name: "Start camera", exact: true }).click();
   await expect(page.getByRole("status")).toContainText("permission denied");
 });

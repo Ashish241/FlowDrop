@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import QRCode from "qrcode";
+import { Camera, MonitorUp } from "lucide-react";
 import { type OpticalPayload } from "./optical-protocol";
 import {
   buildOpticalTransfer,
@@ -33,6 +34,7 @@ const initialDiag = (): Diagnostics => ({
   source: "import",
 });
 export function OpticalPanel() {
+  const [view, setView] = useState<"send" | "receive" | null>(null);
   const [text, setText] = useState(""),
     [mode, setMode] = useState("text"),
     [file, setFile] = useState<File>(),
@@ -482,7 +484,48 @@ export function OpticalPanel() {
       data-optical-total={progress.total}
       data-optical-decoded={diag.decoded}
     >
-      <h2>Optical Share</h2>
+      <h2>Screen &amp; camera sharing</h2>
+      <p>Share text and small files using your screen and camera.</p>
+      <div
+        className={
+          view
+            ? "optical-entry-cards optical-flow-switch"
+            : "optical-entry-cards"
+        }
+      >
+        <button
+          className="secondary"
+          onClick={() => {
+            stop();
+            setView("send");
+          }}
+        >
+          <MonitorUp size={32} />
+          <strong>Send via Screen</strong>
+          <span>Choose content and display repeating QR frames.</span>
+        </button>
+        <button
+          className="secondary"
+          onClick={() => {
+            stop();
+            setView("receive");
+          }}
+        >
+          <Camera size={32} />
+          <strong>Receive via Camera</strong>
+          <span>Scan, recover missing frames, then verify and download.</span>
+        </button>
+      </div>
+      <details>
+        <summary>How it works</summary>
+        <ol>
+          <li>Prepare text or a small file.</li>
+          <li>Scan the sender’s screen with the receiver’s camera.</li>
+          <li>
+            Recover missing frames and download after integrity verification.
+          </li>
+        </ol>
+      </details>
       <p>
         Screen to camera, with no communication network after this page and
         Decoder ready have loaded. Text up to 16 KiB · files up to 64 KiB. For
@@ -494,9 +537,14 @@ export function OpticalPanel() {
           ? "Decoder ready · processing runs in a Web Worker"
           : "Loading offline QR decoder…"}
       </p>
-      <div className="optical-columns">
-        <section aria-label="Optical sender">
-          <h3>1 · Send text or a small file</h3>
+      <div className="optical-columns optical-single-flow">
+        <section
+          hidden={view !== "send"}
+          id="optical-send"
+          aria-label="Optical sender"
+          tabIndex={-1}
+        >
+          <h3>1 · Choose Content</h3>
           <label>
             Content type
             <select
@@ -530,93 +578,97 @@ export function OpticalPanel() {
               {file.name} · {formatSize(file.size)}
             </p>
           )}
-          <div className="optical-options">
-            <label>
-              Playback preset
-              <select
-                value={preset}
-                onChange={(event) => {
-                  const value = event.target.value;
-                  setPreset(value);
-                  if (value === "Auto") setChunk(400);
-                  setSpeed(
-                    value === "Slow" ? 1400 : value === "Fast" ? 600 : 1000,
-                  );
-                }}
-              >
-                {["Auto", "Slow", "Normal", "Fast", "Custom"].map((value) => (
-                  <option key={value}>{value}</option>
-                ))}
-              </select>
-            </label>
-            <label>
-              Payload bytes per frame
-              <select
-                value={chunk}
-                onChange={(event) => {
-                  setChunk(Number(event.target.value));
-                  setPreset("Custom");
-                }}
-              >
-                {[200, 400, 600, 800].map((value) => (
-                  <option key={value} value={value}>
-                    {value}
-                    {value === 400 ? " · conservative default" : ""}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
-              Parity per 8 data frames
-              <select
-                value={parity}
-                onChange={(event) => setParity(Number(event.target.value))}
-              >
-                {[0, 1, 2, 4].map((value) => (
-                  <option key={value} value={value}>
-                    {value}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
-              <input
-                type="checkbox"
-                checked={compress}
-                onChange={(event) => setCompress(event.target.checked)}
-              />
-              Compress only when smaller
-            </label>
-            <label>
-              QR size
-              <select
-                value={size}
-                onChange={(event) => setSize(Number(event.target.value))}
-              >
-                {[420, 600, 800, 1000].map((value) => (
-                  <option key={value} value={value}>
-                    {value} px
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
-              Frame speed (milliseconds)
-              <input
-                aria-label="Frame speed"
-                type="range"
-                min={400}
-                max={2000}
-                step={100}
-                value={speed}
-                onChange={(event) => {
-                  setSpeed(Number(event.target.value));
-                  setPreset("Custom");
-                }}
-              />
-              {speed} ms
-            </label>
-          </div>
+          <details>
+            <summary>Advanced display settings</summary>
+            <div className="optical-options">
+              <label>
+                Playback preset
+                <select
+                  value={preset}
+                  onChange={(event) => {
+                    const value = event.target.value;
+                    setPreset(value);
+                    if (value === "Auto") setChunk(400);
+                    setSpeed(
+                      value === "Slow" ? 1400 : value === "Fast" ? 600 : 1000,
+                    );
+                  }}
+                >
+                  {["Auto", "Slow", "Normal", "Fast", "Custom"].map((value) => (
+                    <option key={value}>{value}</option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                Payload bytes per frame
+                <select
+                  value={chunk}
+                  onChange={(event) => {
+                    setChunk(Number(event.target.value));
+                    setPreset("Custom");
+                  }}
+                >
+                  {[200, 400, 600, 800].map((value) => (
+                    <option key={value} value={value}>
+                      {value}
+                      {value === 400 ? " · conservative default" : ""}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                Parity per 8 data frames
+                <select
+                  value={parity}
+                  onChange={(event) => setParity(Number(event.target.value))}
+                >
+                  {[0, 1, 2, 4].map((value) => (
+                    <option key={value} value={value}>
+                      {value}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={compress}
+                  onChange={(event) => setCompress(event.target.checked)}
+                />
+                Compress only when smaller
+              </label>
+              <label>
+                QR size
+                <select
+                  value={size}
+                  onChange={(event) => setSize(Number(event.target.value))}
+                >
+                  {[420, 600, 800, 1000].map((value) => (
+                    <option key={value} value={value}>
+                      {value} px
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                Frame speed (milliseconds)
+                <input
+                  aria-label="Frame speed"
+                  type="range"
+                  min={400}
+                  max={2000}
+                  step={100}
+                  value={speed}
+                  onChange={(event) => {
+                    setSpeed(Number(event.target.value));
+                    setPreset("Custom");
+                  }}
+                />
+                {speed} ms
+              </label>
+            </div>
+          </details>
+          <h3>2 · Prepare Transfer</h3>
           <p>
             {transfer ? "Prepared" : "Estimated before compression"}:{" "}
             {estimateCount} frames · estimated one-cycle time{" "}
@@ -657,6 +709,14 @@ export function OpticalPanel() {
               Restart frames
             </button>
           </div>
+          {file && mode === "file" && file.size > 32768 && (
+            <p className="information-banner">
+              Optical transfers of this size can take several minutes and
+              require recovery. Use Offline LAN or Online rooms for faster
+              sharing.
+            </p>
+          )}
+          {qr && <h3>3 · Transfer</h3>}
           {qr && (
             <div ref={screen} className="optical-screen">
               <img
@@ -710,7 +770,7 @@ export function OpticalPanel() {
               </p>
             )}
           </details>
-          <details>
+          <details hidden={!transfer}>
             <summary>Recovery Mode · send only missing frames</summary>
             <p>
               On the receiver choose Recover Missing Frames, then point this
@@ -766,8 +826,21 @@ export function OpticalPanel() {
             </button>
           </details>
         </section>
-        <section aria-label="Optical receiver">
-          <h3>2 · Receive and verify</h3>
+        <section
+          hidden={
+            view !== "receive" &&
+            !(scanning && scanPurpose.current === "feedback")
+          }
+          id="optical-receive"
+          aria-label="Optical receiver"
+          tabIndex={-1}
+        >
+          <h3>1 · Start Camera</h3>
+          <p>
+            Allow camera access when prompted. If denied, enable Camera in your
+            browser’s site settings and try again. Camera images stay on this
+            device.
+          </p>
           <p>
             Keep the whole white border visible. Avoid reflections, tap the
             camera preview to focus if supported, and reduce screen brightness
@@ -801,13 +874,17 @@ export function OpticalPanel() {
               Reset receiver
             </button>
           </div>
-          <video
-            ref={video}
-            playsInline
-            muted
-            hidden={!scanning}
-            style={{ maxWidth: "100%" }}
-          />
+          <h3>2 · Scan</h3>
+          <div className="optical-camera">
+            <video
+              ref={video}
+              playsInline
+              muted
+              hidden={!scanning}
+              style={{ maxWidth: "100%" }}
+            />
+            {scanning && <span className="scan-guide" aria-hidden="true" />}
+          </div>
           <label>
             Import QR frame image (camera-free fallback)
             <input
@@ -820,16 +897,42 @@ export function OpticalPanel() {
               }}
             />
           </label>
-          <p>
-            Received {progress.received} / {progress.total} · Missing{" "}
-            {progress.missing.length} · {progress.percent.toFixed(1)}% ·
-            Recovered {progress.recovered}
-          </p>
-          <progress
-            aria-label="Optical receive progress"
-            max={100}
-            value={payload ? 100 : Math.min(99.9, progress.percent)}
-          />
+          <div
+            className="optical-progress-panel"
+            aria-live="polite"
+            aria-atomic="true"
+          >
+            <strong>
+              {payload
+                ? "File verified successfully ✓"
+                : requests.length
+                  ? "Recovering missing frames…"
+                  : progress.total
+                    ? progress.missing.length
+                      ? "Waiting for more frames…"
+                      : "Verifying received file…"
+                    : scanning
+                      ? "Scanning frames…"
+                      : "Ready to scan"}
+            </strong>
+            <p>
+              Frames Received: {progress.received} / {progress.total} · Missing{" "}
+              {progress.missing.length} · {progress.percent.toFixed(1)}% ·
+              Recovered {progress.recovered}
+            </p>
+            <progress
+              aria-label="Optical receive progress"
+              max={100}
+              value={progress.percent}
+            />
+            <p className="muted">
+              {progress.total
+                ? `${progress.percent.toFixed(1)}% · ${progress.missing.length} frames still needed.`
+                : "Point your camera at the first QR frame."}{" "}
+              Progress persists across repeated cycles. Download requires
+              SHA-256 verification.
+            </p>
+          </div>
           {progress.total > 0 && !payload && (
             <label>
               Missing frame numbers
@@ -840,29 +943,34 @@ export function OpticalPanel() {
               />
             </label>
           )}
-          <button
-            disabled={!progress.id || !progress.missing.length}
-            onClick={() => {
-              try {
-                setRequests(
-                  recoveryFrames(
-                    progress,
-                    diag.source === "camera" && diag.elapsed
-                      ? diag.decoded / diag.elapsed
-                      : 0,
-                  ),
-                );
-                setRequestIndex(0);
-                setStatus(
-                  `Recovering · Missing ${progress.missing.length}. Show each recovery QR to the sender; existing data is kept.`,
-                );
-              } catch (error) {
-                setStatus(String(error));
-              }
-            }}
-          >
-            Recover Missing Frames
-          </button>
+          {progress.total > 0 && !payload && (
+            <h3>3 · Recover Missing Frames</h3>
+          )}
+          {progress.missing.length > 0 && !payload && (
+            <button
+              disabled={!progress.id || !progress.missing.length}
+              onClick={() => {
+                try {
+                  setRequests(
+                    recoveryFrames(
+                      progress,
+                      diag.source === "camera" && diag.elapsed
+                        ? diag.decoded / diag.elapsed
+                        : 0,
+                    ),
+                  );
+                  setRequestIndex(0);
+                  setStatus(
+                    `Recovering · Missing ${progress.missing.length}. Show each recovery QR to the sender; existing data is kept.`,
+                  );
+                } catch (error) {
+                  setStatus(String(error));
+                }
+              }}
+            >
+              Recover Missing Frames
+            </button>
+          )}
           {requestQr && (
             <div>
               <img

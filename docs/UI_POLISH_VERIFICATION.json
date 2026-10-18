@@ -1,0 +1,65 @@
+{
+  "date": "2026-10-18",
+  "scope": "Local UI polish and real browser transport/image reconstruction; not physical or hosted acceptance",
+  "online_browser": {
+    "passed": 23,
+    "duration": "2.1m",
+    "artifacts": ".flowdrop/ui-polish-verified"
+  },
+  "desktop_browser": {
+    "passed": 8,
+    "duration_seconds": 21.2,
+    "artifacts": ".flowdrop/ui-polish-desktop-final"
+  },
+  "units": {
+    "passed": 31,
+    "files": 12
+  },
+  "backend": {
+    "passed": 87,
+    "skipped": 7
+  },
+  "checks": {
+    "eslint": "passed",
+    "ruff": "passed",
+    "typescript": "passed",
+    "online_build": "passed",
+    "desktop_frontend_build": "passed",
+    "guarded_pages_build": "passed"
+  },
+  "optical_64k": {
+    "original_bytes": 65536,
+    "payload_bytes_per_data_frame": 400,
+    "data_frames": 164,
+    "parity_disabled_for_selective_recovery_test": true,
+    "deliberately_missing_frames": 28,
+    "duplicate_did_not_increase_progress": true,
+    "selective_recovery_qr": true,
+    "exact_downloaded_bytes": true,
+    "sha256_matches": true,
+    "network_requests_after_load": 0,
+    "final_case_seconds": 46.8,
+    "physical_camera_verified": false
+  },
+  "modal": {
+    "cancel_and_escape": "passed",
+    "initial_focus": "Cancel",
+    "centered_tolerance_pixels": 3,
+    "inline_failure_and_retry": "passed",
+    "pending_disabled": "passed",
+    "successful_server_rotations": 1,
+    "lock_and_other_transfers_preserved": true
+  },
+  "themes": [
+    "light",
+    "dark"
+  ],
+  "optical_viewport_widths": [
+    390,
+    1280
+  ],
+  "physical_cross_network_verified": false,
+  "production_frontend_changed": false,
+  "production_blocker": "Strict public removal close-frame gate still observes 1006 rather than actual 4003; see MASTER_PRODUCT_RELEASE.md.",
+  "windows_zip_sha256": "CF8E76E3D14FA88FA3D77F2629BBFCE155E58A1C38F7BA05B7DBB1EBF5590E18"
+}
