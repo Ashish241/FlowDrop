@@ -51,18 +51,18 @@
     }
   },
   "deployment": {
-    "status": "BLOCKED: backend deployed; strict public close-frame gate failed; frontend correction not deployed",
+    "status": "BLOCKED: origin close completes with 4003; public client still receives no close frame (1006); support case submitted, frontend polish withheld",
     "website": "https://flowdrop-online.pages.dev/",
     "signaling": "https://flowdrop-signaling.onrender.com/signal/v2",
     "free_existing_projects_only": true,
     "automatic_deployments": false,
     "source_commit": "8076ed557693e2a174ae39d1fc2f8461678a9081",
-    "backend_deployment": "dep-dba8nlgm7kps73ftjaog",
+    "backend_deployment": "dep-dbad6sfbtjjs73emv6lg",
     "backend_https_wss": "passed before frontend deployment",
     "initial_pages_deployment": "35f51697-1f2d-409f-86e7-10f3ff1010ba",
     "corrective_backend_deployment": "dep-dba3v0om7kps73fcm5rg",
-    "backend_source_commit": "4257560035a0b4d71c69a6076acfe2689171ba67",
-    "backend_duration_seconds": 41.7,
+    "backend_source_commit": "1c4d7e4a1b3da92dc14ff2eb1eb8777e73de5a34",
+    "backend_duration_seconds": 39.7,
     "backend_start_command_transport": "websockets",
     "frontend_source_commit": "8076ed557693e2a174ae39d1fc2f8461678a9081",
     "frontend_deployment": "35f51697-1f2d-409f-86e7-10f3ff1010ba",
@@ -133,5 +133,27 @@
     "nonexistent_room_handshake": "HTTP 403 rejected",
     "final_full_public_suite": "not run: backend prerequisite failed",
     "root_cause": "Unresolved on public hosting path; transport selection did not fix it. Proxy/provider cause is not proven."
+  },
+  "close_diagnosis_20261018": {
+    "local_real_tcp_transports": [
+      "auto",
+      "websockets"
+    ],
+    "local_actual_server_close_code": 4003,
+    "local_revoked_credential_status": 403,
+    "backend_tests_passed": 91,
+    "backend_tests_skipped": 7,
+    "logging_privacy_tests": "passed",
+    "public_client_initiated_close_observed": 4003,
+    "public_server_initiated_gate": "FAILED",
+    "origin_close_requested": "2026-10-18T14:11:56Z",
+    "origin_close_completed": "2026-10-18T14:12:06Z",
+    "origin_close_code": 4003,
+    "origin_close_cancelled_after_fix": false,
+    "public_actual_received_close_frame": false,
+    "public_abnormal_code": 1006,
+    "support_case": "submitted; human-team escalation confirmed; human reply pending",
+    "provider_root_cause": "unconfirmed",
+    "support_case_id": null
   }
 }
