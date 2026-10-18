@@ -30,6 +30,8 @@ def verify(website, signaling):
         assert metadata.get("opticalProtocol") == 3
         assert metadata.get("opticalRecovery") is True
         assert metadata.get("hostRoomControls") is True
+        assert metadata.get("membershipRevocationEvent") is True
+        assert metadata.get("negotiationGeneration") is True
         assert metadata.get("textReceipts") is True
         assert metadata.get("productDesign") == "navy-teal-20261018"
         assert metadata["signaling"].rstrip("/") == signaling.rstrip("/")
@@ -37,6 +39,8 @@ def verify(website, signaling):
         health.raise_for_status()
         assert health.json()["protocol"] == 2
         assert health.json().get("hostControls") is True
+        assert health.json().get("membershipRevocationEvent") is True
+        assert health.json().get("negotiationGeneration") is True
         assert health.json().get("manualInvitationRefresh") is True
         assert health.json()["revision"] == metadata["revision"]
         assert health.json()["state"] == "single-instance-memory"
@@ -136,8 +140,9 @@ def verify(website, signaling):
                     removed = client.delete(target, headers=auth)
                     removed.raise_for_status()
                     assert len(json.loads(a.recv(timeout=10))["members"]) == 1
+                    assert json.loads(b.recv(timeout=10))["type"] == "removed"
                     try:
-                        b.recv(timeout=10)
+                        b.recv(timeout=30)
                         raise AssertionError("Removed socket remained open")
                     except ConnectionClosed as closed:
                         assert closed.rcvd.code == 4003

@@ -45,7 +45,8 @@ type Session = Snapshot & { room: string; token: string; member: string };
 type Peer = {
   pc: RTCPeerConnection;
   channel?: RTCDataChannel;
-  candidates: RTCIceCandidateInit[];
+  candidates: Array<{ candidate: RTCIceCandidateInit; generation?: string }>;
+  generation?: string;
   state: string;
   offered?: boolean;
 };
@@ -79,8 +80,9 @@ async function request(
   });
   if (!response.ok) {
     const value = await response.json().catch(() => ({}));
-    throw new Error(
-      value.detail || `Connection unavailable (${response.status})`,
+    throw Object.assign(
+      new Error(value.detail || `Connection unavailable (${response.status})`),
+      { status: response.status },
     );
   }
   return response.json();
@@ -253,14 +255,24 @@ export function RoomDashboard({
     let ice: RTCConfiguration = {};
     let members: Member[] = [];
     let resync = false;
+    let revoked = false;
     const identity = session;
     seenMembers.current = new Set();
     function send(data: unknown) {
       if (ws.current?.readyState === WebSocket.OPEN)
         ws.current.send(JSON.stringify(data));
     }
+    const retired = new Map<string, Set<string>>();
     function destroy(id: string) {
       const p = peers.current.get(id);
+      if (p?.generation) {
+        const generations = retired.get(id) || new Set<string>();
+        generations.add(p.generation);
+        if (generations.size > 32)
+          generations.delete(generations.values().next().value!);
+        retired.set(id, generations);
+        if (retired.size > 32) retired.delete(retired.keys().next().value!);
+      }
       peers.current.delete(id);
       p?.pc.close();
       handles.current.delete(id);
@@ -277,12 +289,22 @@ export function RoomDashboard({
         return existing;
       if (existing) destroy(id);
       const pc = new RTCPeerConnection(ice),
-        p: Peer = { pc, candidates: [], state: "Connecting" };
+        p: Peer = {
+          pc,
+          candidates: [],
+          state: "Connecting",
+          generation: identity.member < id ? crypto.randomUUID() : undefined,
+        };
       peers.current.set(id, p);
       pc.onicecandidate = (e) => {
         if (disposed || peers.current.get(id) !== p) return;
         if (e.candidate)
-          send({ type: "ice", to: id, candidate: e.candidate.toJSON() });
+          send({
+            type: "ice",
+            to: id,
+            candidate: e.candidate.toJSON(),
+            generation: p.generation,
+          });
       };
       function channel(dc: RTCDataChannel) {
         p.channel = dc;
@@ -318,11 +340,7 @@ export function RoomDashboard({
                 ? "Reconnecting"
                 : "Connecting";
         refresh((n) => n + 1);
-        if (pc.connectionState === "failed") {
-          destroy(id);
-          send({ type: "retry", to: id });
-          void offer(id);
-        }
+        if (pc.connectionState === "failed") retryDevice.current?.(id);
       };
       if (identity.member < id) channel(pc.createDataChannel("flowdrop"));
       return p;
@@ -334,20 +352,36 @@ export function RoomDashboard({
         try {
           await p.pc.setLocalDescription(await p.pc.createOffer());
           if (disposed || peers.current.get(id) !== p) return;
-          send({ type: "offer", to: id, sdp: p.pc.localDescription!.sdp });
+          send({
+            type: "offer",
+            to: id,
+            sdp: p.pc.localDescription!.sdp,
+            generation: p.generation,
+          });
         } catch (reason) {
           p.offered = false;
           if (!disposed && peers.current.get(id) === p) throw reason;
         }
       }
     }
-    retryDevice.current = (id) => {
+    function resetPeer(id: string) {
       destroy(id);
-      send({ type: "retry", to: id });
+      const p = peer(id);
+      send({ type: "retry", to: id, reset: true, generation: p.generation });
       void offer(id);
+    }
+    retryDevice.current = (id) => {
+      if (revoked || disposed) return;
+      if (identity.member < id) resetPeer(id);
+      else
+        send({
+          type: "retry",
+          to: id,
+          generation: peers.current.get(id)?.generation,
+        });
     };
     async function connect() {
-      if (disposed) return;
+      if (disposed || revoked) return;
       setStatus(reconnectAttempts.current ? "Reconnecting" : "Connecting");
       try {
         ice = await request(
@@ -390,6 +424,19 @@ export function RoomDashboard({
               if (disposed || ws.current !== socket) return;
               const event = JSON.parse(e.data);
               lastHeartbeat.current = Date.now();
+              if (revoked) return;
+              if (event.type === "removed") {
+                revoked = true;
+                clearInterval(heartbeat);
+                clearTimeout(timer);
+                setStatus("Connection ended");
+                setError("The room host removed your device.");
+                setEnded(true);
+                sessionStorage.removeItem(sessionKey);
+                for (const [id] of peers.current) destroy(id);
+                socket.close();
+                return;
+              }
               if (event.type === "pong") return;
               if (event.type === "members") {
                 const recovering = resync;
@@ -414,13 +461,9 @@ export function RoomDashboard({
                   )
                     destroy(id);
                 if (recovering)
-                  for (const [id, p] of peers.current)
-                    if (p.channel?.readyState !== "open") {
-                      destroy(id);
-                      // Both ends must discard an unfinished negotiation. The stable
-                      // lower-ID initiator then creates the replacement offer.
-                      send({ type: "retry", to: id });
-                    }
+                  for (const [id, p] of [...peers.current])
+                    if (p.channel?.readyState !== "open")
+                      retryDevice.current?.(id);
                 for (const m of event.members as Member[])
                   if (
                     m.id !== identity.member &&
@@ -464,44 +507,100 @@ export function RoomDashboard({
                 ["offer", "answer", "ice", "retry"].includes(event.type) &&
                 members.some((m) => m.id === event.from && m.online)
               ) {
+                if (
+                  event.generation &&
+                  retired.get(event.from)?.has(event.generation)
+                )
+                  return;
                 if (event.type === "retry") {
-                  destroy(event.from);
-                  await offer(event.from);
+                  const current = peers.current.get(event.from);
+                  if (identity.member < event.from) {
+                    // Ignore requests from an already replaced negotiation.
+                    if (
+                      !event.generation ||
+                      event.generation === current?.generation
+                    )
+                      resetPeer(event.from);
+                  } else if (event.reset && event.generation) {
+                    if (current?.generation !== event.generation) {
+                      destroy(event.from);
+                      peer(event.from).generation = event.generation;
+                    }
+                  } else {
+                    // Compatibility with an older initiator without generations.
+                    destroy(event.from);
+                    await offer(event.from);
+                  }
                   return;
                 }
-                const p = peer(event.from);
+                if (event.type === "offer" && identity.member < event.from)
+                  return;
+                let p = peer(event.from);
                 if (event.type === "offer") {
-                  if (identity.member < event.from) return;
+                  if (
+                    event.generation &&
+                    p.generation &&
+                    event.generation !== p.generation
+                  ) {
+                    destroy(event.from);
+                    p = peer(event.from);
+                  }
+                  p.generation = event.generation;
                   await p.pc.setRemoteDescription({
                     type: "offer",
                     sdp: event.sdp,
                   });
-                  for (const candidate of p.candidates.splice(0))
-                    await p.pc.addIceCandidate(candidate);
+                  for (const item of p.candidates.splice(0))
+                    if (!item.generation || item.generation === p.generation)
+                      await p.pc.addIceCandidate(item.candidate);
                   await p.pc.setLocalDescription(await p.pc.createAnswer());
+                  if (
+                    disposed ||
+                    revoked ||
+                    peers.current.get(event.from) !== p
+                  )
+                    return;
                   send({
                     type: "answer",
                     to: event.from,
                     sdp: p.pc.localDescription!.sdp,
+                    generation: p.generation,
                   });
                 } else if (event.type === "answer") {
+                  if (event.generation && event.generation !== p.generation)
+                    return;
+                  if (p.pc.signalingState !== "have-local-offer") return;
                   await p.pc.setRemoteDescription({
                     type: "answer",
                     sdp: event.sdp,
                   });
-                  for (const candidate of p.candidates.splice(0))
-                    await p.pc.addIceCandidate(candidate);
-                } else if (p.pc.remoteDescription)
-                  await p.pc.addIceCandidate(event.candidate);
-                else p.candidates.push(event.candidate);
+                  for (const item of p.candidates.splice(0))
+                    if (!item.generation || item.generation === p.generation)
+                      await p.pc.addIceCandidate(item.candidate);
+                } else {
+                  if (
+                    event.generation &&
+                    p.generation &&
+                    event.generation !== p.generation
+                  )
+                    return;
+                  if (p.pc.remoteDescription)
+                    await p.pc.addIceCandidate(event.candidate);
+                  else
+                    p.candidates.push({
+                      candidate: event.candidate,
+                      generation: event.generation,
+                    });
+                }
               }
             })
             .catch(() => {
-              setError("Connection interrupted. Retry the affected device.");
+              if (!disposed && !revoked)
+                setError("Connection interrupted. Retry the affected device.");
             });
         };
         socket.onclose = (e) => {
-          if (disposed || ws.current !== socket) return;
+          if (disposed || revoked || ws.current !== socket) return;
           clearInterval(heartbeat);
           if (e.code === 4001 || e.code === 4002 || e.code === 4003) {
             setStatus("Connection failed");
@@ -530,7 +629,18 @@ export function RoomDashboard({
           }
         };
       } catch (reason) {
-        if (!disposed) {
+        if (!disposed && !revoked) {
+          if (
+            [403, 404].includes((reason as { status?: number })?.status || 0)
+          ) {
+            revoked = true;
+            setEnded(true);
+            setStatus("Connection ended");
+            setError("Your room access has ended. Start or join a new room.");
+            sessionStorage.removeItem(sessionKey);
+            for (const [id] of peers.current) destroy(id);
+            return;
+          }
           setError(String(reason));
           setStatus("Connection failed");
           if (reconnectAttempts.current++ < 5)
@@ -542,6 +652,7 @@ export function RoomDashboard({
       }
     }
     retry.current = () => {
+      if (revoked) return;
       clearTimeout(timer);
       reconnectAttempts.current = 0;
       const old = ws.current;
@@ -866,7 +977,7 @@ export function RoomDashboard({
         <p
           role="alert"
           className={
-            /removed your device|room is locked|expired or ended|session opened/i.test(
+            /removed your device|room is locked|expired or ended|room access has ended|session opened/i.test(
               error,
             )
               ? "information-banner"
@@ -955,7 +1066,7 @@ export function RoomDashboard({
           <h1>
             {error.includes("removed")
               ? "You’ve left this room"
-              : "This room is closed"}
+              : "This room session has ended"}
           </h1>
           <p>{error}</p>
           <button onClick={() => void leave()}>Back to Home</button>

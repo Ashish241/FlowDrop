@@ -81,6 +81,8 @@ export default defineConfig(({ mode }) => {
                 recipientDeliveryLedger: true,
                 autoSelectNewMembers: true,
                 hostRoomControls: true,
+                membershipRevocationEvent: true,
+                negotiationGeneration: true,
                 textReceipts: true,
                 productDesign: "navy-teal-20261018",
                 opticalProtocol: 3,

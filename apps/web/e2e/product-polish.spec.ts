@@ -274,3 +274,72 @@ test("signaling recovery before the first DataChannel resets both unfinished pee
     await Promise.all(contexts.map((ctx) => ctx.close()));
   }
 });
+
+test("a removed offline device stops recovery after membership rejection", async ({
+  browser,
+}) => {
+  const ac = await browser.newContext(),
+    bc = await browser.newContext();
+  try {
+    await bc.addInitScript(() => {
+      const sockets: WebSocket[] = [];
+      Object.assign(window, { offlineRemovalSockets: sockets });
+      const Original = WebSocket;
+      window.WebSocket = class extends Original {
+        constructor(url: string | URL, protocols?: string | string[]) {
+          super(url, protocols);
+          sockets.push(this);
+        }
+      };
+    });
+    const a = await ac.newPage(),
+      b = await bc.newPage();
+    await a.goto("/");
+    await a.getByRole("button", { name: "Create Room", exact: true }).click();
+    await a.getByLabel("Device name", { exact: true }).fill("Host");
+    await a
+      .getByRole("button", { name: "Create Room", exact: true })
+      .last()
+      .click();
+    await expect(a.getByTestId("room-code")).toHaveText(/\d{6}/);
+    await b.goto("/#room=" + (await a.getByTestId("room-code").innerText()));
+    await b.getByLabel("Device name", { exact: true }).fill("Offline phone");
+    await b
+      .getByRole("button", { name: "Join Room", exact: true })
+      .last()
+      .click();
+    await expect(
+      a
+        .getByRole("listitem")
+        .filter({
+          has: a.getByRole("checkbox", {
+            name: "Select Offline phone",
+            exact: true,
+          }),
+        }),
+    ).toContainText("Connected");
+    await b.evaluate(() =>
+      (
+        window as unknown as { offlineRemovalSockets: WebSocket[] }
+      ).offlineRemovalSockets
+        .at(-1)!
+        .close(),
+    );
+    a.on("dialog", (dialog) => dialog.accept());
+    await a.getByLabel("Actions for Offline phone", { exact: true }).click();
+    await a
+      .getByRole("button", { name: "Remove from Room", exact: true })
+      .click();
+    await expect(b.getByRole("alert")).toContainText(
+      /removed your device|room access has ended/,
+    );
+    await expect(
+      b.getByRole("button", { name: "Retry Connection", exact: true }),
+    ).toHaveCount(0);
+    expect(
+      await b.evaluate(() => sessionStorage.getItem("flowdrop-room-v2")),
+    ).toBeNull();
+  } finally {
+    await Promise.all([ac.close(), bc.close()]);
+  }
+});

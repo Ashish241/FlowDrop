@@ -6,6 +6,7 @@ export default defineConfig({
     "**/consumer-online.spec.ts",
     "**/post-connection.spec.ts",
     "**/rooms.spec.ts",
+    "**/product-polish.spec.ts",
     "**/workspace.spec.ts",
     "**/delivery.spec.ts",
     "**/optical-reliable.spec.ts",

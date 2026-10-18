@@ -7,13 +7,14 @@
   },
   "local": {
     "backend": {
-      "passed": 86,
+      "passed": 87,
       "skipped": 7,
-      "duration_seconds": 5.34
+      "duration_seconds": 4.46
     },
     "online_browser": {
-      "passed": 21,
-      "duration": "2.1m"
+      "passed": 22,
+      "duration": "2.3m",
+      "artifacts": ".flowdrop/master-generation-final-local"
     },
     "desktop_browser": {
       "passed": 8,
@@ -32,14 +33,32 @@
       1024,
       1440,
       1920
-    ]
+    ],
+    "legacy_combined": {
+      "status": "passed",
+      "evidence": ".flowdrop/master-product-legacy/.last-run.json",
+      "failedTests": []
+    },
+    "repeated_concurrent_retry": {
+      "passed": 3,
+      "duration_seconds": 38.9,
+      "artifacts": ".flowdrop/master-generation-repeated"
+    },
+    "revocation_and_generation_focused": {
+      "passed": 6,
+      "duration_seconds": 28.0
+    }
   },
   "deployment": {
-    "status": "verified source; awaiting manual backend-first deployment",
+    "status": "corrective source verified; awaiting backend-first manual deployment",
     "website": "https://flowdrop-online.pages.dev/",
     "signaling": "https://flowdrop-signaling.onrender.com/signal/v2",
     "free_existing_projects_only": true,
-    "automatic_deployments": false
+    "automatic_deployments": false,
+    "source_commit": "8076ed557693e2a174ae39d1fc2f8461678a9081",
+    "backend_deployment": "dep-db9t1qajnfac73dhm2q0",
+    "backend_https_wss": "passed before frontend deployment",
+    "initial_pages_deployment": "35f51697-1f2d-409f-86e7-10f3ff1010ba"
   },
   "physical_camera_verified": false,
   "physical_cross_network_verified": false,
@@ -51,7 +70,10 @@
     "Browser reconnect tests reproduced duplicate/stale offers and unfinished-peer reset races; fixed and deterministic test passed.",
     "Retained Join form failed same-page invitation re-entry; hash/popstate synchronization fixed and full delivery test passed.",
     "Concurrent CPU load allowed a legitimate heartbeat to precede an asserted room event; test now ignores heartbeat frames.",
-    "Initial theme script lint declarations were corrected; final lint passed."
+    "Initial theme script lint declarations were corrected; final lint passed.",
+    "The first public host-removal check failed. An explicit revocation event and terminal handling for offline revoked credentials were added; mandatory close-frame verification is retained.",
+    "Automatic review rejected accepting a close-frame timeout as a pass. That proposed change did not execute; the verifier still requires the removal event and a 4003 close frame.",
+    "A simultaneous DataChannel-close race required generation-tagged offers/answers/ICE and a single reset initiator; stale generations are bounded and rejected."
   ],
   "limits": [
     "Physical phone-camera and separate-network transfer remain unverified.",
@@ -60,5 +82,13 @@
     "In-page selected File objects survive reconnect; full restart can require reselection.",
     "Optical finite parity and 64 KiB cap; complete recovery tests do not prove physical camera reliability.",
     "Online Vite chunk advisory remains documented."
-  ]
+  ],
+  "public_initial": {
+    "passed": 19,
+    "failed": 1,
+    "skipped": 1,
+    "duration": "4.3m",
+    "source": "8076ed5",
+    "failure": "Host-removal UI received membership-required error instead of a terminal removed state; strict socket check timed out. This is not a verified removal pass."
+  }
 }

@@ -8,6 +8,7 @@ import asyncio
 import hashlib
 import hmac
 import json
+import re
 import secrets
 import time
 from typing import Literal
@@ -157,6 +158,8 @@ def install_rooms(app, allowed):
             "topology": "addressed-mesh",
             "maxMembers": 8,
             "hostControls": True,
+            "membershipRevocationEvent": True,
+            "negotiationGeneration": True,
             "manualInvitationRefresh": True,
             "state": "single-instance-memory",
             "invitationRotationSeconds": 600,
@@ -262,6 +265,12 @@ def install_rooms(app, allowed):
         target = room["sockets"].pop(mid, None)
         if target:
             try:
+                # Application-level revocation reaches clients even when an edge
+                # proxy delays the WebSocket close handshake.
+                await asyncio.wait_for(target.send_json({"type": "removed"}), 3)
+            except (RuntimeError, TimeoutError, WebSocketDisconnect):
+                pass
+            try:
                 await asyncio.wait_for(
                     target.close(code=4003, reason="Removed by host"), 3
                 )
@@ -308,6 +317,9 @@ def install_rooms(app, allowed):
                     continue
                 if room["members"].get(mid) is not identity:
                     await ws.close(code=4003, reason="Removed by host")
+                    break
+                if room["sockets"].get(mid) is not ws:
+                    await ws.close(code=4002, reason="Session opened elsewhere")
                     break
                 if len(raw) > 65536:
                     await ws.close(code=1009)
@@ -373,11 +385,23 @@ def install_rooms(app, allowed):
                         or (field == "candidate" and isinstance(payload, dict))
                     ):
                         continue
+                    generation = data.get("generation")
+                    if generation is not None and not (
+                        isinstance(generation, str)
+                        and re.fullmatch(r"[a-f0-9-]{36}", generation)
+                    ):
+                        continue
+                    event = {"type": kind, "from": mid, field: payload}
+                    if generation is not None:
+                        event["generation"] = generation
+                    # Stable lower IDs are the only reset/offer initiators.
+                    if kind == "retry" and data.get("reset") is True and mid < target:
+                        event["reset"] = True
                     peer = room["sockets"].get(target)
                     if peer:
                         # Never forward user-supplied sender IDs or other fields.
                         await asyncio.wait_for(
-                            peer.send_json({"type": kind, "from": mid, field: payload}),
+                            peer.send_json(event),
                             3,
                         )
         except (

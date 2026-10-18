@@ -20,6 +20,59 @@ class NamedRoomTests(unittest.TestCase):
     def join(self, a, name="Phone"):
         return self.client.post("/v2/rooms/" + a["code"] + "/join", json={"name": name})
 
+    def test_generation_routing_and_single_reset_initiator(self):
+        a = self.create()
+        b = self.join(a).json()
+        low, high = sorted([a, b], key=lambda m: m["member"])
+        path = "/v2/rooms/" + a["room"] + "/ws"
+        generation = "11111111-1111-4111-8111-111111111111"
+        with self.client.websocket_connect(path, headers=ORIGIN) as first:
+            first.send_text(low["token"])
+            first.receive_json()
+            with self.client.websocket_connect(path, headers=ORIGIN) as second:
+                second.send_text(high["token"])
+                second.receive_json()
+                first.receive_json()
+                first.send_json(
+                    {
+                        "type": "retry",
+                        "to": high["member"],
+                        "generation": generation,
+                        "reset": True,
+                    }
+                )
+                event = second.receive_json()
+                self.assertTrue(event["reset"])
+                self.assertEqual(event["generation"], generation)
+                second.send_json(
+                    {
+                        "type": "retry",
+                        "to": low["member"],
+                        "generation": generation,
+                        "reset": True,
+                    }
+                )
+                event = first.receive_json()
+                self.assertNotIn("reset", event)
+                self.assertEqual(event["from"], high["member"])
+                first.send_json(
+                    {
+                        "type": "offer",
+                        "to": high["member"],
+                        "sdp": "invalid-generation",
+                        "generation": "x" * 1000,
+                    }
+                )
+                first.send_json(
+                    {
+                        "type": "offer",
+                        "to": high["member"],
+                        "sdp": "bounded-generation",
+                        "generation": generation,
+                    }
+                )
+                self.assertEqual(second.receive_json()["sdp"], "bounded-generation")
+
     def test_host_refresh_preserves_room_and_revokes_old_invitation(self):
         a = self.create()
         b = self.join(a).json()
@@ -68,6 +121,7 @@ class NamedRoomTests(unittest.TestCase):
             ws.send_text(b["token"])
             ws.receive_json()
             self.assertEqual(self.client.delete(target, headers=auth).status_code, 200)
+            self.assertEqual(ws.receive_json()["type"], "removed")
             event = ws.receive()
             self.assertEqual(event["type"], "websocket.close")
             self.assertEqual(event["code"], 4003)
