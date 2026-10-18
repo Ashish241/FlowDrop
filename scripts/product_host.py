@@ -48,7 +48,12 @@ def main():
             app.mount("/signal", child)
             app.mount("/", StaticFiles(directory="apps/web/dist-online", html=True))
         uvicorn.run(
-            app, host="127.0.0.1", port=port, log_level="warning", access_log=False
+            app,
+            host="127.0.0.1",
+            port=port,
+            log_level="warning",
+            access_log=False,
+            ws="websockets" if args.product == "online" else "auto",
         )
 
 

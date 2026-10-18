@@ -272,7 +272,7 @@ def install_rooms(app, allowed):
                 pass
             try:
                 await asyncio.wait_for(
-                    target.close(code=4003, reason="Removed by host"), 3
+                    target.close(code=4003, reason="Removed by host"), 10
                 )
             except (RuntimeError, TimeoutError, WebSocketDisconnect):
                 pass

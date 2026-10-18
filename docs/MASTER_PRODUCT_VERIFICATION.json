@@ -9,12 +9,13 @@
     "backend": {
       "passed": 87,
       "skipped": 7,
-      "duration_seconds": 4.46
+      "duration_seconds": 3.86
     },
     "online_browser": {
       "passed": 22,
-      "duration": "2.3m",
-      "artifacts": ".flowdrop/master-generation-final-local"
+      "duration": "2.0m",
+      "artifacts": ".flowdrop/master-explicit-ws-local",
+      "transport": "websockets"
     },
     "desktop_browser": {
       "passed": 8,
@@ -50,7 +51,7 @@
     }
   },
   "deployment": {
-    "status": "corrective source verified; awaiting backend-first manual deployment",
+    "status": "explicit transport verified locally; awaiting manual service configuration/deployment",
     "website": "https://flowdrop-online.pages.dev/",
     "signaling": "https://flowdrop-signaling.onrender.com/signal/v2",
     "free_existing_projects_only": true,
@@ -58,7 +59,8 @@
     "source_commit": "8076ed557693e2a174ae39d1fc2f8461678a9081",
     "backend_deployment": "dep-db9t1qajnfac73dhm2q0",
     "backend_https_wss": "passed before frontend deployment",
-    "initial_pages_deployment": "35f51697-1f2d-409f-86e7-10f3ff1010ba"
+    "initial_pages_deployment": "35f51697-1f2d-409f-86e7-10f3ff1010ba",
+    "corrective_backend_deployment": "dep-dba3v0om7kps73fcm5rg"
   },
   "physical_camera_verified": false,
   "physical_cross_network_verified": false,
@@ -73,7 +75,8 @@
     "Initial theme script lint declarations were corrected; final lint passed.",
     "The first public host-removal check failed. An explicit revocation event and terminal handling for offline revoked credentials were added; mandatory close-frame verification is retained.",
     "Automatic review rejected accepting a close-frame timeout as a pass. That proposed change did not execute; the verifier still requires the removal event and a 4003 close frame.",
-    "A simultaneous DataChannel-close race required generation-tagged offers/answers/ICE and a single reset initiator; stale generations are bounded and rejected."
+    "A simultaneous DataChannel-close race required generation-tagged offers/answers/ICE and a single reset initiator; stale generations are bounded and rejected.",
+    "On the public automatic/SansIO transport the removed event arrived but no close frame was received (1006). The strict gate failed. The existing handshake-awaiting transport is selected explicitly and retested; close observation remains mandatory."
   ],
   "limits": [
     "Physical phone-camera and separate-network transfer remain unverified.",
@@ -81,7 +84,8 @@
     "No TURN relay; restrictive networks may fail.",
     "In-page selected File objects survive reconnect; full restart can require reselection.",
     "Optical finite parity and 64 KiB cap; complete recovery tests do not prove physical camera reliability.",
-    "Online Vite chunk advisory remains documented."
+    "Online Vite chunk advisory remains documented.",
+    "Pinned Uvicorn explicit websockets implementation emits a deprecation warning; future upgrades must pass the strict public closing gate."
   ],
   "public_initial": {
     "passed": 19,

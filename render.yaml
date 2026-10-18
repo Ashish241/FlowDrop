@@ -5,7 +5,7 @@ services:
     runtime: python
     plan: free
     buildCommand: pip install -r infrastructure/deployment/signaling-requirements.txt
-    startCommand: uvicorn services.signaling.public:create_app --factory --host 0.0.0.0 --port $PORT --workers 1 --no-access-log --no-proxy-headers --ws-max-size 65536 --limit-concurrency 256
+    startCommand: uvicorn services.signaling.public:create_app --factory --host 0.0.0.0 --port $PORT --workers 1 --ws websockets --no-access-log --no-proxy-headers --ws-max-size 65536 --limit-concurrency 256
     healthCheckPath: /signal/health
     autoDeployTrigger: "off"
     envVars:

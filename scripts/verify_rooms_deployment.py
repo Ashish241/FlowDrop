@@ -145,6 +145,9 @@ def verify(website, signaling):
                         b.recv(timeout=30)
                         raise AssertionError("Removed socket remained open")
                     except ConnectionClosed as closed:
+                        assert closed.rcvd is not None, (
+                            "Public transport ended without a close frame"
+                        )
                         assert closed.rcvd.code == 4003
                     assert client.get(path + "/ice", headers=guest).status_code == 403
             result.update(
