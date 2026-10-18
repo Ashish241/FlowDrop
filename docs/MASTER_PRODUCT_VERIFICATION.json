@@ -48,25 +48,31 @@
     "revocation_and_generation_focused": {
       "passed": 6,
       "duration_seconds": 28.0
+    },
+    "latest_backend": {
+      "date": "2026-10-19",
+      "passed": 92,
+      "skipped": 7
     }
   },
   "deployment": {
-    "status": "BLOCKED: origin close completes with 4003; public client still receives no close frame (1006); support case submitted, frontend polish withheld",
+    "status": "Deployed and browser-verified with known failed independent public close-frame gate; not full release acceptance",
     "website": "https://flowdrop-online.pages.dev/",
     "signaling": "https://flowdrop-signaling.onrender.com/signal/v2",
     "free_existing_projects_only": true,
     "automatic_deployments": false,
-    "source_commit": "8076ed557693e2a174ae39d1fc2f8461678a9081",
-    "backend_deployment": "dep-dbad6sfbtjjs73emv6lg",
-    "backend_https_wss": "passed before frontend deployment",
+    "source_commit": "28b151bd40ab74d072f5cb56c0b4b0f88a28d4da",
+    "backend_deployment": "dep-dbahlh4s728c73ai2gt0",
+    "backend_https_wss": "Basic HTTPS/WSS room signaling works; strict received 4003 close-frame gate fails",
     "initial_pages_deployment": "35f51697-1f2d-409f-86e7-10f3ff1010ba",
     "corrective_backend_deployment": "dep-dba3v0om7kps73fcm5rg",
-    "backend_source_commit": "1c4d7e4a1b3da92dc14ff2eb1eb8777e73de5a34",
-    "backend_duration_seconds": 39.7,
+    "backend_source_commit": "28b151bd40ab74d072f5cb56c0b4b0f88a28d4da",
+    "backend_duration_seconds": 67,
     "backend_start_command_transport": "websockets",
-    "frontend_source_commit": "8076ed557693e2a174ae39d1fc2f8461678a9081",
-    "frontend_deployment": "35f51697-1f2d-409f-86e7-10f3ff1010ba",
-    "frontend_correction_deployed": false
+    "frontend_source_commit": "28b151bd40ab74d072f5cb56c0b4b0f88a28d4da",
+    "frontend_deployment": "119887c9-0516-401b-96b8-f857e95bd88c",
+    "frontend_correction_deployed": true,
+    "frontend_duration_seconds": 39
   },
   "physical_camera_verified": false,
   "physical_cross_network_verified": false,
@@ -85,7 +91,7 @@
     "On the public automatic/SansIO transport the removed event arrived but no close frame was received (1006). The strict gate failed. The existing handshake-awaiting transport is selected explicitly and retested; close observation remains mandatory."
   ],
   "limits": [
-    "Mandatory public removed-event plus actual 4003 close-frame gate remains failed; corrected frontend release is withheld.",
+    "Mandatory public removed-event plus actual 4003 close-frame gate remains failed; UI was deployed at explicit user request with this known limitation.",
     "Physical phone-camera and separate-network transfer remain unverified.",
     "Single-instance in-memory rooms are lost on provider restart.",
     "No TURN relay; restrictive networks may fail.",
@@ -155,5 +161,15 @@
     "support_case": "submitted; human-team escalation confirmed; human reply pending",
     "provider_root_cause": "unconfirmed",
     "support_case_id": null
+  },
+  "ui_polish_final_public": {
+    "date": "2026-10-19",
+    "passed": 22,
+    "failed": 0,
+    "skipped": 1,
+    "duration": "3.9m",
+    "source": "28b151b",
+    "strict_close_frame_gate": "FAILED: 1006, no actual 4003 frame",
+    "physical_cross_network_verified": false
   }
 }

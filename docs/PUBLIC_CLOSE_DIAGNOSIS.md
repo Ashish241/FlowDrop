@@ -1,3 +1,7 @@
+> **Current deployment, 2026-10-19:** Both public services run source `28b151b`; Pages `119887c9-0516-401b-96b8-f857e95bd88c`, Render `dep-dbahlh4s728c73ai2gt0`. End Room now sends an explicit terminal event. Final hosted browser result: 22 passed, one expected local-clock-only skip (3.9m). Backend: 92 passed/seven infrastructure skips; units: 31 passed. The independent public 4003 close-frame gate remains failed (1006) and escalated to Render. No physical/TURN or full production-readiness claim. Existing free/manual hosting and Windows artifacts are preserved. See [deployment report](UI_POLISH_DEPLOYMENT.md) and [results](UI_POLISH_DEPLOYMENT.json). Earlier entries are historical.
+
+> **Live UI deployment, 2026-10-18:** At the user’s explicit deployment request, UI polish is now live at https://flowdrop-online.pages.dev/ from `bd829d5`, Pages deployment `872a1393-a29d-46e8-878d-895549bfaa11`. Automatic deployments remain paused; Windows artifacts are preserved. The strict public close-frame gate remains failed (1006), with Render support escalated. Deployment is not a claim that all release gates passed. See [deployment report](UI_POLISH_DEPLOYMENT.md). Earlier entries below are historical.
+
 # Public WebSocket close investigation — 2026-10-18
 
 The release gate remains unchanged: host removal must revoke credentials, deliver the explicit removed event, and yield an actual received close frame with code 4003. Timeout or abnormal closure 1006 is a failure. Client-initiated close is a separate diagnostic, not a substitute for this gate.

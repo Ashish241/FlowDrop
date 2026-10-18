@@ -1,0 +1,53 @@
+{
+  "date": "2026-10-19",
+  "website": "https://flowdrop-online.pages.dev/",
+  "source": "28b151bd40ab74d072f5cb56c0b4b0f88a28d4da",
+  "pages_deployment": "119887c9-0516-401b-96b8-f857e95bd88c",
+  "backend_deployment": "dep-dbahlh4s728c73ai2gt0",
+  "signaling": "https://flowdrop-signaling.onrender.com/signal",
+  "live_module": "/assets/index-g0lO8sl1.js",
+  "local": {
+    "backend_passed": 92,
+    "backend_skipped": 7,
+    "units_passed": 31,
+    "room_browser_passed": 7,
+    "close_notification_withheld_browser_passed": 1,
+    "lint_and_builds": "passed"
+  },
+  "public_ended_event": {
+    "passed": true,
+    "revoked_access_status": 404,
+    "old_invitation_status": 404
+  },
+  "strict_public_close_frame": {
+    "passed": false,
+    "exit_code": 1,
+    "failure": "No actual received close frame (1006); 4003 still required"
+  },
+  "initial_public_browser": {
+    "source": "bd829d5",
+    "passed": 21,
+    "failed": 1,
+    "skipped": 1,
+    "failure": "End Room terminal state; corrected in 28b151b"
+  },
+  "final_public_browser": {
+    "passed": 22,
+    "failed": 0,
+    "skipped": 1,
+    "duration": "3.9m",
+    "exit_code": 0,
+    "artifacts": ".flowdrop/room-ended-public-final",
+    "end_room_case_seconds": 31.6,
+    "explicit_ended_event_count": 1,
+    "close_notifications_withheld": true,
+    "optical_64k_seconds": 54.6
+  },
+  "automatic_deployments": false,
+  "paid_resources_added": false,
+  "windows_binaries_rebuilt": false,
+  "physical_cross_network_verified": false,
+  "physical_camera_verified": false,
+  "turn_configured": false,
+  "windows_zip_sha256": "CF8E76E3D14FA88FA3D77F2629BBFCE155E58A1C38F7BA05B7DBB1EBF5590E18"
+}

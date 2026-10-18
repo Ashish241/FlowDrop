@@ -59,7 +59,22 @@
     1280
   ],
   "physical_cross_network_verified": false,
-  "production_frontend_changed": false,
-  "production_blocker": "Strict public removal close-frame gate still observes 1006 rather than actual 4003; see MASTER_PRODUCT_RELEASE.md.",
-  "windows_zip_sha256": "CF8E76E3D14FA88FA3D77F2629BBFCE155E58A1C38F7BA05B7DBB1EBF5590E18"
+  "production_frontend_changed": true,
+  "production_blocker": "Deployment authorized with known limitation: strict public close-frame check still fails (1006); Render human support investigation pending.",
+  "windows_zip_sha256": "CF8E76E3D14FA88FA3D77F2629BBFCE155E58A1C38F7BA05B7DBB1EBF5590E18",
+  "production_frontend_source": "28b151bd40ab74d072f5cb56c0b4b0f88a28d4da",
+  "production_pages_deployment": "119887c9-0516-401b-96b8-f857e95bd88c",
+  "production_authorization": "Explicit user instruction to deploy after the known close-frame failure was disclosed",
+  "public_browser": {
+    "date": "2026-10-19",
+    "passed": 22,
+    "failed": 0,
+    "skipped": 1,
+    "duration": "3.9m"
+  },
+  "latest_backend": {
+    "date": "2026-10-19",
+    "passed": 92,
+    "skipped": 7
+  }
 }
