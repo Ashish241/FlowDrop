@@ -501,6 +501,9 @@ test("host end reaches every member during an offer and terminal actions clear t
     const code = await create(a, "End Host");
     await join(b, code, "End Phone");
     await join(c, code, "End Tablet");
+    await expect(a.locator('.peer-transfer[data-channel-state="open"]')).toHaveCount(2);
+    await expect(a.getByRole("checkbox", { name: "Select End Phone", exact: true })).toBeChecked();
+    await expect(a.getByRole("checkbox", { name: "Select End Tablet", exact: true })).toBeChecked();
     await selectFile(a, "pending.bin", Buffer.alloc(4096, 73));
     await expect(
       a.getByRole("button", { name: "Send to Selected Devices", exact: true }),

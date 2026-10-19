@@ -54,6 +54,8 @@ Start with short text. For files, use conservative 400-byte frames and Normal/Sl
 
 ## Screenshots
 
+![Deployed homepage](docs/screenshots/homepage.png)
+![Windows download section](docs/screenshots/windows-download-home.png)
 ![Online room workspace](docs/screenshots/online-workspace.png)
 ![Optical sender](docs/screenshots/optical-send-light.png)
 ![Windows Offline LAN preview](docs/screenshots/windows-preview-light.png)

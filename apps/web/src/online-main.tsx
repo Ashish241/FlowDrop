@@ -100,6 +100,7 @@ function OnlineApp() {
       windows: "Windows Offline LAN",
     };
     document.title = "FlowDrop - " + names[page];
+    window.scrollTo(0, 0);
   }, [page]);
   const inWorkspace = page === "room" && active;
   return (

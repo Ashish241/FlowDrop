@@ -1,6 +1,6 @@
 # Optical and Windows preview verification — 2026-10-19
 
-Status: Windows preview published and anonymously hash-verified; updated Online frontend publication/public acceptance pending. This is a preview, not a production-readiness claim.
+Status: Windows preview published and anonymously hash-verified; Online frontend deployed; final hosted acceptance and navigation follow-up pending. This is a preview, not a production-readiness claim.
 
 ## Optical investigation
 
@@ -78,4 +78,18 @@ Final local Online suite: 32 passed, including the new watchdog/fullscreen and W
 
 Three-peer host-end and chat follow-up: 2 passed. Both terminal actions, stale-code rejection, pending-offer removal, session cleanup and absence of red terminal alerts were verified.
 
-Final local release gates: 32 Online browser cases passed (2.3m), frontend lint/TypeScript passed, public v2 signaling health returned200. Pages build/public deployment acceptance follow below. The published EXE PE machine is AMD64 (`0x8664`), independently inspected.
+Final local release gates: 32 Online browser cases passed (2.3m), frontend lint/TypeScript passed, public v2 signaling health returned 200. Pages build/public deployment acceptance follow below. The published EXE PE machine is AMD64 (`0x8664`), independently inspected.
+
+## Public deployment
+
+Online source `79535bce8c6541df8e95be65a15bd84a6142f706` was manually deployed to the existing Pages Free project: `6f32c2ba-4560-4736-9db9-9e752e40b397`, success in 32 seconds. Public metadata identifies that exact source; JavaScript, CSS and worker SHA-256 values match the locally verified Pages build. HTTPS/CSP/WSS endpoint configuration passed. Automatic deployments remain paused; Render was not redeployed because the backend room-ended event was already implemented and healthy.
+
+Website: https://flowdrop-online.pages.dev/ · Windows page: https://flowdrop-online.pages.dev/#/windows · Signaling: https://flowdrop-signaling.onrender.com/signal
+
+The unchanged strict public verifier still fails with `AssertionError: Public transport ended without a close frame`. Log: `.flowdrop/optical-public-strict-close.log`. No result has been reclassified as a successful 4003 close. This remains an external Render gate even when explicit terminal events and browser UI acceptance pass.
+
+Manual public inspection found route navigation retaining the prior scroll offset. A one-line Online route scroll reset and two focused passing navigation tests correct this; final source/deployment and hosted result follow below. It does not change Optical decoding, Online transport or the published Windows artifact.
+
+Initial hosted run: 29 passed / 2 failed / 1 expected clock-control skip. The Windows test included the new scroll assertion before the scroll fix was deployed. The termination test attempted Send while another selected peer was still reconnecting; the application correctly refused the send. Its setup now explicitly waits for both intended channels to be open and both recipients selected. The corrected test then passed against the real public service (14.7 seconds), including host termination of both guests. Final complete hosted acceptance follows after the navigation deployment.
+
+All 10 desktop frontend files match the bundled published package byte-for-byte. The Windows release remains unchanged throughout Online-only follow-up work.

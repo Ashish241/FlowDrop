@@ -18,6 +18,7 @@ test("Windows download preserves four primary modes and identifies the verified 
   );
   await card.getByRole("button", { name: "Learn More", exact: true }).click();
   await expect(page).toHaveURL(/#\/windows$/);
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
   await expect(page.locator(".windows-checksum")).toHaveText(
     "674c7109ad2e265e3c6106742cc9f53c0455f1b37bcb53fe57818e4c7258c70e",
   );
