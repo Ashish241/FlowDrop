@@ -1,3 +1,4 @@
+import { Buffer } from "node:buffer";
 import { chromium } from "./node_modules/playwright-core/index.mjs";
 import { readFile, mkdir, writeFile } from "node:fs/promises";
 const browser = await chromium.launch({ headless: true });

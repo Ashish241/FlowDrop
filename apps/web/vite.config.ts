@@ -75,7 +75,10 @@ export default defineConfig(({ mode }) => {
             source: JSON.stringify(
               {
                 product: "FlowDrop Online",
-                version: "0.4.1",
+                version: "0.4.2-preview.1",
+                frontendBuild: "optical-windows-20261019",
+                sourceCommit:
+                  process.env.CF_PAGES_COMMIT_SHA || "local-working-tree",
                 revision: "workspace-v3-20261016",
                 integrityGuard: true,
                 recipientDeliveryLedger: true,
@@ -87,6 +90,9 @@ export default defineConfig(({ mode }) => {
                 productDesign: "navy-teal-20261018",
                 opticalProtocol: 3,
                 opticalRecovery: true,
+                opticalFullscreen: true,
+                opticalDecoderWatchdog: true,
+                windowsRelease: "0.4.2-preview.1",
                 signaling: env.VITE_SIGNAL_URL || "/signal",
                 pagesRelease,
                 publicEndpointValidated: pagesRelease,

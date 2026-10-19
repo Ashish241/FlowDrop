@@ -1,6 +1,6 @@
 # Optical and Windows preview verification — 2026-10-19
 
-Status: implementation and local verification complete; publication/public acceptance pending. This is a preview, not a production-readiness claim.
+Status: Windows preview published and anonymously hash-verified; updated Online frontend publication/public acceptance pending. This is a preview, not a production-readiness claim.
 
 ## Optical investigation
 
@@ -21,7 +21,7 @@ Synthetic 600px QR raster acquisition, deliberate loss, reverse order, duplicate
 
 All reconstructed hashes: `fd3623ef92dc587838fcebecdfd88e5288178c52a0b905294d8d0ee9ef0d2634`.
 
-Default remains conservative 400 B, Normal/Auto 1000 ms, two parity shards per eight data frames: 164 data +42 parity =206 frames, approximately206 seconds per cycle before recovery. Slow1400ms and Fast600ms remain explicit options. Fewer QR frames do not establish a faster physical transfer; denser QR versions can decode worse. Existing degraded-raster benchmark limitations remain in [Optical reliability](OPTICAL_RELIABILITY.md).
+Default remains conservative 400 B, Normal/Auto 1000 ms, two parity shards per eight data frames: 164 data +42 parity =206 frames, approximately 206 seconds per cycle before recovery. Slow 1400 ms and Fast 600 ms remain explicit options. Fewer QR frames do not establish a faster physical transfer; denser QR versions can decode worse. Existing degraded-raster benchmark limitations remain in [Optical reliability](OPTICAL_RELIABILITY.md).
 
 ## Interface and lifecycle
 
@@ -40,27 +40,42 @@ EXE SHA-256: `8314b6dffec759eae12bb374711c4a07f69c4d9d5230b6c7e42a29cc30bc776d`.
 
 Package audit: 1,732 entries; EXE and Optical worker present; no `.env`, secret-config or saved network-preference filenames bundled. Runtime service secrets are not packaging inputs.
 
-Actual packaged executable smoke: loopback API/frontend and graceful exit from outside checkout passed. Packaged native widget lifecycle, adapter selection, pairing QR, authorization, real HTTP/WebSocket checks, restart and shutdown passed. Observed listeners: loopback-only `127.0.0.1:8000`; LAN enabled `192.168.1.7:8000` and `127.0.0.1:8000`. Approved256KiB hash-matched transfer through LAN URL passed using clients on the same PC. This does not verify phone reachability. Host’s Wi-Fi profile was Public; no firewall or profile changes were made.
+Actual packaged executable smoke: loopback API/frontend and graceful exit from outside checkout passed. Packaged native widget lifecycle, adapter selection, pairing QR, authorization, real HTTP/WebSocket checks, restart and shutdown passed. Observed listeners: loopback-only `127.0.0.1:8000`; LAN enabled `192.168.1.7:8000` and `127.0.0.1:8000`. Approved 256 KiB hash-matched transfer through LAN URL passed using clients on the same PC. This does not verify phone reachability. Host’s Wi-Fi profile was Public; no firewall or profile changes were made.
 
 Previous ZIP preserved under `dist/checkpoints/6ce485a-before-optical-release/`, hash `cf8e76e3d14fa88fa3d77f2629bbfce155e58a1c38f7ba05b7dbb1ebf5590e18`. Source checkpoint `6ce485a` remains in Git.
 
 ## Automated checks
 
-- Backend92passed /7unconfigured infrastructure checks skipped; Ruff passed.
-- Frontend35unit/benchmark tests passed; TypeScript, lint and Online/desktop builds passed.
-- Online suite28/29passed initially; the one outdated always-visible-help assertion was updated for required modal disclosure. Focused help/fullscreen3passed; decoder-stall recovery1passed; 64KiB real sender-QR recovery and synthetic-camera/FEC regressions passed.
-- Desktop browser9passed. Full final Online/public suites and final general/Pages builds are recorded below after publication.
+- Backend 92 passed / 7 unconfigured infrastructure checks skipped; Ruff passed.
+- Frontend 35 unit/benchmark tests passed; TypeScript, lint and Online/desktop builds passed.
+- Online suite28/29 passed initially; the one outdated always-visible-help assertion was updated for required modal disclosure. Focused help/fullscreen 3 passed; decoder-stall recovery 1 passed; 64KiB real sender-QR recovery and synthetic-camera/FEC regressions passed.
+- Desktop browser 9 passed. Full final Online/public suites and final general/Pages builds are recorded below after publication.
 
 ## External acceptance and blockers
 
-Physical camera: user has offered PC screen/phone camera testing; corrected-build result pending. Physical LAN phone, cross-network PC/phone, TURN relay and clean Windows remain unverified. TURN is absent. Render Free rooms are in memory and lost on restart; no new paid/shared service is provisioned. Public server-initiated WebSocket close-frame delivery remains a separate Render support blocker; strict verification must not accept1006/timeouts as4003. Existing explicit terminal events are verified independently.
+Physical camera: user has offered PC screen/phone camera testing; corrected-build result pending. Physical LAN phone, cross-network PC/phone, TURN relay and clean Windows remain unverified. TURN is absent. Render Free rooms are in memory and lost on restart; no new paid/shared service is provisioned. Public server-initiated WebSocket close-frame delivery remains a separate Render support blocker; strict verification must not accept 1006/timeouts as 4003. Existing explicit terminal events are verified independently.
 
 ## Physical acceptance procedure
 
 1. Open the corrected public Optical page on PC and phone, wait for Decoder ready, and confirm the new Exit Fullscreen control exists.
 2. Transfer short text, then a small binary file. Compare name, size and SHA-256.
-3. Transfer a deterministic64KiB file with Normal400B/default parity. Record phone model/browser, unique received/missing counts after each cycle, glare/distance, total elapsed and final hash.
+3. Transfer a deterministic 64 KiB file with Normal 400 B/default parity. Record phone model/browser, unique received/missing counts after each cycle, glare/distance, total elapsed and final hash.
 4. Stop/restart scanning mid-transfer; confirm counts persist. Use Recover Missing Frames and let the PC camera scan all recovery pages, or enter missing numbers manually. Confirm only missing chunks resend and final download verifies.
 5. For LAN, use a trusted Private network and appropriate local-subnet firewall allowance. Launch extracted Windows preview, enable LAN, confirm physical adapter and Start; open actual LAN URL/QR on the phone, request approval, then offer/accept files both directions. Record final hashes and shutdown.
 
 Never report these physical checks as passed without the user’s actual results.
+
+## Published Windows preview
+
+[Release notes](https://github.com/Ashish241/FlowDrop/releases/tag/v0.4.2-preview.1) · [Verified portable ZIP](https://github.com/Ashish241/FlowDrop/releases/download/v0.4.2-preview.1/FlowDrop-windows.zip)
+
+Source checkpoint `6905d40`. Anonymous HTTP download returned exactly 25,389,518 bytes and matched the ZIP SHA-256 above. GitHub asset digest matches too. The website download page labels architecture/version/size, portable extraction, unsigned preview, checksum and physical-test limitations. No standalone EXE asset is offered because this onedir build requires its bundled runtime directory.
+
+Final local Online suite: 32 passed, including the new watchdog/fullscreen and Windows download coverage; final full-width assertion and download accessibility follow-up: 2 passed. Integrated regression suite: 20 passed / 1 optional coturn relay test skipped. Desktop browser: 9 passed. The final additional three-peer host-ending scenario revealed and corrected duplicate red terminal alerts and stale terminal state hiding invalid new-room feedback. The final complete run passed all 32 cases.
+
+![Optical sender](screenshots/optical-send-light.png)
+![Windows preview](screenshots/windows-preview-light.png)
+
+Three-peer host-end and chat follow-up: 2 passed. Both terminal actions, stale-code rejection, pending-offer removal, session cleanup and absence of red terminal alerts were verified.
+
+Final local release gates: 32 Online browser cases passed (2.3m), frontend lint/TypeScript passed, public v2 signaling health returned200. Pages build/public deployment acceptance follow below. The published EXE PE machine is AMD64 (`0x8664`), independently inspected.

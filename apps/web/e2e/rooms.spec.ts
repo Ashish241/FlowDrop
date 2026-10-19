@@ -338,7 +338,9 @@ test("named room auto-join, three real peers, rename and recipient-isolated tran
       .getByRole("dialog")
       .getByRole("button", { name: "End Room", exact: true })
       .click();
-    await expect(b.getByRole("alert")).toContainText(/expired|ended/);
+    await expect(b.locator(".ended-room").getByRole("status")).toContainText(
+      /expired|ended/,
+    );
     expect(
       await b.evaluate(
         () => (window as unknown as { roomEndEvents: number }).roomEndEvents,
@@ -481,5 +483,78 @@ test("pause, rename during byte transfer, resume, cancellation and text stay ind
   } finally {
     await ac.close();
     await bc.close();
+  }
+});
+
+test("host end reaches every member during an offer and terminal actions clear the old room", async ({
+  browser,
+}) => {
+  const contexts = await Promise.all([
+    browser.newContext(),
+    browser.newContext(),
+    browser.newContext(),
+  ]);
+  try {
+    const [a, b, c] = await Promise.all(
+      contexts.map((context) => context.newPage()),
+    );
+    const code = await create(a, "End Host");
+    await join(b, code, "End Phone");
+    await join(c, code, "End Tablet");
+    await selectFile(a, "pending.bin", Buffer.alloc(4096, 73));
+    await expect(
+      a.getByRole("button", { name: "Send to Selected Devices", exact: true }),
+    ).toBeEnabled();
+    await a
+      .getByRole("button", { name: "Send to Selected Devices", exact: true })
+      .click();
+    await expect(
+      b.getByRole("button", { name: "Accept file", exact: true }),
+    ).toBeVisible();
+    await a.getByRole("button", { name: "End Room", exact: true }).click();
+    await a
+      .getByRole("dialog", { name: "End room?" })
+      .getByRole("button", { name: "End Room", exact: true })
+      .click();
+    for (const page of [b, c]) {
+      await expect(
+        page.getByRole("heading", { name: "This room has ended", exact: true }),
+      ).toBeVisible();
+      await expect(
+        page.getByText("The room host has ended the sharing session.", {
+          exact: true,
+        }),
+      ).toBeVisible();
+      await expect(page.locator(".error-banner")).toHaveCount(0);
+      await expect(
+        page.getByRole("button", { name: "Accept file", exact: true }),
+      ).toHaveCount(0);
+      expect(
+        await page.evaluate(() => sessionStorage.getItem("flowdrop-room-v2")),
+      ).toBeNull();
+    }
+    await b
+      .getByRole("button", { name: "Join Another Room", exact: true })
+      .click();
+    await expect(
+      b.getByRole("heading", { name: "Join Room", exact: true }),
+    ).toBeVisible();
+    const continueButton = b.getByRole("button", {
+      name: "Continue",
+      exact: true,
+    });
+    if (await continueButton.count()) await continueButton.click();
+    await expect(b.getByLabel("Room code", { exact: true })).toHaveValue("");
+    await b.getByLabel("Room code", { exact: true }).fill(code);
+    await b.getByRole("button", { name: "Join Room", exact: true }).click();
+    await expect(b.getByRole("alert")).toContainText(/expired|unavailable/);
+    await c
+      .getByRole("button", { name: "Return to Home", exact: true })
+      .click();
+    await expect(
+      c.getByRole("heading", { name: "Sharing, in your space.", exact: true }),
+    ).toBeVisible();
+  } finally {
+    await Promise.all(contexts.map((context) => context.close()));
   }
 });

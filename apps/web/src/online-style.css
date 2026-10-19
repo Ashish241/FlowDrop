@@ -1468,8 +1468,8 @@ body {
 
 .optical-single-flow {
   grid-template-columns: minmax(0, 1fr);
-  max-width: 850px;
-  margin-inline: auto;
+  max-width: none;
+  margin-inline: 0;
 }
 .optical-single-flow > section[hidden] {
   display: none;

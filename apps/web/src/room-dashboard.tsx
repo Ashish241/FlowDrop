@@ -873,6 +873,7 @@ export function RoomDashboard({
         );
       sessionStorage.removeItem(sessionKey);
       setSession(undefined);
+      setEnded(false);
       setSnapshot(undefined);
       setSelected([]);
       setFiles([]);
@@ -889,6 +890,10 @@ export function RoomDashboard({
       if (ended || /expired|ended|membership required/i.test(String(reason))) {
         sessionStorage.removeItem(sessionKey);
         setSession(undefined);
+        setEnded(false);
+        setCode("");
+        setInvite(false);
+        setError("");
         setSnapshot(undefined);
         setSelected([]);
         setFiles([]);
@@ -1173,7 +1178,7 @@ export function RoomDashboard({
           </button>
         </div>
       )}
-      {error && (
+      {error && !ended && (
         <p
           role="alert"
           className={
@@ -1273,7 +1278,15 @@ export function RoomDashboard({
               ? "You’ve left this room"
               : "This room has ended"}
           </h1>
-          <p>{error}</p>
+          <p
+            role={
+              error === "The room host has ended the sharing session."
+                ? "status"
+                : "alert"
+            }
+          >
+            {error}
+          </p>
           <LoadingButton
             pending={busy}
             loadingText="Leaving room…"

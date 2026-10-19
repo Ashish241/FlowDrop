@@ -1,0 +1,41 @@
+{
+  "scope": "Synthetic 600px QR raster acquisition, loss and offline recovery; excludes screen dwell and physical camera acquisition",
+  "rows": [
+    {
+      "chunkSize": 200,
+      "dataFrames": 328,
+      "attempts": 343,
+      "recoveryFrames": 47,
+      "elapsedMs": 9075,
+      "sha256": "fd3623ef92dc587838fcebecdfd88e5288178c52a0b905294d8d0ee9ef0d2634",
+      "estimatedNormalCycleSeconds": 328
+    },
+    {
+      "chunkSize": 400,
+      "dataFrames": 164,
+      "attempts": 171,
+      "recoveryFrames": 24,
+      "elapsedMs": 5255,
+      "sha256": "fd3623ef92dc587838fcebecdfd88e5288178c52a0b905294d8d0ee9ef0d2634",
+      "estimatedNormalCycleSeconds": 164
+    },
+    {
+      "chunkSize": 600,
+      "dataFrames": 110,
+      "attempts": 115,
+      "recoveryFrames": 16,
+      "elapsedMs": 4324,
+      "sha256": "fd3623ef92dc587838fcebecdfd88e5288178c52a0b905294d8d0ee9ef0d2634",
+      "estimatedNormalCycleSeconds": 110
+    },
+    {
+      "chunkSize": 800,
+      "dataFrames": 82,
+      "attempts": 86,
+      "recoveryFrames": 12,
+      "elapsedMs": 6299,
+      "sha256": "fd3623ef92dc587838fcebecdfd88e5288178c52a0b905294d8d0ee9ef0d2634",
+      "estimatedNormalCycleSeconds": 82
+    }
+  ]
+}

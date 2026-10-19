@@ -1,3 +1,4 @@
+import { DownloadCard, WindowsDownloadPage } from "./windows-download";
 import { BackNavigation } from "./ui/shared";
 import { useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
@@ -5,13 +6,18 @@ import { Moon, Plus, LogIn, ScanLine, Clock, ArrowUpRight } from "lucide-react";
 import { RoomDashboard } from "./room-dashboard";
 import { OpticalPanel } from "./optical";
 import "./online-style.css";
-type Route = "home" | "create" | "join" | "room" | "optical" | "later";
+type Route =
+  "home" | "create" | "join" | "room" | "optical" | "later" | "windows";
 function route(): Route {
   const hash = location.hash;
   if (new URLSearchParams(hash.slice(1)).has("room")) return "join";
   const path = hash.replace(/^#\/?/, "").toLowerCase();
   if (path.startsWith("optical/")) return "optical";
-  if (["home", "create", "join", "room", "optical", "later"].includes(path))
+  if (
+    ["home", "create", "join", "room", "optical", "later", "windows"].includes(
+      path,
+    )
+  )
     return path as Route;
   if (hash.includes("online-room")) return "join";
   return sessionStorage.getItem("flowdrop-room-v2") ? "room" : "home";
@@ -91,6 +97,7 @@ function OnlineApp() {
       room: "Sharing Room",
       optical: "Optical Share",
       later: "Coming Soon",
+      windows: "Windows Offline LAN",
     };
     document.title = "FlowDrop - " + names[page];
   }, [page]);
@@ -163,6 +170,7 @@ function OnlineApp() {
                 </button>
               ))}
             </nav>
+            <DownloadCard onLearnMore={() => go("windows")} />
             <div className="home-note">
               <span className="status-dot" />
               Private by choice. Files travel directly between your devices.
@@ -202,6 +210,9 @@ function OnlineApp() {
               onHome={() => go("home")}
             />
           </section>
+        )}
+        {page === "windows" && (
+          <WindowsDownloadPage onHome={() => go("home")} />
         )}
         {page === "later" && (
           <section className="coming-soon panel">

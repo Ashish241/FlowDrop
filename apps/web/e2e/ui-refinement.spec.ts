@@ -25,6 +25,12 @@ test("Optical flow cards, responsive themes and permission guidance", async ({
         page.getByLabel("Optical text", { exact: true }),
       ).toBeVisible();
       await expect(page.getByLabel("Parity per 8 data frames")).toBeHidden();
+      if (width >= 1280) {
+        const workspace = await page
+          .locator("#optical-send .optical-workspace")
+          .boundingBox();
+        expect(workspace!.width).toBeGreaterThan(width * 0.8);
+      }
       expect(
         await page.evaluate(
           () => document.documentElement.scrollWidth <= innerWidth,

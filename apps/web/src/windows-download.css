@@ -1,0 +1,79 @@
+.windows-download-card {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  margin: 32px 0;
+  padding: 26px;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  background: var(--surface);
+}
+.windows-download-card > svg {
+  flex-shrink: 0;
+  color: var(--accent);
+}
+.windows-download-card h2 {
+  margin: 8px 0;
+  font-size: 24px;
+}
+.windows-download-card p {
+  margin: 6px 0 10px;
+}
+.windows-download-actions {
+  margin-left: auto;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.windows-download-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px 16px;
+  border-radius: 10px;
+  background: var(--accent);
+  color: var(--surface);
+  text-decoration: none;
+  font-weight: 600;
+  font-size: 14px;
+}
+.windows-download-link:focus-visible {
+  outline: 3px solid var(--ink);
+  outline-offset: 4px;
+}
+.windows-download-page {
+  max-width: 1400px;
+  margin: auto;
+}
+.windows-download-page > h1 {
+  font-size: clamp(32px, 4vw, 60px);
+}
+.windows-guide-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+  gap: 24px;
+  margin-bottom: 24px;
+}
+.windows-guide-grid li {
+  padding: 8px 0;
+  line-height: 1.6;
+}
+.windows-checksum {
+  display: block;
+  overflow-wrap: anywhere;
+}
+@media (max-width: 760px) {
+  .windows-download-card {
+    align-items: flex-start;
+    flex-wrap: wrap;
+    padding: 20px;
+  }
+  .windows-download-actions {
+    margin-left: 0;
+    width: 100%;
+  }
+  .windows-guide-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
