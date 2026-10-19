@@ -28,6 +28,30 @@ type Transfer = {
   save_outcome?: string;
 };
 function App() {
+  const [cancelTarget, setCancelTarget] = useState<Transfer>();
+  const [cancelPending, setCancelPending] = useState(false);
+  const [cancelError, setCancelError] = useState("");
+  const cancelRequest = useRef(false);
+  async function confirmCancellation() {
+    if (!cancelTarget || cancelRequest.current) return;
+    cancelRequest.current = true;
+    setCancelPending(true);
+    setCancelError("");
+    try {
+      await api(`/transfers/${cancelTarget.id}`, { method: "DELETE" });
+      await refresh();
+      setCancelTarget(undefined);
+    } catch (error) {
+      setCancelError(
+        error instanceof Error
+          ? error.message
+          : "Could not cancel. Please retry.",
+      );
+    } finally {
+      cancelRequest.current = false;
+      setCancelPending(false);
+    }
+  }
   const [clearHistory, setClearHistory] = useState(false);
   const [preparing, setPreparing] = useState("");
   const [pairing, setPairing] = useState(false);
@@ -367,6 +391,18 @@ function App() {
   );
   return (
     <div className="shell">
+      <ConfirmDialog
+        open={!!cancelTarget}
+        title="Cancel transfer?"
+        description="Stop this transfer and delete its host copy. This cannot be undone."
+        confirmText="Cancel transfer"
+        loadingText="Cancelling transfer…"
+        destructive
+        pending={cancelPending}
+        error={cancelError}
+        onCancel={() => setCancelTarget(undefined)}
+        onConfirm={() => void confirmCancellation()}
+      />
       <ConfirmDialog
         open={clearHistory}
         title="Clear text history?"
@@ -712,11 +748,10 @@ function App() {
                         )}
                       {t.state !== "CANCELLED" && (
                         <LoadingButton
-                          onClick={() =>
-                            api(`/transfers/${t.id}`, { method: "DELETE" })
-                              .then(refresh)
-                              .catch(report)
-                          }
+                          onClick={() => {
+                            setCancelError("");
+                            setCancelTarget(t);
+                          }}
                         >
                           Cancel / delete
                         </LoadingButton>

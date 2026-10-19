@@ -54,3 +54,83 @@ test("offline desktop omits online controls, endpoints and resources", async ({
   expect((await request.get("/api/online/config")).status()).toBe(404);
   expect(external).toEqual([]);
 });
+
+test("LAN cancellation confirms, waits for acknowledgement and retries inline", async ({
+  page,
+}) => {
+  let present = true,
+    deletes = 0;
+  const id = "c".repeat(32);
+  await page.route("**/api/transfers", (route) =>
+    route.fulfill({
+      json: present
+        ? [
+            {
+              id,
+              name: "cancel-me.bin",
+              size: 10,
+              received: 0,
+              sender: "host",
+              recipient: "peer",
+              state: "PAUSED",
+              sha256: "d".repeat(64),
+            },
+          ]
+        : [],
+    }),
+  );
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  await page.route(`**/api/transfers/${id}`, async (route) => {
+    if (route.request().method() !== "DELETE") {
+      await route.continue();
+      return;
+    }
+    deletes++;
+    if (deletes === 1) {
+      await gate;
+      await route.fulfill({
+        status: 503,
+        json: { detail: "Temporary cancellation outage" },
+      });
+    } else {
+      present = false;
+      await route.fulfill({ json: { status: "cancelled" } });
+    }
+  });
+  await page.goto("/#host=e2e-host-only");
+  await page
+    .getByRole("button", { name: "Cancel / delete", exact: true })
+    .click();
+  const modal = page.getByRole("dialog", { name: "Cancel transfer?" });
+  await page.screenshot({
+    path: "../../.flowdrop/ui-consistency-lan-cancel.png",
+    fullPage: true,
+  });
+  await modal.getByRole("button", { name: "Cancel", exact: true }).click();
+  expect(deletes).toBe(0);
+  await page
+    .getByRole("button", { name: "Cancel / delete", exact: true })
+    .click();
+  await modal
+    .getByRole("button", { name: "Cancel transfer", exact: true })
+    .click();
+  await expect(
+    modal.getByRole("button", { name: "Cancelling transfer…" }),
+  ).toBeDisabled();
+  await page.keyboard.press("Escape");
+  await expect(modal).toBeVisible();
+  await expect(page.locator("article.transfer")).toContainText("cancel-me.bin");
+  release();
+  await expect(modal.getByRole("alert")).toContainText(
+    "Temporary cancellation outage",
+  );
+  await modal
+    .getByRole("button", { name: "Cancel transfer", exact: true })
+    .click();
+  await expect(modal).not.toBeVisible();
+  await expect(page.locator("article.transfer")).toHaveCount(0);
+  expect(deletes).toBe(2);
+});

@@ -636,3 +636,22 @@ footer span {
     transition: width 160ms ease-out;
   }
 }
+
+/* Shared dialog actions inherit this desktop product's existing palette. */
+.shared-confirm .room-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.shared-confirm .secondary {
+  background: transparent;
+  color: inherit;
+  border: 1px solid currentColor;
+}
+.shared-confirm .dialog-error {
+  color: #a62828;
+}
+body.dark .shared-confirm .dialog-error {
+  color: #ffb2ac;
+}

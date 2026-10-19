@@ -3,7 +3,7 @@
   "checkpoint": "6f4ec30",
   "local": {
     "online_browser_passed": 27,
-    "desktop_browser_passed": 8,
+    "desktop_browser_passed": 9,
     "original_sharing_browser_passed": 9,
     "frontend_units_passed": 34,
     "backend_passed": 92,
@@ -18,7 +18,19 @@
       "guarded-pages"
     ]
   },
-  "deployment": "pending manual Pages deployment",
+  "deployment": {
+    "status": "success",
+    "website": "https://flowdrop-online.pages.dev/",
+    "source": "7612991f9a5bf863d9eb3b8e01f47012ace15192",
+    "pages_id": "f85d4ce5-7e00-4786-b624-7f34aa905ef4",
+    "duration_seconds": 25,
+    "local_time": "2026-10-19 15:07 Asia/Kolkata",
+    "backend": "https://flowdrop-signaling.onrender.com/signal",
+    "backend_source": "28b151bd40ab74d072f5cb56c0b4b0f88a28d4da",
+    "backend_redeployed": false,
+    "automatic_deployments": "paused",
+    "billing_or_new_resources": false
+  },
   "known_limitations": [
     "public server-initiated close-frame gate unresolved",
     "no configured TURN",
@@ -41,11 +53,29 @@
   "strict_public_close_gate": {
     "status": "failed",
     "error": "Public transport ended without a close frame",
-    "verifier_unchanged": true
+    "verifier_unchanged": true,
+    "latest_evidence": ".flowdrop/ui-consistency-final-close.log"
   },
   "terminal_session_followup": {
     "local_affected_browser_passed": 3,
     "no_obsolete_leave_request": "verified",
-    "deployment": "pending"
+    "deployment": "success; 7612991 / f85d4ce5-7e00-4786-b624-7f34aa905ef4"
+  },
+  "final_hosted": {
+    "passed": 26,
+    "failed": 0,
+    "skipped": 1,
+    "duration": "4.0 minutes",
+    "evidence": ".flowdrop/ui-consistency-public-final/.last-run.json",
+    "physical_cross_network": false
+  },
+  "lan_source_followup": {
+    "cancellation_dialog": "confirmed/pending/inline retry; nine desktop browser tests passed",
+    "windows_binaries_rebuilt": false,
+    "online_artifacts": "byte-identical to deployed 7612991"
+  },
+  "online_bundle_sha256": {
+    "index-CNvq9Gi3.js": "97e7505e5161d81926595eff0ce1af65c919a4c4b8bb07f7530833dcaf81a1a3",
+    "index-CRzQzl2V.css": "c7c659856cb6a56dd359cb9a7cb0686dfed1c5b78c821bdbb4cd65103578a7e9"
   }
 }
