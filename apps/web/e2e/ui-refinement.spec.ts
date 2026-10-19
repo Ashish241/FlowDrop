@@ -40,7 +40,17 @@ test("Optical flow cards, responsive themes and permission guidance", async ({
       ).toBeVisible();
       await expect(
         page.getByText(/enable Camera in your browser/),
+      ).not.toBeVisible();
+      await page
+        .getByRole("button", { name: "How It Works", exact: true })
+        .click();
+      await expect(
+        page.getByText(/enable Camera in your browser/),
       ).toBeVisible();
+      await page
+        .getByRole("dialog")
+        .getByRole("button", { name: "Close", exact: true })
+        .click();
       await expect(
         page.getByRole("button", {
           name: "Recover Missing Frames",

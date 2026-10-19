@@ -118,6 +118,50 @@ export function BackNavigation({
     </button>
   );
 }
+export function InformationalModal({
+  open,
+  title,
+  onClose,
+  children,
+}: {
+  open: boolean;
+  title: string;
+  onClose: () => void;
+  children: ReactNode;
+}) {
+  const ref = useRef<HTMLDialogElement>(null);
+  const id = useId();
+  useEffect(() => {
+    const dialog = ref.current;
+    if (!dialog) return;
+    const previous = document.activeElement;
+    if (open) dialog.showModal();
+    else dialog.close();
+    return () => {
+      dialog.close();
+      if (previous instanceof HTMLElement && previous.isConnected)
+        previous.focus();
+    };
+  }, [open]);
+  return (
+    <dialog
+      ref={ref}
+      className="invitation-dialog"
+      aria-labelledby={id}
+      onCancel={(event) => {
+        event.preventDefault();
+        onClose();
+      }}
+    >
+      <h2 id={id}>{title}</h2>
+      {children}
+      <button onClick={onClose} autoFocus>
+        Close
+      </button>
+    </dialog>
+  );
+}
+
 export function ConfirmDialog({
   open,
   title,

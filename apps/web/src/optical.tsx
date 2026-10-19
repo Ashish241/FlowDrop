@@ -1,13 +1,16 @@
+import "./optical-layout.css";
+import { QRFrameViewer } from "./ui/qr-fullscreen";
 import { openCamera } from "./ui/camera";
 import {
   BackNavigation,
+  InformationalModal,
   FlowDropLoader,
   LoadingButton,
   SectionLoader,
 } from "./ui/shared";
 import { useEffect, useRef, useState } from "react";
 import QRCode from "qrcode";
-import { Camera, MonitorUp } from "lucide-react";
+import { Camera, MonitorUp, Info } from "lucide-react";
 import { type OpticalPayload } from "./optical-protocol";
 import {
   buildOpticalTransfer,
@@ -44,6 +47,9 @@ export function OpticalPanel({
   onHome,
   active = true,
 }: { onHome?: () => void; active?: boolean } = {}) {
+  const [helpOpen, setHelpOpen] = useState(false);
+  const [decoderEpoch, setDecoderEpoch] = useState(0);
+  const lastProgress = useRef(0);
   const [starting, setStarting] = useState(false);
   const [verifying, setVerifying] = useState(false);
   const creating = useRef(false);
@@ -111,7 +117,6 @@ export function OpticalPanel({
     });
   const collector = useRef(new ReliableOpticalCollector()),
     video = useRef<HTMLVideoElement>(null),
-    screen = useRef<HTMLDivElement>(null),
     stream = useRef<MediaStream | undefined>(undefined),
     worker = useRef<Worker | undefined>(undefined),
     cameraGeneration = useRef(0),
@@ -119,6 +124,7 @@ export function OpticalPanel({
     pending = useRef<
       | {
           sequence: number;
+          queuedAt: number;
           purpose: "receive" | "feedback";
           epoch: number;
           image?: boolean;
@@ -197,10 +203,13 @@ export function OpticalPanel({
           return;
         }
         const receiver = target;
-        if (receiver !== collector.current) return;
+        if (receiver !== collector.current || receiver.complete) return;
+        const before = receiver.progress.received;
         setStatus("Verifying frame…");
         const value = await receiver.addPayload(raw);
         if (receiver !== collector.current) return;
+        if (receiver.progress.received > before)
+          lastProgress.current = performance.now();
         showProgress();
         if (value) {
           setPayload(value);
@@ -259,6 +268,26 @@ export function OpticalPanel({
       }
       setDiag({ ...d });
     };
+    const watchdog = window.setInterval(() => {
+      if (
+        pending.current &&
+        performance.now() - pending.current.queuedAt > 10000
+      ) {
+        stop();
+        setDecoderReady(false);
+        setStatus(
+          "Decoder took too long. Received frames are saved; start the camera or import the image again.",
+        );
+        setDecoderEpoch((value) => value + 1);
+      } else if (
+        stream.current &&
+        performance.now() - lastProgress.current > 15000
+      ) {
+        setStatus(
+          "Scanning · No new frames recently. Hold the full QR steady, reduce glare, or use Slow playback and Recover Missing Frames. Received frames are saved.",
+        );
+      }
+    }, 1000);
     decoder.onerror = () => {
       setStatus(
         "Failed · QR decoder could not start. Reload Optical Share while connected before going offline.",
@@ -271,9 +300,10 @@ export function OpticalPanel({
       stream.current?.getTracks().forEach((track) => track.stop());
       cancelAnimationFrame(animation.current);
       clearTimeout(timer.current);
+      window.clearInterval(watchdog);
       decoder.terminate();
     };
-  }, []);
+  }, [decoderEpoch]);
   useEffect(() => {
     let live = true;
     clearTimeout(timer.current);
@@ -341,9 +371,18 @@ export function OpticalPanel({
         width: 600,
         margin: 4,
         errorCorrectionLevel: "M",
-      }).then((value) => {
-        if (live) setRequestQr(value);
-      });
+      })
+        .then((value) => {
+          if (live) setRequestQr(value);
+        })
+        .catch(() => {
+          if (live) {
+            setRequestQr("");
+            setStatus(
+              "Recovery QR could not be generated. Use manual missing-frame numbers or try again.",
+            );
+          }
+        });
     else setRequestQr("");
     return () => {
       live = false;
@@ -392,6 +431,10 @@ export function OpticalPanel({
     }
   }
   async function scan(purpose: "receive" | "feedback" = "receive") {
+    if (purpose === "receive" && collector.current.complete) {
+      setStatus("Completed · Reset receiver before starting another transfer.");
+      return;
+    }
     if (cameraStarting.current) return;
     stop();
     cameraStarting.current = true;
@@ -427,6 +470,7 @@ export function OpticalPanel({
           : "Scanning · Hold the full QR and its white border steady.",
       );
       started.current = performance.now();
+      lastProgress.current = started.current;
       diagnostics.current = initialDiag();
       diagnostics.current.source = "camera";
       const canvas = document.createElement("canvas"),
@@ -454,7 +498,12 @@ export function OpticalPanel({
           ctx.drawImage(v, 0, 0, canvas.width, canvas.height);
           const pixels = ctx.getImageData(0, 0, canvas.width, canvas.height),
             seq = ++sequence.current;
-          pending.current = { sequence: seq, purpose, epoch };
+          pending.current = {
+            sequence: seq,
+            purpose,
+            epoch,
+            queuedAt: performance.now(),
+          };
           worker.current!.postMessage(
             {
               pixels: pixels.data.buffer,
@@ -501,6 +550,7 @@ export function OpticalPanel({
       if (!started.current) started.current = performance.now();
       pending.current = {
         sequence: seq,
+        queuedAt: performance.now(),
         purpose,
         epoch: cameraGeneration.current,
         image: true,
@@ -589,21 +639,38 @@ export function OpticalPanel({
           <span>Scan, recover missing frames, then verify and download.</span>
         </button>
       </div>
-      <details>
-        <summary>How it works</summary>
+      <button className="quiet optical-help" onClick={() => setHelpOpen(true)}>
+        <Info size={18} aria-hidden="true" /> How It Works
+      </button>
+      <InformationalModal
+        open={helpOpen}
+        title="How Optical Share works"
+        onClose={() => setHelpOpen(false)}
+      >
         <ol>
-          <li>Prepare text or a small file.</li>
-          <li>Scan the sender’s screen with the receiver’s camera.</li>
-          <li>
-            Recover missing frames and download after integrity verification.
-          </li>
+          <li>Choose text (up to 16 KiB) or a small file (up to 64 KiB).</li>
+          <li>Display repeating QR frames on the sender’s screen.</li>
+          <li>Scan the full QR and white border with the receiver’s camera.</li>
         </ol>
-      </details>
-      <p>
-        Screen to camera, with no communication network after this page and
-        Decoder ready have loaded. Text up to 16 KiB · files up to 64 KiB. For
-        larger files or faster sharing, use Offline LAN or Online rooms.
-      </p>
+        <p>
+          If access is denied, enable Camera in your browser’s site settings and
+          retry. Keep the white border visible and avoid glare. Camera images
+          stay on your device.
+        </p>
+        <details>
+          <summary>Missing-frame recovery</summary>
+          <p>
+            Keep collected frames, choose Recover Missing Frames, and let the
+            sender scan the recovery QR or enter its missing-frame numbers.
+            Download becomes available after SHA-256 verification.
+          </p>
+        </details>
+        <p>
+          No network is needed after both pages and their decoders have loaded.
+          Large optical transfers can take several minutes; use Online or
+          Offline LAN for faster sharing.
+        </p>
+      </InformationalModal>
       <p role="status">
         {verifying && <FlowDropLoader variant="section" />}
         {status}
@@ -626,291 +693,289 @@ export function OpticalPanel({
           aria-label="Optical sender"
           tabIndex={-1}
         >
-          <h3>1 · Choose Content</h3>
-          <label>
-            Content type
-            <select
-              aria-label="Optical content type"
-              value={mode}
-              onChange={(event) => setMode(event.target.value)}
-            >
-              <option value="text">Share Text</option>
-              <option value="file">Share Small File</option>
-            </select>
-          </label>
-          {mode === "text" ? (
-            <textarea
-              aria-label="Optical text"
-              maxLength={16384}
-              value={text}
-              onChange={(event) => setText(event.target.value)}
-              placeholder="Text to display as QR frames"
-            />
-          ) : (
-            <label>
-              Small optical file (64 KiB maximum)
-              <input
-                type="file"
-                onChange={(event) => setFile(event.target.files?.[0])}
-              />
-            </label>
-          )}
-          {file && mode === "file" && (
-            <p>
-              {file.name} · {formatSize(file.size)}
-            </p>
-          )}
-          <details>
-            <summary>Advanced display settings</summary>
-            <div className="optical-options">
+          <div className="optical-workspace">
+            <div className="optical-primary">
+              <h3>1 · Choose Content</h3>
               <label>
-                Playback preset
+                Content type
                 <select
-                  value={preset}
-                  onChange={(event) => {
-                    const value = event.target.value;
-                    setPreset(value);
-                    if (value === "Auto") setChunk(400);
-                    setSpeed(
-                      value === "Slow" ? 1400 : value === "Fast" ? 600 : 1000,
-                    );
-                  }}
+                  aria-label="Optical content type"
+                  value={mode}
+                  onChange={(event) => setMode(event.target.value)}
                 >
-                  {["Auto", "Slow", "Normal", "Fast", "Custom"].map((value) => (
-                    <option key={value}>{value}</option>
-                  ))}
+                  <option value="text">Share Text</option>
+                  <option value="file">Share Small File</option>
                 </select>
               </label>
-              <label>
-                Payload bytes per frame
-                <select
-                  value={chunk}
-                  onChange={(event) => {
-                    setChunk(Number(event.target.value));
-                    setPreset("Custom");
-                  }}
-                >
-                  {[200, 400, 600, 800].map((value) => (
-                    <option key={value} value={value}>
-                      {value}
-                      {value === 400 ? " · conservative default" : ""}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label>
-                Parity per 8 data frames
-                <select
-                  value={parity}
-                  onChange={(event) => setParity(Number(event.target.value))}
-                >
-                  {[0, 1, 2, 4].map((value) => (
-                    <option key={value} value={value}>
-                      {value}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label>
-                <input
-                  type="checkbox"
-                  checked={compress}
-                  onChange={(event) => setCompress(event.target.checked)}
+              {mode === "text" ? (
+                <textarea
+                  aria-label="Optical text"
+                  maxLength={16384}
+                  value={text}
+                  onChange={(event) => setText(event.target.value)}
+                  placeholder="Text to display as QR frames"
                 />
-                Compress only when smaller
-              </label>
-              <label>
-                QR size
-                <select
-                  value={size}
-                  onChange={(event) => setSize(Number(event.target.value))}
-                >
-                  {[420, 600, 800, 1000].map((value) => (
-                    <option key={value} value={value}>
-                      {value} px
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label>
-                Frame speed (milliseconds)
-                <input
-                  aria-label="Frame speed"
-                  type="range"
-                  min={400}
-                  max={2000}
-                  step={100}
-                  value={speed}
-                  onChange={(event) => {
-                    setSpeed(Number(event.target.value));
-                    setPreset("Custom");
-                  }}
-                />
-                {speed} ms
-              </label>
+              ) : (
+                <label>
+                  Small optical file (64 KiB maximum)
+                  <input
+                    type="file"
+                    onChange={(event) => setFile(event.target.files?.[0])}
+                  />
+                </label>
+              )}
+              {file && mode === "file" && (
+                <p>
+                  {file.name} · {formatSize(file.size)}
+                </p>
+              )}
+              {qr && <h3>3 · Transfer</h3>}
+              {qr && (
+                <QRFrameViewer>
+                  <img
+                    src={qr}
+                    onLoad={schedule}
+                    alt={`Optical frame ${renderedIndex + 1} of ${frames.length}`}
+                    style={{ width: size, maxWidth: "100%" }}
+                  />
+                  <p>
+                    Frame {renderedIndex + 1} / {frames.length} ·{" "}
+                    {paused ? "Paused" : "Repeating"}
+                  </p>
+                </QRFrameViewer>
+              )}
             </div>
-          </details>
-          <h3>2 · Prepare Transfer</h3>
-          <p>
-            {transfer ? "Prepared" : "Estimated before compression"}:{" "}
-            {estimateCount} frames · estimated one-cycle time{" "}
-            {Math.ceil((estimateCount * speed) / 1000)} seconds. Missing scans
-            may require recovery; this is not a delivery guarantee.
-          </p>
-          <p className="muted">
-            Auto starts at 400 bytes / 1000 ms and adjusts dwell only after an
-            explicit receiver recovery QR. A one-way camera cannot provide
-            automatic feedback.
-          </p>
-          <div className="flow-actions">
-            <LoadingButton
-              pending={building}
-              loadingText="Preparing QR frames…"
-              onClick={() => void create()}
-            >
-              Start Transfer
-            </LoadingButton>
-            <button
-              disabled={!frames.length}
-              onClick={() => setPaused(!paused)}
-            >
-              {paused ? "Resume frames" : "Pause frames"}
-            </button>
-            <button
-              disabled={!frames.length}
-              onClick={() => {
-                setPaused(true);
-                setIndex((i) => (i + 1) % frames.length);
-              }}
-            >
-              Next frame
-            </button>
-            <button
-              disabled={!frames.length}
-              onClick={() => {
-                setIndex(0);
-                setPaused(false);
-              }}
-            >
-              Restart frames
-            </button>
-          </div>
-          {file && mode === "file" && file.size > 32768 && (
-            <p className="information-banner">
-              Optical transfers of this size can take several minutes and
-              require recovery. Use Offline LAN or Online rooms for faster
-              sharing.
-            </p>
-          )}
-          {qr && <h3>3 · Transfer</h3>}
-          {qr && (
-            <div ref={screen} className="optical-screen">
-              <img
-                src={qr}
-                onLoad={schedule}
-                alt={`Optical frame ${renderedIndex + 1} of ${frames.length}`}
-                style={{ width: size, maxWidth: "100%" }}
-              />
+            <aside className="optical-sidebar">
+              <details>
+                <summary>Advanced display settings</summary>
+                <div className="optical-options">
+                  <label>
+                    Playback preset
+                    <select
+                      value={preset}
+                      onChange={(event) => {
+                        const value = event.target.value;
+                        setPreset(value);
+                        if (value === "Auto") setChunk(400);
+                        setSpeed(
+                          value === "Slow"
+                            ? 1400
+                            : value === "Fast"
+                              ? 600
+                              : 1000,
+                        );
+                      }}
+                    >
+                      {["Auto", "Slow", "Normal", "Fast", "Custom"].map(
+                        (value) => (
+                          <option key={value}>{value}</option>
+                        ),
+                      )}
+                    </select>
+                  </label>
+                  <label>
+                    Payload bytes per frame
+                    <select
+                      value={chunk}
+                      onChange={(event) => {
+                        setChunk(Number(event.target.value));
+                        setPreset("Custom");
+                      }}
+                    >
+                      {[200, 400, 600, 800].map((value) => (
+                        <option key={value} value={value}>
+                          {value}
+                          {value === 400 ? " · conservative default" : ""}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label>
+                    Parity per 8 data frames
+                    <select
+                      value={parity}
+                      onChange={(event) =>
+                        setParity(Number(event.target.value))
+                      }
+                    >
+                      {[0, 1, 2, 4].map((value) => (
+                        <option key={value} value={value}>
+                          {value}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label>
+                    <input
+                      type="checkbox"
+                      checked={compress}
+                      onChange={(event) => setCompress(event.target.checked)}
+                    />
+                    Compress only when smaller
+                  </label>
+                  <label>
+                    QR size
+                    <select
+                      value={size}
+                      onChange={(event) => setSize(Number(event.target.value))}
+                    >
+                      {[420, 600, 800, 1000].map((value) => (
+                        <option key={value} value={value}>
+                          {value} px
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label>
+                    Frame speed (milliseconds)
+                    <input
+                      aria-label="Frame speed"
+                      type="range"
+                      min={400}
+                      max={2000}
+                      step={100}
+                      value={speed}
+                      onChange={(event) => {
+                        setSpeed(Number(event.target.value));
+                        setPreset("Custom");
+                      }}
+                    />
+                    {speed} ms
+                  </label>
+                </div>
+              </details>
+              <h3>2 · Prepare Transfer</h3>
               <p>
-                Frame {renderedIndex + 1} / {frames.length} ·{" "}
-                {paused ? "Paused" : "Repeating"}
+                {transfer ? "Prepared" : "Estimated before compression"}:{" "}
+                {estimateCount} frames · estimated one-cycle time{" "}
+                {Math.ceil((estimateCount * speed) / 1000)} seconds. Missing
+                scans may require recovery; this is not a delivery guarantee.
               </p>
-              <button
-                onClick={() => {
-                  if (!screen.current?.requestFullscreen) {
-                    setStatus(
-                      "Fullscreen unavailable; enlarge the QR using QR size.",
-                    );
-                    return;
-                  }
-                  void screen.current
-                    .requestFullscreen()
-                    .catch(() =>
+              <p className="muted">
+                Auto starts at 400 bytes / 1000 ms and adjusts dwell only after
+                an explicit receiver recovery QR. A one-way camera cannot
+                provide automatic feedback.
+              </p>
+              <div className="flow-actions">
+                <LoadingButton
+                  pending={building}
+                  loadingText="Preparing QR frames…"
+                  onClick={() => void create()}
+                >
+                  Start Transfer
+                </LoadingButton>
+                <button
+                  disabled={!frames.length}
+                  onClick={() => setPaused(!paused)}
+                >
+                  {paused ? "Resume frames" : "Pause frames"}
+                </button>
+                <button
+                  disabled={!frames.length}
+                  onClick={() => {
+                    setPaused(true);
+                    setIndex((i) => (i + 1) % frames.length);
+                  }}
+                >
+                  Next frame
+                </button>
+                <button
+                  disabled={!frames.length}
+                  onClick={() => {
+                    setIndex(0);
+                    setPaused(false);
+                  }}
+                >
+                  Restart frames
+                </button>
+              </div>
+              {file && mode === "file" && file.size > 32768 && (
+                <p className="information-banner">
+                  Optical transfers of this size can take several minutes and
+                  require recovery. Use Offline LAN or Online rooms for faster
+                  sharing.
+                </p>
+              )}
+              <details>
+                <summary>Sender measurements</summary>
+                <p>
+                  QR version {displayed.version} · M correction · 4-module quiet
+                  zone · {frames[index]?.length || 0} encoded characters · QR
+                  generation {displayed.qrMs.toFixed(1)} ms · last observed
+                  display interval {displayed.holdMs.toFixed(0)} ms ·{" "}
+                  {displayed.count} image loads.
+                </p>
+                {transfer && (
+                  <p>
+                    Original {transfer.meta.size} B · encoded{" "}
+                    {transfer.meta.encodedSize} B · {transfer.meta.count} data +{" "}
+                    {transfer.frames.length - transfer.meta.count} parity frames
+                    · preparation {transfer.generationMs.toFixed(1)} ms. FEC
+                    recovers at most {transfer.meta.parity} missing frames per
+                    group when enough other group frames arrive.
+                  </p>
+                )}
+              </details>
+              <details hidden={!transfer}>
+                <summary>Recovery Mode · send only missing frames</summary>
+                <p>
+                  On the receiver choose Recover Missing Frames, then point this
+                  device at each recovery QR page. Or type the receiver’s
+                  one-based missing numbers.
+                </p>
+                <button
+                  disabled={!transfer || !decoderReady}
+                  onClick={() => {
+                    feedback.current.clear();
+                    void scan("feedback");
+                  }}
+                >
+                  Scan recovery QR
+                </button>
+                <label>
+                  Import recovery QR image
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={(event) => {
+                      const selected = event.target.files?.[0];
+                      if (selected) void importImage(selected, "feedback");
+                      event.target.value = "";
+                    }}
+                  />
+                </label>
+                <label>
+                  Missing frame numbers to resend
+                  <input
+                    value={manual}
+                    onChange={(event) => setManual(event.target.value)}
+                    placeholder="1,4-8,27"
+                  />
+                </label>
+                <button
+                  disabled={!transfer}
+                  onClick={() => {
+                    try {
+                      const selected = manualMissing(
+                        manual,
+                        transfer!.meta.count,
+                      );
+                      setFrames(selected.map((i) => transfer!.frames[i]));
+                      setIndex(0);
+                      setPaused(false);
                       setStatus(
-                        "Fullscreen unavailable; enlarge the QR using QR size.",
-                      ),
-                    );
-                }}
-              >
-                Fullscreen QR
-              </button>
-            </div>
-          )}
-          <details>
-            <summary>Sender measurements</summary>
-            <p>
-              QR version {displayed.version} · M correction · 4-module quiet
-              zone · {frames[index]?.length || 0} encoded characters · QR
-              generation {displayed.qrMs.toFixed(1)} ms · last observed display
-              interval {displayed.holdMs.toFixed(0)} ms · {displayed.count}{" "}
-              image loads.
-            </p>
-            {transfer && (
-              <p>
-                Original {transfer.meta.size} B · encoded{" "}
-                {transfer.meta.encodedSize} B · {transfer.meta.count} data +{" "}
-                {transfer.frames.length - transfer.meta.count} parity frames ·
-                preparation {transfer.generationMs.toFixed(1)} ms. FEC recovers
-                at most {transfer.meta.parity} missing frames per group when
-                enough other group frames arrive.
-              </p>
-            )}
-          </details>
-          <details hidden={!transfer}>
-            <summary>Recovery Mode · send only missing frames</summary>
-            <p>
-              On the receiver choose Recover Missing Frames, then point this
-              device at each recovery QR page. Or type the receiver’s one-based
-              missing numbers.
-            </p>
-            <button
-              disabled={!transfer || !decoderReady}
-              onClick={() => {
-                feedback.current.clear();
-                void scan("feedback");
-              }}
-            >
-              Scan recovery QR
-            </button>
-            <label>
-              Import recovery QR image
-              <input
-                type="file"
-                accept="image/*"
-                onChange={(event) => {
-                  const selected = event.target.files?.[0];
-                  if (selected) void importImage(selected, "feedback");
-                  event.target.value = "";
-                }}
-              />
-            </label>
-            <label>
-              Missing frame numbers to resend
-              <input
-                value={manual}
-                onChange={(event) => setManual(event.target.value)}
-                placeholder="1,4-8,27"
-              />
-            </label>
-            <button
-              disabled={!transfer}
-              onClick={() => {
-                try {
-                  const selected = manualMissing(manual, transfer!.meta.count);
-                  setFrames(selected.map((i) => transfer!.frames[i]));
-                  setIndex(0);
-                  setPaused(false);
-                  setStatus(
-                    `Recovering · Sending only ${selected.length} requested data frames.`,
-                  );
-                } catch (error) {
-                  setStatus(String(error));
-                }
-              }}
-            >
-              Send requested frames
-            </button>
-          </details>
+                        `Recovering · Sending only ${selected.length} requested data frames.`,
+                      );
+                    } catch (error) {
+                      setStatus(String(error));
+                    }
+                  }}
+                >
+                  Send requested frames
+                </button>
+              </details>
+            </aside>
+          </div>
         </section>
         <section
           hidden={
@@ -921,259 +986,263 @@ export function OpticalPanel({
           aria-label="Optical receiver"
           tabIndex={-1}
         >
-          <h3>1 · Start Camera</h3>
-          <p>
-            Allow camera access when prompted. If denied, enable Camera in your
-            browser’s site settings and try again. Camera images stay on this
-            device.
-          </p>
-          <p>
-            Keep the whole white border visible. Avoid reflections, tap the
-            camera preview to focus if supported, and reduce screen brightness
-            if the code blooms. Start with Normal/Slow and 400-byte frames.
-          </p>
-          <label>
-            Camera resolution
-            <select
-              value={cameraSize}
-              onChange={(event) => setCameraSize(Number(event.target.value))}
-            >
-              <option value={720}>720 px · lower decoding cost</option>
-              <option value={1280}>1280 px · recommended</option>
-            </select>
-          </label>
-          <div className="flow-actions">
-            <LoadingButton
-              pending={starting}
-              loadingText="Starting camera…"
-              disabled={!decoderReady}
-              onClick={() => void scan()}
-            >
-              Start camera
-            </LoadingButton>
-            <button onClick={stop}>Stop camera</button>
-            <button
-              onClick={() => {
-                stop();
-                collector.current = new ReliableOpticalCollector();
-                setPayload(undefined);
-                setRequests([]);
-                setRevision((v) => v + 1);
-                setStatus("Ready · Receiver reset.");
-              }}
-            >
-              Reset receiver
-            </button>
-          </div>
-          <h3>2 · Scan</h3>
-          <div className="optical-camera">
-            <video
-              ref={video}
-              playsInline
-              muted
-              hidden={!scanning}
-              style={{ maxWidth: "100%" }}
-            />
-            {scanning && <span className="scan-guide" aria-hidden="true" />}
-          </div>
-          <label>
-            Import QR frame image (camera-free fallback)
-            <input
-              type="file"
-              accept="image/*"
-              onChange={(event) => {
-                const selected = event.target.files?.[0];
-                if (selected) void importImage(selected, "receive");
-                event.target.value = "";
-              }}
-            />
-          </label>
-          <div
-            className="optical-progress-panel"
-            aria-live="polite"
-            aria-atomic="true"
-          >
-            <strong>
-              {payload
-                ? "File verified successfully ✓"
-                : requests.length
-                  ? "Recovering missing frames…"
-                  : progress.total
-                    ? progress.missing.length
-                      ? "Waiting for more frames…"
-                      : "Verifying received file…"
-                    : scanning
-                      ? "Scanning frames…"
-                      : "Ready to scan"}
-            </strong>
-            <p>
-              Frames Received: {progress.received} / {progress.total} · Missing{" "}
-              {progress.missing.length} · {progress.percent.toFixed(1)}% ·
-              Recovered {progress.recovered}
-            </p>
-            <progress
-              aria-label="Optical receive progress"
-              max={100}
-              value={progress.percent}
-            />
-            <p className="muted">
-              {progress.total
-                ? `${progress.percent.toFixed(1)}% · ${progress.missing.length} frames still needed.`
-                : "Point your camera at the first QR frame."}{" "}
-              Progress persists across repeated cycles. Download requires
-              SHA-256 verification.
-            </p>
-          </div>
-          {progress.total > 0 && !payload && (
-            <label>
-              Missing frame numbers
-              <textarea
-                readOnly
-                aria-label="Missing frame numbers"
-                value={progress.missing.map((i) => i + 1).join(",")}
-              />
-            </label>
-          )}
-          {progress.total > 0 && !payload && (
-            <h3>3 · Recover Missing Frames</h3>
-          )}
-          {progress.missing.length > 0 && !payload && (
-            <button
-              disabled={!progress.id || !progress.missing.length}
-              onClick={() => {
-                try {
-                  setRequests(
-                    recoveryFrames(
-                      progress,
-                      diag.source === "camera" && diag.elapsed
-                        ? diag.decoded / diag.elapsed
-                        : 0,
-                    ),
-                  );
-                  setRequestIndex(0);
-                  setStatus(
-                    `Recovering · Missing ${progress.missing.length}. Show each recovery QR to the sender; existing data is kept.`,
-                  );
-                } catch (error) {
-                  setStatus(String(error));
-                }
-              }}
-            >
-              Recover Missing Frames
-            </button>
-          )}
-          {requestQr && (
-            <div>
-              <img
-                src={requestQr}
-                alt={`Recovery request ${requestIndex + 1} of ${requests.length}`}
-                style={{ width: 600, maxWidth: "100%" }}
-              />
-              <p>
-                Recovery QR {requestIndex + 1} / {requests.length}
-              </p>
-              <button
-                onClick={() =>
-                  setRequestIndex((i) => (i + 1) % requests.length)
-                }
-              >
-                Next recovery QR
-              </button>
+          <div className="optical-workspace">
+            <div className="optical-primary">
+              <h3>Scan with your camera</h3>
+              <label>
+                Camera resolution
+                <select
+                  value={cameraSize}
+                  onChange={(event) =>
+                    setCameraSize(Number(event.target.value))
+                  }
+                >
+                  <option value={720}>720 px · lower decoding cost</option>
+                  <option value={1280}>1280 px · recommended</option>
+                </select>
+              </label>
+              <div className="flow-actions">
+                <LoadingButton
+                  pending={starting}
+                  loadingText="Starting camera…"
+                  disabled={!decoderReady}
+                  onClick={() => void scan()}
+                >
+                  Start camera
+                </LoadingButton>
+                <button onClick={stop}>Stop camera</button>
+                <button
+                  onClick={() => {
+                    stop();
+                    collector.current = new ReliableOpticalCollector();
+                    setPayload(undefined);
+                    setRequests([]);
+                    setRevision((v) => v + 1);
+                    setStatus("Ready · Receiver reset.");
+                  }}
+                >
+                  Reset receiver
+                </button>
+              </div>
+              <h3>2 · Scan</h3>
+              <div className="optical-camera">
+                <video
+                  ref={video}
+                  playsInline
+                  muted
+                  hidden={!scanning}
+                  style={{ maxWidth: "100%" }}
+                />
+                {scanning && <span className="scan-guide" aria-hidden="true" />}
+              </div>
+              <label>
+                Import QR frame image (camera-free fallback)
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={(event) => {
+                    const selected = event.target.files?.[0];
+                    if (selected) void importImage(selected, "receive");
+                    event.target.value = "";
+                  }}
+                />
+              </label>
             </div>
-          )}
-          {payload && (
-            <div>
-              <p>
-                {payload.name} · {formatSize(payload.blob.size)} · SHA-256
-                verified
-              </p>
-              {payload.kind === "text" && (
+            <aside className="optical-sidebar">
+              <div
+                className="optical-progress-panel"
+                aria-live="polite"
+                aria-atomic="true"
+              >
+                <strong>
+                  {payload
+                    ? "File verified successfully ✓"
+                    : requests.length
+                      ? "Recovering missing frames…"
+                      : progress.total
+                        ? progress.missing.length
+                          ? "Waiting for more frames…"
+                          : "Verifying received file…"
+                        : scanning
+                          ? "Scanning frames…"
+                          : "Ready to scan"}
+                </strong>
+                <p>
+                  Frames Received: {progress.received} / {progress.total} ·
+                  Missing {progress.missing.length} ·{" "}
+                  {progress.percent.toFixed(1)}% · Recovered{" "}
+                  {progress.recovered}
+                </p>
+                <progress
+                  aria-label="Optical receive progress"
+                  max={100}
+                  value={progress.percent}
+                />
+                <p className="muted">
+                  {progress.total
+                    ? `${progress.percent.toFixed(1)}% · ${progress.missing.length} frames still needed.`
+                    : "Point your camera at the first QR frame."}{" "}
+                  Progress persists across repeated cycles. Download requires
+                  SHA-256 verification.
+                </p>
+              </div>
+              {progress.total > 0 && !payload && (
                 <label>
-                  Received text — select to copy
+                  Missing frame numbers
                   <textarea
-                    aria-label="Received text — select to copy"
                     readOnly
-                    value={payload.text}
+                    aria-label="Missing frame numbers"
+                    value={progress.missing.map((i) => i + 1).join(",")}
                   />
                 </label>
               )}
-              <button
-                onClick={() => {
-                  const url = URL.createObjectURL(payload.blob),
-                    a = document.createElement("a");
-                  a.href = url;
-                  a.download = payload.name;
-                  a.click();
-                  setTimeout(() => URL.revokeObjectURL(url), 10000);
-                }}
-              >
-                Download reconstructed{" "}
-                {payload.kind === "file" ? "file" : "text"}
-              </button>
-              <button
-                onClick={() => {
-                  if (verifying) return;
-                  setVerifying(true);
-                  setStatus("Verifying file SHA-256…");
-                  void hashFile(payload.blob)
-                    .then((hash) => {
-                      if (hash === payload.sha256)
-                        setStatus("Completed · SHA-256 verified again");
-                      else {
-                        setPayload(undefined);
-                        setStatus(
-                          "Failed · Optical checksum mismatch; download disabled.",
-                        );
-                      }
-                    })
-                    .catch(() =>
-                      setStatus("Failed · Could not verify this payload."),
-                    )
-                    .finally(() => setVerifying(false));
-                }}
-              >
-                Verify File
-              </button>
-              {payload.kind === "text" && (
+              {progress.total > 0 && !payload && (
+                <h3>3 · Recover Missing Frames</h3>
+              )}
+              {progress.missing.length > 0 && !payload && (
                 <button
-                  onClick={() =>
-                    void navigator.clipboard
-                      ?.writeText(payload.text || "")
-                      .catch(() =>
-                        setStatus("Select received text and copy manually."),
-                      )
-                  }
+                  disabled={!progress.id || !progress.missing.length}
+                  onClick={() => {
+                    try {
+                      setRequests(
+                        recoveryFrames(
+                          progress,
+                          diag.source === "camera" && diag.elapsed
+                            ? diag.decoded / diag.elapsed
+                            : 0,
+                        ),
+                      );
+                      setRequestIndex(0);
+                      setStatus(
+                        `Recovering · Missing ${progress.missing.length}. Show each recovery QR to the sender; existing data is kept.`,
+                      );
+                    } catch (error) {
+                      setStatus(String(error));
+                    }
+                  }}
                 >
-                  Copy received text
+                  Recover Missing Frames
                 </button>
               )}
-            </div>
-          )}
-          <details>
-            <summary>Receiver diagnostics · no file contents</summary>
-            <p>
-              Attempts {diag.attempts} · decoded {diag.decoded} · no QR{" "}
-              {diag.noQr} · decoder errors {diag.errors} · invalid frames{" "}
-              {progress.invalid} · mixed transfers {progress.mixed} · duplicates{" "}
-              {progress.duplicates} · FEC recovered {progress.recovered} ·
-              stored payload {progress.storedBytes} B.
-            </p>
-            <p>
-              Mean decode{" "}
-              {diag.attempts ? (diag.decodeMs / diag.attempts).toFixed(1) : 0}{" "}
-              ms · observed{" "}
-              {diag.elapsed ? (diag.decoded / diag.elapsed).toFixed(2) : 0}{" "}
-              decodes/s. Actual camera captures and image imports are measured;
-              generated frames are not counted as received.
-            </p>
-          </details>
-          <p className="muted">
-            Integrity checks detect corruption; they do not authenticate a
-            sender. No success is shown until final SHA-256 matches.
-            Phone-camera reliability must be checked on your physical devices;
-            image tests are not physical verification. Stop/restart scanning
-            retains received chunks; Reset starts a new transfer.
-          </p>
+              {requestQr && (
+                <div>
+                  <img
+                    src={requestQr}
+                    alt={`Recovery request ${requestIndex + 1} of ${requests.length}`}
+                    style={{ width: 600, maxWidth: "100%" }}
+                  />
+                  <p>
+                    Recovery QR {requestIndex + 1} / {requests.length}
+                  </p>
+                  <button
+                    onClick={() =>
+                      setRequestIndex((i) => (i + 1) % requests.length)
+                    }
+                  >
+                    Next recovery QR
+                  </button>
+                </div>
+              )}
+              {payload && (
+                <div>
+                  <p>
+                    {payload.name} · {formatSize(payload.blob.size)} · SHA-256
+                    verified
+                  </p>
+                  {payload.kind === "text" && (
+                    <label>
+                      Received text — select to copy
+                      <textarea
+                        aria-label="Received text — select to copy"
+                        readOnly
+                        value={payload.text}
+                      />
+                    </label>
+                  )}
+                  <button
+                    onClick={() => {
+                      const url = URL.createObjectURL(payload.blob),
+                        a = document.createElement("a");
+                      a.href = url;
+                      a.download = payload.name;
+                      a.click();
+                      setTimeout(() => URL.revokeObjectURL(url), 10000);
+                    }}
+                  >
+                    Download reconstructed{" "}
+                    {payload.kind === "file" ? "file" : "text"}
+                  </button>
+                  <button
+                    onClick={() => {
+                      if (verifying) return;
+                      setVerifying(true);
+                      setStatus("Verifying file SHA-256…");
+                      void hashFile(payload.blob)
+                        .then((hash) => {
+                          if (hash === payload.sha256)
+                            setStatus("Completed · SHA-256 verified again");
+                          else {
+                            setPayload(undefined);
+                            setStatus(
+                              "Failed · Optical checksum mismatch; download disabled.",
+                            );
+                          }
+                        })
+                        .catch(() =>
+                          setStatus("Failed · Could not verify this payload."),
+                        )
+                        .finally(() => setVerifying(false));
+                    }}
+                  >
+                    Verify File
+                  </button>
+                  {payload.kind === "text" && (
+                    <button
+                      onClick={() =>
+                        void navigator.clipboard
+                          ?.writeText(payload.text || "")
+                          .catch(() =>
+                            setStatus(
+                              "Select received text and copy manually.",
+                            ),
+                          )
+                      }
+                    >
+                      Copy received text
+                    </button>
+                  )}
+                </div>
+              )}
+              <details>
+                <summary>Receiver diagnostics · no file contents</summary>
+                <p>
+                  Attempts {diag.attempts} · decoded {diag.decoded} · no QR{" "}
+                  {diag.noQr} · decoder errors {diag.errors} · invalid frames{" "}
+                  {progress.invalid} · mixed transfers {progress.mixed} ·
+                  duplicates {progress.duplicates} · FEC recovered{" "}
+                  {progress.recovered} · stored payload {progress.storedBytes}{" "}
+                  B.
+                </p>
+                <p>
+                  Mean decode{" "}
+                  {diag.attempts
+                    ? (diag.decodeMs / diag.attempts).toFixed(1)
+                    : 0}{" "}
+                  ms · observed{" "}
+                  {diag.elapsed ? (diag.decoded / diag.elapsed).toFixed(2) : 0}{" "}
+                  decodes/s. Actual camera captures and image imports are
+                  measured; generated frames are not counted as received.
+                </p>
+              </details>
+              <p className="muted">
+                Integrity checks detect corruption; they do not authenticate a
+                sender. No success is shown until final SHA-256 matches.
+                Phone-camera reliability must be checked on your physical
+                devices; image tests are not physical verification. Stop/restart
+                scanning retains received chunks; Reset starts a new transfer.
+              </p>
+            </aside>
+          </div>
         </section>
       </div>
     </section>

@@ -487,7 +487,7 @@ export function RoomDashboard({
                 setStatus("Connection ended");
                 setError(
                   event.type === "ended"
-                    ? "Room expired or ended. Start or join a new room."
+                    ? "The room host has ended the sharing session."
                     : "The room host removed your device.",
                 );
                 setEnded(true);
@@ -1271,7 +1271,7 @@ export function RoomDashboard({
           <h1>
             {error.includes("removed")
               ? "You’ve left this room"
-              : "This room session has ended"}
+              : "This room has ended"}
           </h1>
           <p>{error}</p>
           <LoadingButton
@@ -1279,7 +1279,7 @@ export function RoomDashboard({
             loadingText="Leaving room…"
             onClick={() => leave()}
           >
-            Back to Home
+            Return to Home
           </LoadingButton>
           <LoadingButton
             pending={busy}

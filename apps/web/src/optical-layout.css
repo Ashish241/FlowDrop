@@ -1,0 +1,48 @@
+.standalone:has(.optical-panel) {
+  max-width: none;
+  width: 100%;
+}
+.optical-panel {
+  width: 100%;
+  min-width: 0;
+}
+.optical-workspace {
+  display: grid;
+  grid-template-columns: minmax(0, 1.65fr) minmax(280px, 1fr);
+  gap: clamp(20px, 3vw, 48px);
+  align-items: start;
+}
+.optical-primary,
+.optical-sidebar {
+  min-width: 0;
+}
+.optical-sidebar {
+  padding: 20px;
+  border: 1px solid var(--border, #d9e2df);
+  border-radius: 20px;
+}
+.optical-sidebar > :first-child {
+  margin-top: 0;
+}
+.optical-primary textarea {
+  min-height: 140px;
+}
+.optical-help {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.optical-camera {
+  min-height: 240px;
+}
+.optical-camera video {
+  width: 100%;
+}
+@media (max-width: 760px) {
+  .optical-workspace {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .optical-sidebar {
+    padding: 16px;
+  }
+}

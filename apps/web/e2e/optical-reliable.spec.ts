@@ -419,3 +419,131 @@ test("browser WASM parity reconstructs a binary file from one data QR and two pa
     await bc.close();
   }
 });
+
+for (const fallback of [false, true]) {
+  test(`QR fullscreen ${fallback ? "fallback" : "native"} toggles without resetting transfer`, async ({
+    page,
+  }) => {
+    await open(page);
+    await page
+      .getByLabel("Optical text", { exact: true })
+      .fill("Fullscreen integrity");
+    await page
+      .getByRole("button", { name: "Start Transfer", exact: true })
+      .click();
+    const qr = page.getByAltText(/Optical frame 1 of/);
+    await expect(qr).toBeVisible();
+    const original = await qr.getAttribute("src");
+    if (fallback)
+      await page.evaluate(() => {
+        Object.defineProperty(HTMLElement.prototype, "requestFullscreen", {
+          configurable: true,
+          value: () => Promise.reject(new Error("Unavailable")),
+        });
+      });
+    await page
+      .getByRole("button", { name: "Fullscreen QR", exact: true })
+      .click();
+    await expect(
+      page.getByRole("button", { name: "Exit Fullscreen", exact: true }),
+    ).toBeVisible();
+    await page
+      .getByRole("button", { name: "Exit Fullscreen", exact: true })
+      .click();
+    await expect(
+      page.getByRole("button", { name: "Fullscreen QR", exact: true }),
+    ).toBeVisible();
+    await expect(qr).toHaveAttribute("src", original!);
+    await page
+      .getByRole("button", { name: "Fullscreen QR", exact: true })
+      .click();
+    await expect(
+      page.getByRole("button", { name: "Exit Fullscreen", exact: true }),
+    ).toBeVisible();
+    const nativeActive = await page.evaluate(
+      () => !!document.fullscreenElement,
+    );
+    if (nativeActive) await page.evaluate(() => document.exitFullscreen());
+    else await page.keyboard.press("Escape");
+    await expect(
+      page.getByRole("button", { name: "Fullscreen QR", exact: true }),
+    ).toBeVisible();
+    await page
+      .getByRole("button", { name: "How It Works", exact: true })
+      .click();
+    await expect(
+      page.getByRole("dialog", { name: "How Optical Share works" }),
+    ).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(page.getByRole("dialog")).not.toBeVisible();
+  });
+}
+
+test("stalled decoder restarts without discarding received frames", async ({
+  browser,
+}) => {
+  const sender = await browser.newContext(),
+    receiver = await browser.newContext();
+  try {
+    const a = await sender.newPage(),
+      b = await receiver.newPage();
+    let workers = 0;
+    await b.route("**/optical-decoder.worker-*.js", async (route) => {
+      const response = await route.fetch();
+      let body = await response.text();
+      if (workers++ === 0)
+        body +=
+          ";const originalDecode=self.onmessage;let jobs=0;self.onmessage=(event)=>{if(++jobs!==2)originalDecode(event)};";
+      await route.fulfill({ response, body });
+    });
+    await b.clock.install();
+    await open(a);
+    await open(b, true);
+    await a.getByLabel("Compress only when smaller").uncheck();
+    await a.getByLabel("Parity per 8 data frames").selectOption("0");
+    const message = "0123456789".repeat(70);
+    await a.getByLabel("Optical text", { exact: true }).fill(message);
+    await a
+      .getByRole("button", { name: "Start Transfer", exact: true })
+      .click();
+    await a.getByRole("button", { name: "Pause frames", exact: true }).click();
+    const first = await png(a, /Optical frame 1 of 2/);
+    await a.getByRole("button", { name: "Next frame", exact: true }).click();
+    await expect(a.getByAltText("Optical frame 2 of 2")).toBeVisible();
+    const second = await png(a, /Optical frame 2 of 2/);
+    await upload(b, first);
+    await expect(b.locator(".optical-panel")).toHaveAttribute(
+      "data-optical-received",
+      "1",
+    );
+    await b
+      .getByLabel("Import QR frame image (camera-free fallback)", {
+        exact: true,
+      })
+      .setInputFiles({
+        name: "second.png",
+        mimeType: "image/png",
+        buffer: second,
+      });
+    await b.clock.fastForward(12000);
+    await expect(b.getByText(/Decoder took too long/)).toBeVisible();
+    await expect(b.locator(".optical-panel")).toHaveAttribute(
+      "data-optical-received",
+      "1",
+    );
+    await expect(
+      b.getByText("Decoder ready · processing runs in a Web Worker", {
+        exact: true,
+      }),
+    ).toBeVisible();
+    await upload(b, second);
+    await expect(
+      b.getByText("Completed · SHA-256 verified; ready to copy or download", {
+        exact: true,
+      }),
+    ).toBeVisible();
+  } finally {
+    await sender.close();
+    await receiver.close();
+  }
+});

@@ -1,7 +1,7 @@
 $ErrorActionPreference = 'Stop'
 Set-Location (Join-Path $PSScriptRoot '..')
 if (-not (Test-Path 'apps/web/dist-desktop/index.html')) { throw 'Build the frontend first: cd apps/web; npm run build:desktop' }
-python -m PyInstaller --noconfirm --clean --name FlowDrop --onedir --add-data 'apps/web/dist-desktop;apps/web/dist' --collect-all zeroconf apps/desktop/launcher.py
+python -m PyInstaller --noconfirm --clean --name FlowDrop --onedir --icon apps/desktop/assets/flowdrop.ico --add-data 'apps/desktop/assets;apps/desktop/assets' --add-data 'apps/web/dist-desktop;apps/web/dist' --collect-all zeroconf apps/desktop/launcher.py
 if ($LASTEXITCODE -ne 0) { throw 'PyInstaller build failed' }
 $taskBuild = python -c 'import json; from services.version import VERSION, BUILD_ID; print(json.dumps({"version": VERSION, "build": BUILD_ID}))' | ConvertFrom-Json
 if ($LASTEXITCODE -ne 0) { throw 'Build identifier lookup failed' }

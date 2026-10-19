@@ -34,7 +34,7 @@ class DesktopPanel:
         browser=webbrowser.open,
         confirm=messagebox.askyesno,
         preference_file=None,
-        auto_start=True,
+        auto_start=False,
     ):
         self.root, self.browser, self.confirm = root, browser, confirm
         self.preference_file = preference_file
@@ -53,15 +53,24 @@ class DesktopPanel:
         self.qr_payload = ""
         self.qr_image = None
         root.title(f"FlowDrop {VERSION} — {BUILD_ID}")
+        brand_path = Path(__file__).parent / "assets" / "flowdrop-mark.png"
+        if brand_path.is_file():
+            self.brand_icon = tk.PhotoImage(file=str(brand_path))
+            root.iconphoto(True, self.brand_icon)
         root.geometry("850x780")
         root.minsize(760, 720)
+        self.theme = "light"
+        self.style = ttk.Style(root)
+        self.style.theme_use("clam")
+        self.apply_theme()
         frame = ttk.Frame(root, padding=18)
         frame.pack(fill="both", expand=True)
         ttk.Label(
             frame,
-            text=f"FlowDrop {VERSION}  /  {BUILD_ID}",
+            text=f"FlowDrop {VERSION}  ·  Offline LAN",
             font=("Segoe UI", 19, "bold"),
         ).pack(anchor="w")
+        ttk.Button(frame, text="Light / Dark theme", command=self.toggle_theme).pack(anchor="e")
         self.status = tk.StringVar(value="Stopped")
         ttk.Label(frame, textvariable=self.status, font=("Segoe UI", 12, "bold")).pack(
             anchor="w", pady=6
@@ -99,7 +108,7 @@ class DesktopPanel:
             )
         controls = ttk.Frame(frame)
         controls.pack(anchor="w", pady=6)
-        self.start_button = ttk.Button(controls, text="Start", command=self.start)
+        self.start_button = ttk.Button(controls, text="Start", command=self.start, style="Primary.TButton")
         self.stop_button = ttk.Button(
             controls, text="Stop", command=self.stop, state="disabled"
         )
@@ -141,7 +150,8 @@ class DesktopPanel:
             side="left"
         )
         self.output = tk.Text(frame, height=6, wrap="word", state="disabled")
-        self.output.pack(fill="both", expand=True, pady=4)
+        self.output_visible = False
+        ttk.Button(tools, text="Show / Hide Details", command=self.toggle_details).pack(side="left", padx=6)
         ttk.Label(
             frame,
             text="HTTP requires a trusted LAN. Firewall changes require approval and UAC; Private/LocalSubnet only.\nPhone reachability requires a real device test; hotspot/router client isolation cannot be bypassed.",
@@ -153,6 +163,33 @@ class DesktopPanel:
         root.after(1000, self.tick)
         if auto_start:
             root.after(200, self.start)
+
+    def apply_theme(self):
+        dark = self.theme == "dark"
+        background, foreground, surface, accent = (
+            ("#101b29", "#e5eff7", "#192838", "#83d9db") if dark
+            else ("#f5f8fa", "#182d40", "#ffffff", "#e9f3f4")
+        )
+        self.root.configure(background=background)
+        self.style.configure(".", background=background, foreground=foreground, font=("Segoe UI", 10))
+        self.style.configure("TButton", padding=(12, 8), background=surface, foreground=foreground)
+        self.style.configure("Primary.TButton", background=accent, foreground="#173f34")
+        self.style.configure("TEntry", fieldbackground=surface, foreground=foreground)
+        self.style.configure("TCombobox", fieldbackground=surface, foreground=foreground)
+        self.style.map("TButton", background=[("active", accent)], foreground=[("disabled", "#788780"), ("active", "#173f34")])
+        if hasattr(self, "output"):
+            self.output.configure(background=surface, foreground=foreground, insertbackground=foreground)
+
+    def toggle_theme(self):
+        self.theme = "dark" if self.theme == "light" else "light"
+        self.apply_theme()
+
+    def toggle_details(self):
+        self.output_visible = not self.output_visible
+        if self.output_visible:
+            self.output.pack(fill="both", expand=True, pady=4)
+        else:
+            self.output.pack_forget()
 
     def post(self, function, *args):
         self.events.put((function, args))
@@ -166,6 +203,8 @@ class DesktopPanel:
         self.root.after(50, self.drain)
 
     def show_output(self, text):
+        if not self.output_visible:
+            self.toggle_details()
         self.output.config(state="normal")
         self.output.delete("1.0", "end")
         self.output.insert("1.0", text)
@@ -633,6 +672,11 @@ def panel_smoke():
             confirm=lambda *_: True,
             preference_file=Path(directory) / "network.json",
         )
+        assert panel.status.get() == "Stopped"
+        assert panel.thread is None and not panel.lan.get()
+        panel.toggle_theme()
+        panel.toggle_theme()
+        root.after(200, panel.start_button.invoke)
         started, phase = time.monotonic(), 0
         result = {}
         error = []

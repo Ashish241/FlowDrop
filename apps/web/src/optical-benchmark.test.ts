@@ -216,3 +216,69 @@ it("64 KiB actual QR sampling harness survives interrupted repeated scans and se
   );
   expect(parseOpticalFrame(transfer.frames[0]).payload.length).toBe(400);
 }, 120000);
+
+it("benchmarks complete 64 KiB raster acquisition and selective recovery at every payload size", async () => {
+  const bytes = fixture();
+  const rows = [];
+  for (const chunkSize of [200, 400, 600, 800]) {
+    const start = performance.now();
+    const transfer = await buildOpticalTransfer(
+      new Blob([bytes]),
+      "64k.bin",
+      "file",
+      {
+        chunkSize,
+        parity: 0,
+        compress: false,
+      },
+    );
+    const receiver = new ReliableOpticalCollector();
+    let attempts = 0;
+    const ingest = async (raw: string) => {
+      const image = raster(raw, 600);
+      const { frame } = decodeOpticalQr(image.pixels, 600, 600);
+      attempts++;
+      expect(frame?.data).toBe(raw);
+      return receiver.addPayload(frame!.data);
+    };
+    // Deliberate loss, reverse ordering, duplicates and selective optical feedback.
+    for (let i = transfer.meta.count - 1; i >= 0; i--) {
+      if (i % 7 === 0) continue;
+      await ingest(transfer.frames[i]);
+      if (i % 19 === 0) await ingest(transfer.frames[i]);
+    }
+    const missing = receiver.progress.missing.length;
+    const requests = recoveryFrames(receiver.progress).map((raw) => {
+      const image = raster(raw, 600);
+      const { frame } = decodeOpticalQr(image.pixels, 600, 600);
+      expect(frame).not.toBeNull();
+      return parseRecovery(frame!.data);
+    });
+    let result;
+    for (const raw of selectiveFrames(transfer, requests))
+      result = (await ingest(raw)) || result;
+    expect(receiver.complete).toBe(true);
+    expect(new Uint8Array(await result!.blob.arrayBuffer())).toEqual(bytes);
+    rows.push({
+      chunkSize,
+      dataFrames: transfer.meta.count,
+      attempts,
+      recoveryFrames: missing,
+      elapsedMs: Math.round(performance.now() - start),
+      sha256: result!.sha256,
+      estimatedNormalCycleSeconds: transfer.meta.count,
+    });
+  }
+  await writeFile(
+    "../../.flowdrop/optical-end-to-end.json",
+    JSON.stringify(
+      {
+        scope:
+          "Synthetic 600px QR raster acquisition, loss and offline recovery; excludes screen dwell and physical camera acquisition",
+        rows,
+      },
+      null,
+      2,
+    ),
+  );
+}, 300000);
