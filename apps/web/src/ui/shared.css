@@ -1,0 +1,79 @@
+.flowdrop-loader {
+  width: 20px;
+  height: 20px;
+  flex: none;
+  vertical-align: middle;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.loader-section {
+  width: 38px;
+  height: 38px;
+}
+.loader-page {
+  width: 60px;
+  height: 60px;
+}
+.loader-drop {
+  animation: drop-float 1.6s ease-in-out infinite;
+}
+.loader-arrow {
+  animation: arrow-flow 1.2s ease-in-out infinite;
+}
+.shared-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 20px;
+}
+.shared-confirm {
+  max-width: min(440px, calc(100vw - 36px));
+  border-radius: 22px;
+  padding: 28px;
+  background: var(--surface, var(--fd-surface, #fff));
+  color: var(--ink, var(--fd-ink, #25342e));
+  border: 1px solid var(--line, var(--fd-line, #dce5db));
+}
+body.dark {
+  --fd-surface: #1c2c25;
+  --fd-ink: #e5efe8;
+  --fd-line: #3b5146;
+}
+.shared-confirm::backdrop {
+  background: rgba(10, 25, 17, 0.42);
+}
+.shared-confirm button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+@keyframes drop-float {
+  50% {
+    transform: translateY(-1px);
+  }
+}
+@keyframes arrow-flow {
+  50% {
+    transform: translateY(3px);
+    opacity: 0.55;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .loader-drop,
+  .loader-arrow {
+    animation: none;
+  }
+}
+
+.shared-confirm .destructive {
+  background: #9b302b;
+  color: #fff;
+}
+.workspace-back {
+  margin-bottom: 18px;
+}

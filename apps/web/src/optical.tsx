@@ -1,3 +1,10 @@
+import { openCamera } from "./ui/camera";
+import {
+  BackNavigation,
+  FlowDropLoader,
+  LoadingButton,
+  SectionLoader,
+} from "./ui/shared";
 import { useEffect, useRef, useState } from "react";
 import QRCode from "qrcode";
 import { Camera, MonitorUp } from "lucide-react";
@@ -33,8 +40,40 @@ const initialDiag = (): Diagnostics => ({
   elapsed: 0,
   source: "import",
 });
-export function OpticalPanel() {
-  const [view, setView] = useState<"send" | "receive" | null>(null);
+export function OpticalPanel({
+  onHome,
+  active = true,
+}: { onHome?: () => void; active?: boolean } = {}) {
+  const [starting, setStarting] = useState(false);
+  const [verifying, setVerifying] = useState(false);
+  const creating = useRef(false);
+  const cameraStarting = useRef(false);
+  const [view, setView] = useState<"send" | "receive" | null>(() =>
+    onHome && /optical\/(send|receive)$/.test(location.hash)
+      ? location.hash.endsWith("send")
+        ? "send"
+        : "receive"
+      : null,
+  );
+  useEffect(() => {
+    if (!onHome) return;
+    const sync = () =>
+      setView(
+        location.hash.endsWith("optical/send")
+          ? "send"
+          : location.hash.endsWith("optical/receive")
+            ? "receive"
+            : null,
+      );
+    window.addEventListener("hashchange", sync);
+    return () => window.removeEventListener("hashchange", sync);
+  }, [onHome]);
+  useEffect(() => {
+    if (!active) {
+      stop();
+      setPaused(true);
+    }
+  }, [active]);
   const [text, setText] = useState(""),
     [mode, setMode] = useState("text"),
     [file, setFile] = useState<File>(),
@@ -107,6 +146,8 @@ export function OpticalPanel() {
     cancelAnimationFrame(animation.current);
     pending.current = undefined;
     setScanning(false);
+    setStarting(false);
+    cameraStarting.current = false;
   }
   function showProgress() {
     const p = collector.current.progress;
@@ -309,6 +350,8 @@ export function OpticalPanel() {
     };
   }, [requests, requestIndex]);
   async function create() {
+    if (creating.current) return;
+    creating.current = true;
     setBuilding(true);
     try {
       const result = await buildOpticalTransfer(
@@ -344,11 +387,16 @@ export function OpticalPanel() {
     } catch (error) {
       setStatus(`Failed · ${String(error)}`);
     } finally {
+      creating.current = false;
       setBuilding(false);
     }
   }
   async function scan(purpose: "receive" | "feedback" = "receive") {
+    if (cameraStarting.current) return;
     stop();
+    cameraStarting.current = true;
+    setStarting(true);
+    const epoch = cameraGeneration.current;
     try {
       if (!decoderReady)
         throw Error("QR decoder is loading. Wait for Decoder ready.");
@@ -356,8 +404,7 @@ export function OpticalPanel() {
         throw Error(
           "Camera requires HTTPS or localhost and browser support. Use imported images or manual recovery.",
         );
-      const epoch = cameraGeneration.current;
-      const media = await navigator.mediaDevices.getUserMedia({
+      const media = await openCamera({
         video: {
           facingMode: { ideal: "environment" },
           width: { ideal: cameraSize },
@@ -422,10 +469,16 @@ export function OpticalPanel() {
       }
       tick();
     } catch (error) {
+      if (epoch !== cameraGeneration.current) return;
       stop();
       setStatus(
         `Failed · ${String(error)}. Camera permission denied? Allow it in browser settings or use imported QR images/manual recovery.`,
       );
+    } finally {
+      if (epoch === cameraGeneration.current) {
+        setStarting(false);
+        cameraStarting.current = false;
+      }
     }
   }
   async function importImage(imageFile: File, purpose: "receive" | "feedback") {
@@ -484,6 +537,24 @@ export function OpticalPanel() {
       data-optical-total={progress.total}
       data-optical-decoded={diag.decoded}
     >
+      {(view || onHome) && (
+        <BackNavigation
+          label={view ? "Back to Optical Share" : "Back to Home"}
+          onBack={() => {
+            stop();
+            if (view) {
+              setView(null);
+              if (onHome) location.hash = "/optical";
+            } else onHome?.();
+          }}
+        />
+      )}
+      {onHome && (
+        <div className="entry-intro">
+          <span className="eyebrow">SCREEN TO CAMERA</span>
+          <h1>Optical Share</h1>
+        </div>
+      )}
       <h2>Screen &amp; camera sharing</h2>
       <p>Share text and small files using your screen and camera.</p>
       <div
@@ -498,6 +569,7 @@ export function OpticalPanel() {
           onClick={() => {
             stop();
             setView("send");
+            if (onHome) location.hash = "/optical/send";
           }}
         >
           <MonitorUp size={32} />
@@ -509,6 +581,7 @@ export function OpticalPanel() {
           onClick={() => {
             stop();
             setView("receive");
+            if (onHome) location.hash = "/optical/receive";
           }}
         >
           <Camera size={32} />
@@ -531,7 +604,16 @@ export function OpticalPanel() {
         Decoder ready have loaded. Text up to 16 KiB · files up to 64 KiB. For
         larger files or faster sharing, use Offline LAN or Online rooms.
       </p>
-      <p role="status">{status}</p>
+      <p role="status">
+        {verifying && <FlowDropLoader variant="section" />}
+        {status}
+      </p>
+      {starting && view === "send" && (
+        <SectionLoader>Starting camera…</SectionLoader>
+      )}
+      {!decoderReady && !status.startsWith("Failed") && (
+        <SectionLoader>Loading offline QR decoder…</SectionLoader>
+      )}
       <p className="muted">
         {decoderReady
           ? "Decoder ready · processing runs in a Web Worker"
@@ -681,9 +763,13 @@ export function OpticalPanel() {
             automatic feedback.
           </p>
           <div className="flow-actions">
-            <button disabled={building} onClick={() => void create()}>
-              {building ? "Preparing…" : "Start Transfer"}
-            </button>
+            <LoadingButton
+              pending={building}
+              loadingText="Preparing QR frames…"
+              onClick={() => void create()}
+            >
+              Start Transfer
+            </LoadingButton>
             <button
               disabled={!frames.length}
               onClick={() => setPaused(!paused)}
@@ -857,9 +943,14 @@ export function OpticalPanel() {
             </select>
           </label>
           <div className="flow-actions">
-            <button disabled={!decoderReady} onClick={() => void scan()}>
+            <LoadingButton
+              pending={starting}
+              loadingText="Starting camera…"
+              disabled={!decoderReady}
+              onClick={() => void scan()}
+            >
               Start camera
-            </button>
+            </LoadingButton>
             <button onClick={stop}>Stop camera</button>
             <button
               onClick={() => {
@@ -1021,6 +1112,8 @@ export function OpticalPanel() {
               </button>
               <button
                 onClick={() => {
+                  if (verifying) return;
+                  setVerifying(true);
                   setStatus("Verifying file SHA-256…");
                   void hashFile(payload.blob)
                     .then((hash) => {
@@ -1035,7 +1128,8 @@ export function OpticalPanel() {
                     })
                     .catch(() =>
                       setStatus("Failed · Could not verify this payload."),
-                    );
+                    )
+                    .finally(() => setVerifying(false));
                 }}
               >
                 Verify File

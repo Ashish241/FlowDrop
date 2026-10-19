@@ -201,6 +201,10 @@ test("auto-selection preserves choices; partial success retries only unfinished 
       ),
     ).toBe(0);
     await d.getByRole("button", { name: "Leave Room", exact: true }).click();
+    await d
+      .getByRole("dialog")
+      .getByRole("button", { name: "Leave Room", exact: true })
+      .click();
     await expect(d.locator(".home-actions button")).toHaveCount(4);
     await expect(
       a.getByRole("checkbox", { name: "Select Late device", exact: true }),
@@ -223,6 +227,10 @@ test("auto-selection preserves choices; partial success retries only unfinished 
       fullPage: true,
     });
     await a.getByRole("button", { name: "End Room", exact: true }).click();
+    await a
+      .getByRole("dialog")
+      .getByRole("button", { name: "End Room", exact: true })
+      .click();
   } finally {
     await Promise.all(contexts.map((ctx) => ctx.close()));
   }
@@ -280,6 +288,10 @@ test("batch attachments clear individually only after receiver verification", as
       a.locator(".delivery-summary summary").filter({ hasText: "Verified ✓" }),
     ).toHaveCount(2);
     await a.getByRole("button", { name: "End Room", exact: true }).click();
+    await a
+      .getByRole("dialog")
+      .getByRole("button", { name: "End Room", exact: true })
+      .click();
   } finally {
     await ac.close();
     await bc.close();

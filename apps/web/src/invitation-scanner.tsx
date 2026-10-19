@@ -1,3 +1,5 @@
+import { openCamera } from "./ui/camera";
+import { SectionLoader } from "./ui/shared";
 import { useEffect, useRef, useState } from "react";
 import jsQR from "jsqr";
 import { invitationCode } from "./room-utils";
@@ -6,6 +8,7 @@ export function InvitationScanner({
 }: {
   onCode: (code: string) => void;
 }) {
+  const [starting, setStarting] = useState(false);
   const [scanning, setScanning] = useState(false),
     [error, setError] = useState("");
   const video = useRef<HTMLVideoElement>(null),
@@ -19,6 +22,7 @@ export function InvitationScanner({
     stream.current?.getTracks().forEach((track) => track.stop());
     stream.current = undefined;
     setScanning(false);
+    setStarting(false);
   }
   useEffect(
     () => () => {
@@ -33,13 +37,14 @@ export function InvitationScanner({
     setError("");
     detected.current = false;
     setScanning(true);
+    setStarting(true);
     const current = generation.current;
     try {
       if (!navigator.mediaDevices?.getUserMedia)
         throw new Error(
           "Camera scanning requires HTTPS and a supported browser. Enter the room code instead.",
         );
-      const media = await navigator.mediaDevices.getUserMedia({
+      const media = await openCamera({
         video: { facingMode: "environment" },
         audio: false,
       });
@@ -50,6 +55,8 @@ export function InvitationScanner({
       stream.current = media;
       video.current!.srcObject = media;
       await video.current!.play();
+      if (current !== generation.current) return;
+      setStarting(false);
       const canvas = document.createElement("canvas"),
         ctx = canvas.getContext("2d", { willReadFrequently: true })!;
       let previous = "";
@@ -104,6 +111,7 @@ export function InvitationScanner({
       >
         {scanning ? "Stop scanning" : "Scan QR"}
       </button>
+      {starting && <SectionLoader>Starting camera…</SectionLoader>}
       <video
         ref={video}
         hidden={!scanning}

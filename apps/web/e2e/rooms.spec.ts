@@ -216,6 +216,10 @@ test("named room auto-join, three real peers, rename and recipient-isolated tran
     ).toBeVisible();
     await a.getByRole("button", { name: "Lock Room", exact: true }).click();
     await d.getByRole("button", { name: "Leave Room" }).click();
+    await d
+      .getByRole("dialog")
+      .getByRole("button", { name: "Leave Room", exact: true })
+      .click();
     await expect(d.locator(".home-actions button")).toHaveCount(4);
     await d.goto("/#room=" + code);
     await d.getByLabel("Device name", { exact: true }).fill("Locked out");
@@ -318,6 +322,10 @@ test("named room auto-join, three real peers, rename and recipient-isolated tran
       });
     });
     await a.getByRole("button", { name: "End Room", exact: true }).click();
+    await a
+      .getByRole("dialog")
+      .getByRole("button", { name: "End Room", exact: true })
+      .click();
     await expect(b.getByRole("alert")).toContainText(/expired|ended/);
     expect(
       await b.evaluate(
@@ -415,6 +423,10 @@ test("pause, rename during byte transfer, resume, cancellation and text stay ind
     await a
       .getByRole("button", { name: "Cancel transfer", exact: true })
       .click();
+    await a
+      .getByRole("dialog", { name: "Cancel transfer?" })
+      .getByRole("button", { name: "Cancel transfer", exact: true })
+      .click();
     await expect(
       b.getByRole("button", { name: "Accept file", exact: true }),
     ).toHaveCount(0);
@@ -450,6 +462,10 @@ test("pause, rename during byte transfer, resume, cancellation and text stay ind
       fullPage: true,
     });
     await a.getByRole("button", { name: "End Room", exact: true }).click();
+    await a
+      .getByRole("dialog")
+      .getByRole("button", { name: "End Room", exact: true })
+      .click();
   } finally {
     await ac.close();
     await bc.close();

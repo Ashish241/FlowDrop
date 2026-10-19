@@ -1,3 +1,4 @@
+import { ConfirmDialog, LoadingButton, SectionLoader } from "./ui/shared";
 declare const __DESKTOP__: boolean;
 import { useEffect, useState, useRef } from "react";
 import { createRoot } from "react-dom/client";
@@ -27,7 +28,10 @@ type Transfer = {
   save_outcome?: string;
 };
 function App() {
+  const [clearHistory, setClearHistory] = useState(false);
   const [preparing, setPreparing] = useState("");
+  const [pairing, setPairing] = useState(false);
+  const pairRequest = useRef(false);
   const [visited, setVisited] = useState<string[]>([]);
   const [token, setToken] = useState(sessionStorage.getItem("token") || ""),
     [me, setMe] = useState<{
@@ -115,7 +119,10 @@ function App() {
     try {
       r = await fetch("/api" + path, {
         ...options,
-        signal: controller.signal,
+        signal: AbortSignal.any([
+          controller.signal,
+          AbortSignal.timeout(70000),
+        ]),
         headers: { Authorization: "Bearer " + token, ...options.headers },
       });
     } finally {
@@ -324,7 +331,9 @@ function App() {
     }
   }
   async function restore(t: Transfer, file?: File) {
-    if (!file) return;
+    if (!file || busy.current.has("restore:" + t.id)) return;
+    busy.current.add("restore:" + t.id);
+    setPreparing(`Verifying original file: ${file.name}`);
     try {
       if (file.size !== t.size || (await hashFile(file)) !== t.sha256)
         throw new Error(
@@ -337,6 +346,9 @@ function App() {
       await refresh();
     } catch (e) {
       report(e);
+    } finally {
+      busy.current.delete("restore:" + t.id);
+      setPreparing("");
     }
   }
   const nav = [
@@ -355,6 +367,19 @@ function App() {
   );
   return (
     <div className="shell">
+      <ConfirmDialog
+        open={clearHistory}
+        title="Clear text history?"
+        description="Messages in this browser will be removed. This cannot be undone."
+        confirmText="Clear history"
+        loadingText="Clearing…"
+        destructive
+        onCancel={() => setClearHistory(false)}
+        onConfirm={() => {
+          setHistory([]);
+          setClearHistory(false);
+        }}
+      />
       <aside>
         <a className="brand" href="#">
           <Zap fill="currentColor" /> FlowDrop<span>●</span>
@@ -362,14 +387,14 @@ function App() {
         <p className="caption">YOUR SPACE. YOUR FILES.</p>
         <nav>
           {nav.map((x) => (
-            <button
+            <LoadingButton
               className={page === x ? "active" : ""}
               key={x}
               onClick={() => setPage(x)}
             >
               {__DESKTOP__ && x === "Optical Text" ? "Optical Share" : x}
               <ArrowUpRight size={15} />
-            </button>
+            </LoadingButton>
           ))}
         </nav>
         <div className="privacy">
@@ -383,12 +408,12 @@ function App() {
           <span>
             <i /> LOCAL WORKSPACE
           </span>
-          <button
+          <LoadingButton
             aria-label="Toggle theme"
             onClick={() => document.body.classList.toggle("dark")}
           >
             <Moon size={18} />
-          </button>
+          </LoadingButton>
         </header>
         <section className="intro">
           <div className="eyebrow">
@@ -458,24 +483,33 @@ function App() {
                 inputMode="numeric"
               />
             </label>
-            <button
+            <LoadingButton
+              pending={pairing}
+              loadingText="Requesting connection…"
               onClick={async () => {
+                if (pairRequest.current) return;
+                pairRequest.current = true;
+                setPairing(true);
                 try {
                   const r = await fetch("/api/pair", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ name, code }),
+                    signal: AbortSignal.timeout(70000),
                   });
                   const d = await r.json();
                   if (!r.ok) throw new Error(d.detail);
                   setToken(d.token);
                 } catch (e) {
                   report(e);
+                } finally {
+                  pairRequest.current = false;
+                  setPairing(false);
                 }
               }}
             >
               Request connection
-            </button>
+            </LoadingButton>
           </section>
         ) : (
           <>
@@ -484,7 +518,7 @@ function App() {
                 <div className="section-title">
                   <h2>Send something good</h2>
                   <span>LAN TRANSFER</span>
-                  {preparing && <p aria-live="polite">{preparing}</p>}
+                  {preparing && <SectionLoader>{preparing}</SectionLoader>}
                 </div>
                 <label>
                   Send to
@@ -590,7 +624,7 @@ function App() {
                         )}
                       </div>
                       {t.state === "PENDING" && t.recipient === me.id && (
-                        <button
+                        <LoadingButton
                           onClick={() =>
                             api(`/transfers/${t.id}/accept`, { method: "POST" })
                               .then(refresh)
@@ -598,21 +632,21 @@ function App() {
                           }
                         >
                           Accept
-                        </button>
+                        </LoadingButton>
                       )}
                       {t.state === "COMPLETED" && t.recipient === me.id && (
                         <>
-                          <button onClick={() => void download(t)}>
+                          <LoadingButton onClick={() => download(t)}>
                             Save file
-                          </button>
+                          </LoadingButton>
                           <small>
                             {t.save_outcome
                               ? `Receiver reported: ${t.save_outcome}`
                               : "Verified on host; browser save not confirmed"}
                           </small>
-                          <button
+                          <LoadingButton
                             onClick={() =>
-                              void api(`/transfers/${t.id}/save-outcome`, {
+                              api(`/transfers/${t.id}/save-outcome`, {
                                 method: "POST",
                                 headers: { "Content-Type": "application/json" },
                                 body: JSON.stringify({ outcome: "saved" }),
@@ -622,11 +656,11 @@ function App() {
                             }
                           >
                             I checked the saved file
-                          </button>
+                          </LoadingButton>
                         </>
                       )}
                       {["ACCEPTED", "TRANSFERRING"].includes(t.state) && (
-                        <button
+                        <LoadingButton
                           onClick={() =>
                             api(`/transfers/${t.id}/pause`, { method: "POST" })
                               .then(refresh)
@@ -634,13 +668,13 @@ function App() {
                           }
                         >
                           Pause
-                        </button>
+                        </LoadingButton>
                       )}
                       {t.state === "PAUSED" && (
-                        <button
+                        <LoadingButton
                           onClick={() => {
                             failed.current.delete(t.id);
-                            void api(`/transfers/${t.id}/resume`, {
+                            return api(`/transfers/${t.id}/resume`, {
                               method: "POST",
                             })
                               .then(refresh)
@@ -648,7 +682,7 @@ function App() {
                           }}
                         >
                           Resume
-                        </button>
+                        </LoadingButton>
                       )}
                       {t.sender === me.id &&
                         ["ACCEPTED", "TRANSFERRING", "PAUSED"].includes(
@@ -666,18 +700,18 @@ function App() {
                             </label>
                             {failed.current.has(t.id) &&
                               files.current.has(t.id) && (
-                                <button
+                                <LoadingButton
                                   onClick={() =>
-                                    void restore(t, files.current.get(t.id))
+                                    restore(t, files.current.get(t.id))
                                   }
                                 >
                                   Retry queued file
-                                </button>
+                                </LoadingButton>
                               )}
                           </>
                         )}
                       {t.state !== "CANCELLED" && (
-                        <button
+                        <LoadingButton
                           onClick={() =>
                             api(`/transfers/${t.id}`, { method: "DELETE" })
                               .then(refresh)
@@ -685,7 +719,7 @@ function App() {
                           }
                         >
                           Cancel / delete
-                        </button>
+                        </LoadingButton>
                       )}
                     </article>
                   ))
@@ -711,7 +745,7 @@ function App() {
                       <p>Pairing code</p>
                       <h2>{me.pairing_code}</h2>
                       <small>Expires 10 minutes after host launch.</small>
-                      <button
+                      <LoadingButton
                         onClick={() =>
                           api("/pair/renew", { method: "POST" })
                             .then(refresh)
@@ -719,7 +753,7 @@ function App() {
                         }
                       >
                         Renew pairing code
-                      </button>
+                      </LoadingButton>
                     </div>
                   </div>
                 )}
@@ -731,7 +765,7 @@ function App() {
                       {d.approved ? "Authorized" : "Waiting for approval"}
                     </span>
                     {me.id === "host" && d.id !== "host" && (
-                      <button
+                      <LoadingButton
                         onClick={() =>
                           api(
                             "/devices/" + d.id + (d.approved ? "" : "/approve"),
@@ -742,7 +776,7 @@ function App() {
                         }
                       >
                         {d.approved ? "Revoke" : "Approve"}
-                      </button>
+                      </LoadingButton>
                     )}
                   </article>
                 ))}
@@ -771,7 +805,7 @@ function App() {
                   onChange={(e) => setText(e.target.value)}
                   placeholder="Text, a link, or a code snippet"
                 />
-                <button
+                <LoadingButton
                   onClick={() => {
                     if (
                       !recipient ||
@@ -797,13 +831,15 @@ function App() {
                   }}
                 >
                   Send text
-                </button>
-                <button onClick={() => setHistory([])}>Clear history</button>
+                </LoadingButton>
+                <LoadingButton onClick={() => setClearHistory(true)}>
+                  Clear history
+                </LoadingButton>
                 {history.map((h, i) => (
                   <div key={i}>
                     <small>{h.sender}</small>
                     <pre>{h.text}</pre>
-                    <button
+                    <LoadingButton
                       onClick={() => {
                         if (navigator.clipboard && window.isSecureContext)
                           void navigator.clipboard
@@ -820,8 +856,10 @@ function App() {
                       }}
                     >
                       Copy text
-                    </button>
-                    <button onClick={() => setText(h.text)}>Resend</button>
+                    </LoadingButton>
+                    <LoadingButton onClick={() => setText(h.text)}>
+                      Resend
+                    </LoadingButton>
                   </div>
                 ))}
               </section>
@@ -833,7 +871,7 @@ function App() {
                   Session credentials stay in this browser tab. Reopening the
                   browser requires pairing again.
                 </p>
-                <button
+                <LoadingButton
                   onClick={() => {
                     sessionStorage.clear();
                     setToken("");
@@ -841,7 +879,7 @@ function App() {
                   }}
                 >
                   Disconnect this browser
-                </button>
+                </LoadingButton>
               </section>
             )}
           </>

@@ -88,13 +88,11 @@ test("real WebRTC DataChannel approval, file integrity, and text", async ({
   const download = await downloading;
   expect(await readFile((await download.path())!)).toEqual(bytes);
   const reverse = Buffer.alloc(131089, 39);
-  await b
-    .locator("input[type=file]")
-    .setInputFiles({
-      name: "reverse.bin",
-      mimeType: "application/octet-stream",
-      buffer: reverse,
-    });
+  await b.locator("input[type=file]").setInputFiles({
+    name: "reverse.bin",
+    mimeType: "application/octet-stream",
+    buffer: reverse,
+  });
   const reverseDownload = a.waitForEvent("download");
   await a.getByRole("button", { name: "Accept file", exact: true }).click();
   expect(await readFile((await (await reverseDownload).path())!)).toEqual(
@@ -124,7 +122,7 @@ test("real WebRTC DataChannel approval, file integrity, and text", async ({
     .getByPlaceholder("Share text with your peer")
     .fill("navigation survives");
   await a.getByRole("button", { name: "Send text", exact: true }).click();
-  await expect(b.locator("pre").first()).toContainText("navigation survives");
+  await expect(b.locator("pre").last()).toContainText("navigation survives");
   await b.reload();
   await b.getByRole("button", { name: "Online Share", exact: true }).click();
   await b
@@ -143,6 +141,10 @@ test("real WebRTC DataChannel approval, file integrity, and text", async ({
     b.getByRole("button", { name: "Accept file", exact: true }),
   ).toBeVisible();
   await a.getByRole("button", { name: "Cancel transfer", exact: true }).click();
+  await a
+    .getByRole("dialog", { name: "Cancel transfer?" })
+    .getByRole("button", { name: "Cancel transfer", exact: true })
+    .click();
   await expect(
     b.getByRole("button", { name: "Accept file", exact: true }),
   ).toHaveCount(0);

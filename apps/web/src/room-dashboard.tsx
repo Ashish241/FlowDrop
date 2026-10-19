@@ -1,3 +1,10 @@
+import { appendMessage } from "./ui/chat";
+import {
+  BackNavigation,
+  ConfirmDialog,
+  FlowDropLoader,
+  LoadingButton,
+} from "./ui/shared";
 import { useEffect, useRef, useState } from "react";
 import QRCode from "qrcode";
 import {
@@ -16,6 +23,9 @@ import {
   Lock,
   Unlock,
   RefreshCw,
+  LogOut,
+  UserMinus,
+  Trash2,
 } from "lucide-react";
 import { formatSize, mergeAttachments } from "./room-utils";
 import { InvitationScanner } from "./invitation-scanner";
@@ -160,11 +170,25 @@ export function RoomDashboard({
   const [message, setMessage] = useState("");
   const [refreshOpen, setRefreshOpen] = useState(false);
   const [refreshError, setRefreshError] = useState("");
-  const refreshDialog = useRef<HTMLDialogElement>(null);
-  useEffect(() => {
-    if (refreshOpen) refreshDialog.current?.showModal();
-    else refreshDialog.current?.close();
-  }, [refreshOpen]);
+  const [decision, setDecision] = useState<{
+    kind: "remove" | "leave" | "clear";
+    member?: Member;
+  }>();
+  const leaving = useRef(false);
+  const [controlPending, setControlPending] = useState<"lock" | "rename" | "">(
+    "",
+  );
+  const controlRequest = useRef<
+    | {
+        type: "lock" | "rename";
+        value: string | boolean;
+        timer: ReturnType<typeof setTimeout>;
+      }
+    | undefined
+  >(undefined);
+  useEffect(() => () => clearTimeout(controlRequest.current?.timer), []);
+  const historyList = useRef<HTMLUListElement>(null);
+  const nearBottom = useRef(true);
   const [hostPending, setHostPending] = useState(false);
   const hostRequest = useRef(false);
   const [invite, setInvite] = useState(false);
@@ -200,11 +224,16 @@ export function RoomDashboard({
     Array<{
       from: string;
       text: string;
-      id?: string;
+      id: string;
       recipients?: string[];
       acknowledged?: string[];
     }>
   >([]);
+  const lastMessage = messages.at(-1)?.id;
+  useEffect(() => {
+    if (nearBottom.current && historyList.current)
+      historyList.current.scrollTop = historyList.current.scrollHeight;
+  }, [lastMessage]);
   const picker = useRef<HTMLInputElement>(null),
     folderPicker = useRef<HTMLInputElement>(null);
   const entering = useRef(false);
@@ -232,7 +261,22 @@ export function RoomDashboard({
     ? `${location.origin}/#room=${snapshot.code}`
     : "";
   useEffect(() => {
-    if (invitation) void QRCode.toDataURL(invitation).then(setQr);
+    let live = true;
+    setQr("");
+    if (invitation)
+      void QRCode.toDataURL(invitation)
+        .then((value) => {
+          if (live) setQr(value);
+        })
+        .catch(() => {
+          if (live)
+            setError(
+              "Invitation QR unavailable. Copy the invitation link or refresh to retry.",
+            );
+        });
+    return () => {
+      live = false;
+    };
   }, [invitation]);
   useEffect(() => {
     try {
@@ -435,6 +479,9 @@ export function RoomDashboard({
               if (revoked) return;
               if (event.type === "removed" || event.type === "ended") {
                 revoked = true;
+                clearTimeout(controlRequest.current?.timer);
+                controlRequest.current = undefined;
+                setControlPending("");
                 clearInterval(heartbeat);
                 clearTimeout(timer);
                 setStatus("Connection ended");
@@ -457,6 +504,22 @@ export function RoomDashboard({
                 setStatus("Connected");
                 setError("");
                 setSnapshot(event);
+                const pendingControl = controlRequest.current;
+                if (
+                  pendingControl &&
+                  (pendingControl.type === "lock"
+                    ? event.locked === pendingControl.value
+                    : event.members.some(
+                        (member: Member) =>
+                          member.id === identity.member &&
+                          member.name === pendingControl.value,
+                      ))
+                ) {
+                  clearTimeout(pendingControl.timer);
+                  controlRequest.current = undefined;
+                  setControlPending("");
+                  if (pendingControl.type === "rename") setRenaming(false);
+                }
                 sessionStorage.setItem(
                   sessionKey,
                   JSON.stringify({ ...identity, ...event }),
@@ -514,8 +577,12 @@ export function RoomDashboard({
                     ...newlySelected,
                   ]),
                 ]);
-              } else if (event.type === "error") setError(event.message);
-              else if (
+              } else if (event.type === "error") {
+                clearTimeout(controlRequest.current?.timer);
+                controlRequest.current = undefined;
+                setControlPending("");
+                setError(event.message);
+              } else if (
                 ["offer", "answer", "ice", "retry"].includes(event.type) &&
                 members.some((m) => m.id === event.from && m.online)
               ) {
@@ -743,6 +810,7 @@ export function RoomDashboard({
     if (sent === selected.length) {
       setMessages((items) =>
         [
+          ...items,
           {
             from: "You",
             text: message,
@@ -750,8 +818,7 @@ export function RoomDashboard({
             recipients: textRecipients,
             acknowledged: [],
           },
-          ...items,
-        ].slice(0, 30),
+        ].slice(-30),
       );
       setMessage("");
       notify(`Text shared with ${sent} ${sent === 1 ? "device" : "devices"}.`);
@@ -762,13 +829,6 @@ export function RoomDashboard({
   }
   async function manageRoom(kind: "invitation" | "remove", member?: Member) {
     if (!session || hostRequest.current) return;
-    if (
-      kind === "remove" &&
-      !window.confirm(
-        "Remove this device from the room? Its active transfers will stop.",
-      )
-    )
-      return;
     hostRequest.current = true;
     setHostPending(true);
     setRefreshError("");
@@ -783,6 +843,7 @@ export function RoomDashboard({
         setSnapshot(updated);
         setRefreshOpen(false);
       }
+      setDecision(undefined);
       notify(
         kind === "invitation"
           ? "New invitation ready."
@@ -791,24 +852,16 @@ export function RoomDashboard({
     } catch (reason) {
       if (kind === "invitation")
         setRefreshError("Could not refresh the invitation. Please try again.");
-      else setError(String(reason));
+      else setRefreshError(String(reason));
     } finally {
       hostRequest.current = false;
       setHostPending(false);
     }
   }
   async function leave() {
-    if (!session) return;
-    if (
-      !ended &&
-      deliveries.some((row) =>
-        Object.values(row.recipients).some(
-          (delivery) => !terminal(delivery.state),
-        ),
-      ) &&
-      !window.confirm("Leave this room? Active transfers will stop.")
-    )
-      return;
+    if (!session || leaving.current) return;
+    leaving.current = true;
+    setRefreshError("");
     setBusy(true);
     try {
       await request(
@@ -829,6 +882,7 @@ export function RoomDashboard({
       saveDeliveries([]);
       setStatus("Waiting");
       setError("");
+      setDecision(undefined);
       onHome?.();
     } catch (reason) {
       if (ended || /expired|ended|membership required/i.test(String(reason))) {
@@ -840,9 +894,11 @@ export function RoomDashboard({
         setMessage("");
         setMessages([]);
         saveDeliveries([]);
+        setDecision(undefined);
         onHome?.();
-      } else setError(String(reason));
+      } else setRefreshError(String(reason));
     } finally {
+      leaving.current = false;
       setBusy(false);
     }
   }
@@ -859,10 +915,27 @@ export function RoomDashboard({
   const selectedReady = selected.filter(
     (id) => eligible.some((m) => m.id === id) && ready(id),
   );
-  function sendEvent(data: unknown) {
-    if (ws.current?.readyState === WebSocket.OPEN)
-      ws.current.send(JSON.stringify(data));
-    else setError("Reconnecting. Retry when connected.");
+  function sendEvent(
+    data: { type: "lock"; locked: boolean } | { type: "rename"; name: string },
+  ) {
+    if (controlRequest.current) return;
+    if (ws.current?.readyState !== WebSocket.OPEN) {
+      setError("Reconnecting. Retry when connected.");
+      return;
+    }
+    setControlPending(data.type);
+    controlRequest.current = {
+      type: data.type,
+      value: data.type === "lock" ? data.locked : data.name,
+      timer: setTimeout(() => {
+        controlRequest.current = undefined;
+        setControlPending("");
+        setError(
+          "Update was not confirmed. Check the current room state and retry.",
+        );
+      }, 10000),
+    };
+    ws.current.send(JSON.stringify(data));
   }
   function notify(value: string) {
     setNotice(value);
@@ -1020,46 +1093,74 @@ export function RoomDashboard({
       aria-label="Room dashboard"
       data-revision={revision}
     >
-      <dialog
-        ref={refreshDialog}
-        className="invitation-dialog"
-        aria-labelledby="refresh-title"
-        aria-describedby="refresh-description"
-        onCancel={(event) => {
-          event.preventDefault();
-          if (!hostPending) setRefreshOpen(false);
+      <ConfirmDialog
+        open={refreshOpen}
+        icon={<RefreshCw size={24} />}
+        title="Refresh invitation?"
+        description="A new room code and QR will be generated. Connected devices will remain connected."
+        confirmText="Refresh Code"
+        loadingText="Refreshing…"
+        pending={hostPending}
+        error={refreshError}
+        onCancel={() => setRefreshOpen(false)}
+        onConfirm={() => void manageRoom("invitation")}
+      />
+      <ConfirmDialog
+        open={!!decision}
+        destructive
+        icon={
+          decision?.kind === "remove" ? (
+            <UserMinus size={24} />
+          ) : decision?.kind === "clear" ? (
+            <Trash2 size={24} />
+          ) : (
+            <LogOut size={24} />
+          )
+        }
+        title={
+          decision?.kind === "remove"
+            ? "Remove device?"
+            : decision?.kind === "clear"
+              ? "Clear text history?"
+              : snapshot?.owner === session?.member
+                ? "End room?"
+                : "Leave room?"
+        }
+        description={
+          decision?.kind === "remove"
+            ? "This device’s active transfers will stop."
+            : decision?.kind === "clear"
+              ? "Messages in this browser will be removed. This cannot be undone."
+              : "Active transfers will stop. Ending a hosted room disconnects its members."
+        }
+        confirmText={
+          decision?.kind === "remove"
+            ? "Remove Device"
+            : decision?.kind === "clear"
+              ? "Clear history"
+              : snapshot?.owner === session?.member
+                ? "End Room"
+                : "Leave Room"
+        }
+        loadingText={
+          decision?.kind === "remove"
+            ? "Removing device…"
+            : snapshot?.owner === session?.member
+              ? "Ending room…"
+              : "Leaving room…"
+        }
+        pending={hostPending || busy}
+        error={refreshError}
+        onCancel={() => setDecision(undefined)}
+        onConfirm={() => {
+          if (decision?.kind === "remove")
+            void manageRoom("remove", decision.member);
+          else if (decision?.kind === "clear") {
+            setMessages([]);
+            setDecision(undefined);
+          } else void leave();
         }}
-      >
-        <div className="dialog-symbol">
-          <RefreshCw size={24} />
-        </div>
-        <h2 id="refresh-title">Refresh invitation?</h2>
-        <p id="refresh-description">
-          A new room code and QR will be generated. Connected devices will
-          remain connected.
-        </p>
-        {refreshError && (
-          <p role="alert" className="dialog-error">
-            {refreshError}
-          </p>
-        )}
-        <div className="room-actions">
-          <button
-            className="secondary"
-            autoFocus
-            disabled={hostPending}
-            onClick={() => setRefreshOpen(false)}
-          >
-            Cancel
-          </button>
-          <button
-            disabled={hostPending}
-            onClick={() => void manageRoom("invitation")}
-          >
-            {hostPending ? "Refreshing…" : "Refresh Code"}
-          </button>
-        </div>
-      </dialog>
+      />
       {notice && (
         <div className="toast" role="status" aria-live="polite">
           <span>{notice}</span>
@@ -1148,13 +1249,18 @@ export function RoomDashboard({
               />
             </>
           )}
-          <button className="primary" disabled={busy || !validName(name)}>
-            {busy
-              ? "Connecting…"
-              : action === "Join Room" && !confirmed && !code
-                ? "Continue"
-                : action}
-          </button>
+          <LoadingButton
+            className="primary"
+            pending={busy}
+            loadingText={
+              action === "Create Room" ? "Creating room…" : "Joining room…"
+            }
+            disabled={!validName(name)}
+          >
+            {action === "Join Room" && !confirmed && !code
+              ? "Continue"
+              : action}
+          </LoadingButton>
           <small>
             No account needed. Only room members see your display name.
           </small>
@@ -1180,13 +1286,7 @@ export function RoomDashboard({
         </section>
       ) : (
         <>
-          <button
-            className="quiet workspace-back"
-            aria-label="Back to Home"
-            onClick={() => onHome?.()}
-          >
-            ← Back
-          </button>
+          <BackNavigation onBack={() => onHome?.()} />
           <div className="room-heading">
             <div>
               <span className="eyebrow">YOUR SHARED SPACE</span>
@@ -1201,20 +1301,28 @@ export function RoomDashboard({
             </div>
             <div className="room-actions">
               {snapshot?.owner === session.member && (
-                <button
+                <LoadingButton
                   className="secondary"
+                  disabled={!!controlPending}
+                  pending={controlPending === "lock"}
+                  loadingText={
+                    snapshot.locked ? "Unlocking room…" : "Locking room…"
+                  }
                   onClick={() =>
                     sendEvent({ type: "lock", locked: !snapshot.locked })
                   }
                 >
                   {snapshot.locked ? <Unlock size={16} /> : <Lock size={16} />}{" "}
                   {snapshot.locked ? "Unlock Room" : "Lock Room"}
-                </button>
+                </LoadingButton>
               )}
               <button
                 className="secondary"
                 disabled={busy}
-                onClick={() => void leave()}
+                onClick={() => {
+                  setRefreshError("");
+                  setDecision({ kind: "leave" });
+                }}
               >
                 {snapshot?.owner === session.member ? "End Room" : "Leave Room"}
               </button>
@@ -1224,7 +1332,7 @@ export function RoomDashboard({
             <div className="connection-banner" role="status">
               <span>
                 {status !== "Connection failed" && (
-                  <i className="recovery-spinner" aria-hidden="true" />
+                  <FlowDropLoader variant="page" />
                 )}
                 {status.startsWith("Reconnect")
                   ? "Reconnecting… Your files are safe in this page."
@@ -1445,10 +1553,20 @@ export function RoomDashboard({
                   <span className="badge">{selected.length} selected</span>
                 </div>
                 {messages.length > 0 ? (
-                  <ul className="message-history" aria-label="Text history">
-                    {messages.map((item, i) => (
+                  <ul
+                    ref={historyList}
+                    onScroll={(event) => {
+                      const node = event.currentTarget;
+                      nearBottom.current =
+                        node.scrollHeight - node.scrollTop - node.clientHeight <
+                        64;
+                    }}
+                    className="message-history"
+                    aria-label="Text history"
+                  >
+                    {messages.map((item) => (
                       <li
-                        key={i}
+                        key={item.id}
                         className={
                           item.from === "You"
                             ? "message-outgoing"
@@ -1506,7 +1624,13 @@ export function RoomDashboard({
                     }}
                   />
                   <div className="room-actions">
-                    <button className="quiet" onClick={() => setMessages([])}>
+                    <button
+                      className="quiet"
+                      onClick={() => {
+                        setRefreshError("");
+                        setDecision({ kind: "clear" });
+                      }}
+                    >
                       Clear history
                     </button>
                     <button
@@ -1592,7 +1716,10 @@ export function RoomDashboard({
                             </summary>
                             <button
                               disabled={hostPending}
-                              onClick={() => void manageRoom("remove", m)}
+                              onClick={() => {
+                                setRefreshError("");
+                                setDecision({ kind: "remove", member: m });
+                              }}
                             >
                               Remove from Room
                             </button>
@@ -1620,7 +1747,6 @@ export function RoomDashboard({
                             "flowdrop-device-name",
                             name.trim(),
                           );
-                        setRenaming(false);
                       }
                     }}
                   >
@@ -1633,9 +1759,14 @@ export function RoomDashboard({
                         onChange={(e) => setName(e.target.value)}
                       />
                     </label>
-                    <button className="primary" disabled={!validName(name)}>
+                    <LoadingButton
+                      className="primary"
+                      pending={controlPending === "rename"}
+                      loadingText="Updating name…"
+                      disabled={!validName(name) || controlPending === "lock"}
+                    >
                       Save name
-                    </button>
+                    </LoadingButton>
                   </form>
                 )}
                 <div className="room-actions">
@@ -1785,13 +1916,16 @@ export function RoomDashboard({
                                     : item,
                                 ),
                               ),
-                            onMessage: (text) =>
-                              setMessages((items) =>
-                                [
-                                  { from: displayName(m), text },
-                                  ...items,
-                                ].slice(0, 30),
-                              ),
+                            onMessage: (text, wireId) =>
+                              setMessages((items) => {
+                                const id =
+                                  m.id + ":" + (wireId || crypto.randomUUID());
+                                return appendMessage(items, {
+                                  id,
+                                  from: displayName(m),
+                                  text,
+                                });
+                              }),
                             onNotice: (value) =>
                               notify(`${displayName(m)}: ${value}`),
                             onTransfer: (update) =>

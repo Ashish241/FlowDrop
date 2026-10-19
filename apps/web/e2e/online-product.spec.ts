@@ -158,6 +158,10 @@ test("standalone website transfers multiple files both ways, text, cancellation 
     await left
       .getByRole("button", { name: "Cancel transfer", exact: true })
       .click();
+    await left
+      .getByRole("dialog", { name: "Cancel transfer?" })
+      .getByRole("button", { name: "Cancel transfer", exact: true })
+      .click();
     await expect(right.getByRole("status")).toContainText("cancelled");
     await b.reload();
     await b.getByRole("button", { name: "Receive Files", exact: true }).click();
@@ -190,6 +194,10 @@ test("standalone website transfers multiple files both ways, text, cancellation 
     await left
       .getByRole("button", { name: "Cancel transfer", exact: true })
       .click();
+    await left
+      .getByRole("dialog", { name: "Cancel transfer?" })
+      .getByRole("button", { name: "Cancel transfer", exact: true })
+      .click();
     await left.getByRole("button", { name: "End room", exact: true }).click();
   } finally {
     for (const context of [l, r])
@@ -213,13 +221,11 @@ test("cold-start outage retains files and gives a useful retry", async ({
   );
   await page.goto("/");
   await page.getByRole("button", { name: "Send Files", exact: true }).click();
-  await page
-    .getByLabel("Browse Files", { exact: true })
-    .setInputFiles({
-      name: "retained.txt",
-      mimeType: "text/plain",
-      buffer: Buffer.from("keep me"),
-    });
+  await page.getByLabel("Browse Files", { exact: true }).setInputFiles({
+    name: "retained.txt",
+    mimeType: "text/plain",
+    buffer: Buffer.from("keep me"),
+  });
   await page.getByRole("button", { name: "Continue", exact: true }).click();
   await expect(page.locator(".flow-error")).toContainText(
     "selected files are retained",

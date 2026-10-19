@@ -113,7 +113,7 @@ test("host invitation refresh and removal preserve unrelated verified transfer",
       longText + "\n",
     );
     await a.getByLabel("Message", { exact: true }).press("Enter");
-    await expect(b.locator(".message-incoming pre").first()).toHaveText(
+    await expect(b.locator(".message-incoming pre").last()).toHaveText(
       longText.trim(),
     );
     await a.setViewportSize({ width: 390, height: 844 });
@@ -137,7 +137,6 @@ test("host invitation refresh and removal preserve unrelated verified transfer",
     await expect(
       c.getByRole("button", { name: "Accept file", exact: true }),
     ).toBeVisible();
-    a.on("dialog", (dialog) => dialog.accept());
     await a.getByRole("button", { name: "Lock Room", exact: true }).click();
     await a
       .getByRole("button", { name: "Refresh Invitation", exact: true })
@@ -205,6 +204,10 @@ test("host invitation refresh and removal preserve unrelated verified transfer",
     await a.getByLabel("Actions for Phone", { exact: true }).click();
     await a
       .getByRole("button", { name: "Remove from Room", exact: true })
+      .click();
+    await a
+      .getByRole("dialog", { name: "Remove device?" })
+      .getByRole("button", { name: "Remove Device", exact: true })
       .click();
     await expect(b.getByRole("alert")).toContainText(
       "The room host removed your device.",
@@ -408,10 +411,13 @@ test("a removed offline device stops recovery after membership rejection", async
         .at(-1)!
         .close(),
     );
-    a.on("dialog", (dialog) => dialog.accept());
     await a.getByLabel("Actions for Offline phone", { exact: true }).click();
     await a
       .getByRole("button", { name: "Remove from Room", exact: true })
+      .click();
+    await a
+      .getByRole("dialog", { name: "Remove device?" })
+      .getByRole("button", { name: "Remove Device", exact: true })
       .click();
     await expect(b.getByRole("alert")).toContainText(
       /removed your device|room access has ended/,

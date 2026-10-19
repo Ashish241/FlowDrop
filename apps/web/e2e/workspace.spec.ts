@@ -102,6 +102,10 @@ test("four cards, wide workspace, responsive stacking and canonical navigation",
     page.getByText("Advanced Diagnostics", { exact: true }),
   ).toHaveCount(0);
   await page.getByRole("button", { name: "End Room", exact: true }).click();
+  await page
+    .getByRole("dialog")
+    .getByRole("button", { name: "End Room", exact: true })
+    .click();
 });
 
 test("attachments add/remove/clear, reconnect persistence and precise send feedback", async ({
@@ -198,8 +202,16 @@ test("attachments add/remove/clear, reconnect persistence and precise send feedb
       .click();
     await expect(b.locator(".toast")).toContainText(/copied|Copy unavailable/i);
     await b.getByRole("button", { name: "Clear history", exact: true }).click();
+    await b
+      .getByRole("dialog")
+      .getByRole("button", { name: "Clear history", exact: true })
+      .click();
     await expect(b.locator(".message-history pre")).toHaveCount(0);
     await a.getByRole("button", { name: "End Room", exact: true }).click();
+    await a
+      .getByRole("dialog")
+      .getByRole("button", { name: "End Room", exact: true })
+      .click();
   } finally {
     await ac.close();
     await bc.close();
@@ -264,6 +276,10 @@ test("server clock rotates invitation and QR while a file offer and transport re
       ).status(),
     ).toBe(404);
     await a.getByRole("button", { name: "End Room", exact: true }).click();
+    await a
+      .getByRole("dialog")
+      .getByRole("button", { name: "End Room", exact: true })
+      .click();
   } finally {
     await ac.close();
     await bc.close();
@@ -356,6 +372,10 @@ test("synthetic camera QR decodes real invitation and joins only once", async ({
     ).toContainText("Camera fixture");
     expect(joins).toBe(1);
     await a.getByRole("button", { name: "End Room", exact: true }).click();
+    await a
+      .getByRole("dialog")
+      .getByRole("button", { name: "End Room", exact: true })
+      .click();
   } finally {
     await ac.close();
     await bc.close();
@@ -416,6 +436,10 @@ test("invalid camera invitation stays local and manual join remains available", 
     ).toBeVisible();
     expect(joins).toBe(1);
     await a.getByRole("button", { name: "End Room", exact: true }).click();
+    await a
+      .getByRole("dialog")
+      .getByRole("button", { name: "End Room", exact: true })
+      .click();
   } finally {
     await ac.close();
     await bc.close();

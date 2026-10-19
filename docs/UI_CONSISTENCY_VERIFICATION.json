@@ -1,0 +1,29 @@
+{
+  "date": "2026-10-19",
+  "checkpoint": "6f4ec30",
+  "local": {
+    "online_browser_passed": 27,
+    "desktop_browser_passed": 8,
+    "original_sharing_browser_passed": 9,
+    "frontend_units_passed": 34,
+    "backend_passed": 92,
+    "backend_infrastructure_skipped": 7,
+    "lint": "passed",
+    "ruff": "passed",
+    "typescript": "passed",
+    "builds": [
+      "general",
+      "online",
+      "desktop",
+      "guarded-pages"
+    ]
+  },
+  "deployment": "pending manual Pages deployment",
+  "known_limitations": [
+    "public server-initiated close-frame gate unresolved",
+    "no configured TURN",
+    "physical cross-network and camera acceptance unverified",
+    "single-instance in-memory rooms lost on restart"
+  ],
+  "windows_zip_sha256": "CF8E76E3D14FA88FA3D77F2629BBFCE155E58A1C38F7BA05B7DBB1EBF5590E18"
+}

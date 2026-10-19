@@ -8,6 +8,7 @@ export default defineConfig({
   testDir: "e2e",
   testMatch: [
     "rooms.spec.ts",
+    "ui-consistency.spec.ts",
     "ui-refinement.spec.ts",
     "product-polish.spec.ts",
     "workspace.spec.ts",

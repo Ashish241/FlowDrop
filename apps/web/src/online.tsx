@@ -1,3 +1,4 @@
+import { ConfirmDialog, FlowDropLoader } from "./ui/shared";
 import { useEffect, useRef, useState } from "react";
 import QRCode from "qrcode";
 import { formatSize } from "./room-utils";
@@ -41,7 +42,7 @@ export type RoomLink = {
   token: string;
   member: string;
   remoteName: string;
-  onMessage?: (text: string) => void;
+  onMessage?: (text: string, id?: string) => void;
   onTextDelivered?: (id: string) => void;
   onNotice?: (status: string) => void;
   onTransfer?: (update: DeliveryUpdate) => void;
@@ -69,6 +70,10 @@ export function OnlinePanel({
   mode?: string;
   roomLink?: RoomLink;
 } = {}) {
+  const [clearOpen, setClearOpen] = useState(false);
+  const [cancelOpen, setCancelOpen] = useState(false);
+  const [accepting, setAccepting] = useState(false);
+  const acceptance = useRef(false);
   const roomCallbacks = useRef(roomLink);
   roomCallbacks.current = roomLink;
   const tracked = useRef<{ attachment: string; attempt: string } | undefined>(
@@ -604,8 +609,11 @@ export function OnlinePanel({
               typeof data.text === "string" &&
               data.text.length <= 65536
             ) {
-              setMessages((h) => [data.text, ...h].slice(0, 100));
-              roomCallbacks.current?.onMessage?.(data.text);
+              setMessages((h) => [...h, data.text].slice(-100));
+              roomCallbacks.current?.onMessage?.(
+                data.text,
+                typeof data.id === "string" ? data.id : undefined,
+              );
               if (
                 roomCallbacks.current &&
                 typeof data.id === "string" &&
@@ -1204,6 +1212,19 @@ export function OnlinePanel({
     } else setStatus("Ready to share. Your files are selected.");
   }
   async function acceptFile(meta = offer) {
+    if (!meta || acceptance.current) return;
+    acceptance.current = true;
+    setAccepting(true);
+    try {
+      await prepareAcceptance(meta);
+    } catch (error) {
+      setStatus(String(error));
+    } finally {
+      acceptance.current = false;
+      setAccepting(false);
+    }
+  }
+  async function prepareAcceptance(meta = offer) {
     if (!meta) return;
 
     const approved = meta;
@@ -1438,6 +1459,36 @@ export function OnlinePanel({
     if (roomLink && transferRecord.current)
       roomCallbacks.current?.onNotice?.(humanState(status));
   }, [status]);
+  const cancellationDialog = (
+    <>
+      <ConfirmDialog
+        open={cancelOpen}
+        title="Cancel transfer?"
+        description="This transfer will stop. You can retry the file afterward."
+        confirmText="Cancel transfer"
+        loadingText="Cancelling…"
+        destructive
+        onCancel={() => setCancelOpen(false)}
+        onConfirm={() => {
+          cancelTransfer();
+          setCancelOpen(false);
+        }}
+      />
+      <ConfirmDialog
+        open={clearOpen}
+        title="Clear text history?"
+        description="Received messages in this browser will be removed. This cannot be undone."
+        confirmText="Clear history"
+        loadingText="Clearing…"
+        destructive
+        onCancel={() => setClearOpen(false)}
+        onConfirm={() => {
+          setMessages([]);
+          setClearOpen(false);
+        }}
+      />
+    </>
+  );
   if (roomLink)
     return (
       <section
@@ -1445,8 +1496,10 @@ export function OnlinePanel({
         aria-label="File sharing"
         data-channel-state={channel.current?.readyState || "none"}
       >
+        {cancellationDialog}
         <p className="flow-state" role="status">
-          {humanState(status)}
+          {accepting && <FlowDropLoader variant="section" />}
+          {accepting ? "Preparing receiver…" : humanState(status)}
         </p>
         {offer && (
           <div className="incoming">
@@ -1531,7 +1584,7 @@ export function OnlinePanel({
             <button disabled={!connected} onClick={togglePause}>
               {localPaused.current ? "Resume transfer" : "Pause transfer"}
             </button>
-            <button onClick={cancelTransfer}>Cancel transfer</button>
+            <button onClick={() => setCancelOpen(true)}>Cancel transfer</button>
           </div>
         )}
         {downloads.map((item, i) => (
@@ -1564,6 +1617,7 @@ export function OnlinePanel({
     );
   const technicalPanel = (
     <section className="panel">
+      {!consumer && cancellationDialog}
       <h2>Online peer-to-peer</h2>
       <p>
         Use the hosted signaling service. File bytes travel over an encrypted
@@ -1674,7 +1728,8 @@ export function OnlinePanel({
         </p>
       )}
       <p role="status">
-        {status} · {route}
+        {accepting && <FlowDropLoader variant="section" />}
+        {accepting ? "Preparing receiver…" : status} · {route}
       </p>
       <label>
         Select files (up to 20 GiB each)
@@ -1761,7 +1816,10 @@ export function OnlinePanel({
           </button>
         </p>
       )}
-      <button disabled={!busy && !incoming.current} onClick={cancelTransfer}>
+      <button
+        disabled={!busy && !incoming.current}
+        onClick={() => setCancelOpen(true)}
+      >
         Cancel transfer
       </button>
       {received?.blob && (
@@ -1801,7 +1859,7 @@ export function OnlinePanel({
         Send text
       </button>
       <button onClick={() => setText("")}>Clear text</button>
-      <button onClick={() => setMessages([])}>Clear received history</button>
+      <button onClick={() => setClearOpen(true)}>Clear received history</button>
       {messages.map((message, index) => (
         <div key={index}>
           <pre>{message}</pre>
@@ -1877,8 +1935,10 @@ export function OnlinePanel({
       data-channel-state={channel.current?.readyState || "none"}
       data-member={session.current?.member || "none"}
     >
+      {cancellationDialog}
       <p role="status" className={failure ? "flow-state error" : "flow-state"}>
-        {roomLink ? status : label}
+        {accepting && <FlowDropLoader variant="section" />}
+        {accepting ? "Preparing receiver…" : roomLink ? status : label}
       </p>
       {sharing && !connected && (
         <p>
@@ -2112,7 +2172,7 @@ export function OnlinePanel({
           <button disabled={!connected} onClick={togglePause}>
             {localPaused.current ? "Resume transfer" : "Pause transfer"}
           </button>
-          <button className="secondary" onClick={cancelTransfer}>
+          <button className="secondary" onClick={() => setCancelOpen(true)}>
             Cancel transfer
           </button>
         </div>
@@ -2209,7 +2269,7 @@ export function OnlinePanel({
           >
             Send text
           </button>
-          <button className="secondary" onClick={() => setMessages([])}>
+          <button className="secondary" onClick={() => setClearOpen(true)}>
             Clear session history
           </button>
           {messages.map((m, i) => (

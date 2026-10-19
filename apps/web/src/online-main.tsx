@@ -1,3 +1,4 @@
+import { BackNavigation } from "./ui/shared";
 import { useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { Moon, Plus, LogIn, ScanLine, Clock, ArrowUpRight } from "lucide-react";
@@ -9,6 +10,7 @@ function route(): Route {
   const hash = location.hash;
   if (new URLSearchParams(hash.slice(1)).has("room")) return "join";
   const path = hash.replace(/^#\/?/, "").toLowerCase();
+  if (path.startsWith("optical/")) return "optical";
   if (["home", "create", "join", "room", "optical", "later"].includes(path))
     return path as Route;
   if (hash.includes("online-room")) return "join";
@@ -48,6 +50,7 @@ function OnlineApp() {
     [active, setActive] = useState(
       !!sessionStorage.getItem("flowdrop-room-v2"),
     );
+  const [opticalStarted, setOpticalStarted] = useState(route() === "optical");
   const [action, setAction] = useState<"Create Room" | "Join Room">(() =>
     route() === "join" ? "Join Room" : "Create Room",
   );
@@ -55,6 +58,7 @@ function OnlineApp() {
     function sync() {
       const next = route();
       setPage(next);
+      if (next === "optical") setOpticalStarted(true);
       if (["create", "join", "room"].includes(next)) {
         setStarted(true);
         if (next !== "room")
@@ -72,6 +76,7 @@ function OnlineApp() {
     if (active && ["create", "join"].includes(next)) next = "room";
     location.hash = "/" + next;
     setPage(next);
+    if (next === "optical") setOpticalStarted(true);
     if (["create", "join", "room"].includes(next)) {
       setStarted(true);
       if (next !== "room")
@@ -108,11 +113,6 @@ function OnlineApp() {
           FlowDrop<span className="brand-tag">SHARE WITHOUT LIMITS</span>
         </button>
         <div className="header-actions">
-          {page !== "home" && !inWorkspace && (
-            <button className="quiet" onClick={() => go("home")}>
-              Back to Home
-            </button>
-          )}
           {page === "home" && active && (
             <button onClick={() => go("room")}>Return to Room</button>
           )}
@@ -171,6 +171,7 @@ function OnlineApp() {
         )}
         {["create", "join"].includes(page) && !active && (
           <section className="entry-intro">
+            <BackNavigation onBack={() => go("home")} />
             <span className="eyebrow">YOUR NEXT CONNECTION</span>
             <h1>{page === "create" ? "Create Room" : "Join Room"}</h1>
             <p>A familiar name helps everyone know who’s here.</p>
@@ -194,17 +195,17 @@ function OnlineApp() {
             />
           </div>
         )}
-        {page === "optical" && (
-          <section className="standalone">
-            <div className="entry-intro">
-              <span className="eyebrow">SCREEN TO CAMERA</span>
-              <h1>Optical Share</h1>
-            </div>
-            <OpticalPanel />
+        {opticalStarted && (
+          <section hidden={page !== "optical"} className="standalone">
+            <OpticalPanel
+              active={page === "optical"}
+              onHome={() => go("home")}
+            />
           </section>
         )}
         {page === "later" && (
           <section className="coming-soon panel">
+            <BackNavigation onBack={() => go("home")} />
             <Clock size={36} />
             <span className="eyebrow">ON THE HORIZON</span>
             <h1>Send Later — Coming Soon</h1>
