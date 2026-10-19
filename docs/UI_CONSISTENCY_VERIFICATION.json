@@ -25,5 +25,27 @@
     "physical cross-network and camera acceptance unverified",
     "single-instance in-memory rooms lost on restart"
   ],
-  "windows_zip_sha256": "CF8E76E3D14FA88FA3D77F2629BBFCE155E58A1C38F7BA05B7DBB1EBF5590E18"
+  "windows_zip_sha256": "CF8E76E3D14FA88FA3D77F2629BBFCE155E58A1C38F7BA05B7DBB1EBF5590E18",
+  "initial_deployment": {
+    "source": "147f091fe9517e800d602b0c07653f62b7c53bf7",
+    "pages_id": "df209ea2-d10b-4dd7-a6a7-c9d31d8279b3",
+    "status": "success",
+    "duration_seconds": 31
+  },
+  "initial_hosted": {
+    "passed": 25,
+    "failed": 1,
+    "skipped": 1,
+    "corrected_roster_test_recheck": "passed; 51.4 seconds"
+  },
+  "strict_public_close_gate": {
+    "status": "failed",
+    "error": "Public transport ended without a close frame",
+    "verifier_unchanged": true
+  },
+  "terminal_session_followup": {
+    "local_affected_browser_passed": 3,
+    "no_obsolete_leave_request": "verified",
+    "deployment": "pending"
+  }
 }

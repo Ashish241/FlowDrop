@@ -179,6 +179,10 @@ test("named room auto-join, three real peers, rename and recipient-isolated tran
     await accept(b, bytes);
     const reverse = Buffer.from([0, 255, 13, 10, 42]);
     await selectFile(b, "reverse.bin", reverse);
+    // Wait for the late join to reach this peer before clearing automatic selection.
+    await expect(
+      b.getByRole("list", { name: "Connected Devices" }),
+    ).toContainText("Late device");
     await b
       .getByRole("button", { name: "Clear Selection", exact: true })
       .click();
@@ -188,6 +192,14 @@ test("named room auto-join, three real peers, rename and recipient-isolated tran
         exact: true,
       })
       .check();
+    await expect(
+      b.getByRole("checkbox", { name: "Select Late device", exact: true }),
+    ).not.toBeChecked();
+    await expect(
+      b
+        .getByRole("region", { name: "Device selection", exact: true })
+        .getByText("1 selected", { exact: true }),
+    ).toBeVisible();
     await expect(
       b.getByRole("button", { name: "Send to Selected Devices" }),
     ).toBeEnabled();

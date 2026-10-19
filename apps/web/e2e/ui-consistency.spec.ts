@@ -215,6 +215,24 @@ test("real peer chat appends, deduplicates replay and respects reading scroll", 
         ),
       )
       .toBeLessThan(5);
+    await a.getByRole("button", { name: "End Room", exact: true }).click();
+    await a
+      .getByRole("dialog", { name: "End room?" })
+      .getByRole("button", { name: "End Room", exact: true })
+      .click();
+    await expect(
+      b.getByRole("heading", { name: "This room session has ended" }),
+    ).toBeVisible();
+    let obsoleteLeaves = 0;
+    await b.route("**/v2/rooms/*/membership", async (route) => {
+      obsoleteLeaves++;
+      await route.abort();
+    });
+    await b.getByRole("button", { name: "Back to Home", exact: true }).click();
+    await expect(
+      b.getByRole("heading", { name: "Sharing, in your space." }),
+    ).toBeVisible();
+    expect(obsoleteLeaves).toBe(0);
   } finally {
     await host.close();
     await guest.close();

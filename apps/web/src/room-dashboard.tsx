@@ -864,12 +864,13 @@ export function RoomDashboard({
     setRefreshError("");
     setBusy(true);
     try {
-      await request(
-        `/rooms/${session.room}/membership`,
-        "DELETE",
-        undefined,
-        session.token,
-      );
+      if (!ended)
+        await request(
+          `/rooms/${session.room}/membership`,
+          "DELETE",
+          undefined,
+          session.token,
+        );
       sessionStorage.removeItem(sessionKey);
       setSession(undefined);
       setSnapshot(undefined);
@@ -1273,16 +1274,24 @@ export function RoomDashboard({
               : "This room session has ended"}
           </h1>
           <p>{error}</p>
-          <button onClick={() => void leave()}>Back to Home</button>
-          <button
-            onClick={() => {
-              void leave().then(() => {
+          <LoadingButton
+            pending={busy}
+            loadingText="Leaving room…"
+            onClick={() => leave()}
+          >
+            Back to Home
+          </LoadingButton>
+          <LoadingButton
+            pending={busy}
+            loadingText="Leaving room…"
+            onClick={() =>
+              leave().then(() => {
                 location.hash = "/join";
-              });
-            }}
+              })
+            }
           >
             Join Another Room
-          </button>
+          </LoadingButton>
         </section>
       ) : (
         <>
