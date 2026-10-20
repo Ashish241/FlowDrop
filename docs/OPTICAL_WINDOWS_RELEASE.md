@@ -53,7 +53,7 @@ Previous ZIP preserved under `dist/checkpoints/6ce485a-before-optical-release/`,
 
 ## External acceptance and blockers
 
-Physical camera: user has offered PC screen/phone camera testing; corrected-build result pending. Physical LAN phone, cross-network PC/phone, TURN relay and clean Windows remain unverified. TURN is absent. Render Free rooms are in memory and lost on restart; no new paid/shared service is provisioned. Public server-initiated WebSocket close-frame delivery remains a separate Render support blocker; strict verification must not accept 1006/timeouts as 4003. Existing explicit terminal events are verified independently.
+Physical Optical: on 2026-10-20 the user replied “all working” to the public PC-screen → phone-camera short-text and 64 KiB acceptance request. This is user-reported success, not agent-observed verification. Phone/browser, cycle counts, recovery details and explicit final SHA-256 confirmation were not supplied. Physical LAN phone, cross-network PC/phone, TURN relay and clean Windows remain unverified. TURN is absent. Render Free rooms are in memory and lost on restart; no new paid/shared service is provisioned. Public server-initiated WebSocket close-frame delivery remains a separate Render support blocker; strict verification must not accept 1006/timeouts as 4003. Existing explicit terminal events are verified independently.
 
 ## Physical acceptance procedure
 
@@ -93,3 +93,15 @@ Manual public inspection found route navigation retaining the prior scroll offse
 Initial hosted run: 29 passed / 2 failed / 1 expected clock-control skip. The Windows test included the new scroll assertion before the scroll fix was deployed. The termination test attempted Send while another selected peer was still reconnecting; the application correctly refused the send. Its setup now explicitly waits for both intended channels to be open and both recipients selected. The corrected test then passed against the real public service (14.7 seconds), including host termination of both guests. Final complete hosted acceptance follows after the navigation deployment.
 
 All 10 desktop frontend files match the bundled published package byte-for-byte. The Windows release remains unchanged throughout Online-only follow-up work.
+
+Navigation follow-up source: `e17ca4797c77efeb5f62d831dc778a0d98a0617a`. Locally verified route scroll reset and unchanged canonical navigation: 2 passed. Final Pages build completed with the validated HTTPS/WSS signaling endpoint and no localhost URLs. Final successful deployment (43 seconds): `8ef3e6b2-6718-43de-86f7-759fbf936a54`.
+
+## Final acceptance, 2026-10-20
+
+The public website runs source `e17ca47`, Pages deployment `8ef3e6b2-6718-43de-86f7-759fbf936a54`. Public HTTPS, exact metadata/source and JavaScript/CSS/decoder-worker hashes match the verified build. Automatic deployments remain paused. Windows preview source `6905d40` and its published ZIP remain unchanged.
+
+Final hosted full run: **30 passed, one test-fixture race failed, one expected clock-control skip**. The recovery fixture accessed a joining peer's socket before initialization. It now waits for both actual open signaling sockets and peer connections while still asserting neither DataChannel is connected. The corrected public recovery case passed **three of three repeated runs**. All 31 runnable hosted scenarios have coverage across these runs; this is not a single clean full-suite run. No application change or new deployment was needed for the fixture correction.
+
+The user reported “all working” for the requested public Optical PC-screen → phone-camera short-text and 64 KiB tests. Record this as user-reported physical acceptance only. Model/browser, received/missing counts, recovery outcome details and explicit final hash confirmation were not reported. The fixture is `.flowdrop/optical-64k-regression.bin`; its independently computed expected SHA-256 is `fd3623ef92dc587838fcebecdfd88e5288178c52a0b905294d8d0ee9ef0d2634`.
+
+The unchanged strict Render close-frame gate still fails; TURN is absent, rooms use volatile single-instance memory, and physical LAN-phone, cross-network WebRTC, packaged-Windows camera and clean-PC acceptance remain unverified. This preview is not a claim that all production release gates passed. Machine-readable results: [OPTICAL_WINDOWS_VERIFICATION.json](OPTICAL_WINDOWS_VERIFICATION.json). Earlier dated entries above retain the verification history.

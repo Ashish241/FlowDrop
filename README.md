@@ -115,7 +115,7 @@ LAN HTTP requires a trusted network. Pairing and host approval protect transfer 
 - TURN relay is configurable but absent from the public service; restrictive NAT/firewalls may block Online transfers.
 - Render Free may sleep; in-memory rooms do not survive service restart or coordinate multiple instances.
 - Public server-initiated WebSocket close-frame delivery remains an external Render support issue. Explicit room-ended/removal events are handled; strict transport verification remains separate.
-- Optical files near 64 KiB can take minutes and require recovery. Phone-camera performance remains pending physical acceptance.
+- Optical files near 64 KiB can take minutes and require recovery. The user reported public PC-screen → phone-camera Optical tests working on 2026-10-20; device/browser, frame counts and explicit final hash confirmation were not supplied. Wider camera coverage remains unverified.
 - Browser download/storage limits vary. Large physical-device transfers and different-network PC/phone acceptance remain unverified.
 - Windows preview is unsigned, targets x64, and is tested on this Windows machine; clean-PC acceptance is unverified.
 - Seven optional infrastructure tests skip without their external service configuration. Passing local tests is not a production-readiness claim.

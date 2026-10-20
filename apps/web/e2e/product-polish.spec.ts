@@ -309,6 +309,39 @@ test("signaling recovery before the first DataChannel resets both unfinished pee
       ),
     );
     const recovering = ids[0] > ids[1] ? a : b;
+    // Membership can arrive before the joining page creates its own socket.
+    // Keep offers blocked until both unfinished signaling peers actually exist.
+    for (const page of [a, b]) {
+      await expect
+        .poll(() =>
+          page.evaluate(() => {
+            const state = (
+              window as unknown as {
+                earlyRecovery: {
+                  sockets: WebSocket[];
+                  pcs: RTCPeerConnection[];
+                };
+              }
+            ).earlyRecovery;
+            return (
+              state.sockets.at(-1)?.readyState === WebSocket.OPEN &&
+              state.pcs.length > 0
+            );
+          }),
+        )
+        .toBe(true);
+      expect(
+        await page.evaluate(() =>
+          (
+            window as unknown as {
+              earlyRecovery: {
+                pcs: RTCPeerConnection[];
+              };
+            }
+          ).earlyRecovery.pcs.some((pc) => pc.connectionState === "connected"),
+        ),
+      ).toBe(false);
+    }
     for (const page of [a, b])
       await page.evaluate(() => {
         (

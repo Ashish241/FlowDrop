@@ -1,0 +1,116 @@
+{
+  "date": "2026-10-19",
+  "status": "Deployed preview; user-reported Optical acceptance; external release gates remain",
+  "online_source": "e17ca4797c77efeb5f62d831dc778a0d98a0617a",
+  "windows_source": "6905d40cb80ad49eb6a509442d52b0c0e4052e70",
+  "windows_release": "https://github.com/Ashish241/FlowDrop/releases/tag/v0.4.2-preview.1",
+  "windows_artifact": {
+    "url": "https://github.com/Ashish241/FlowDrop/releases/download/v0.4.2-preview.1/FlowDrop-windows.zip",
+    "bytes": 25389518,
+    "sha256": "674c7109ad2e265e3c6106742cc9f53c0455f1b37bcb53fe57818e4c7258c70e",
+    "anonymous_public_download": true
+  },
+  "local_tests": {
+    "backend_passed": 92,
+    "backend_external_skipped": 7,
+    "frontend_unit_passed": 35,
+    "online_browser_passed": 32,
+    "desktop_browser_passed": 9,
+    "integrated_browser_passed": 20,
+    "integrated_turn_skipped": 1,
+    "lint": true,
+    "typescript": true,
+    "production_builds": [
+      "general",
+      "desktop",
+      "online",
+      "pages"
+    ],
+    "bundle_boundaries": true,
+    "packaged_executable_loopback": true,
+    "packaged_native_lan_lifecycle": true,
+    "packaged_256KiB_hash_match_same_pc": true,
+    "amd64_pe_verified": true
+  },
+  "physical_phone_lan_verified": false,
+  "physical_cross_network_verified": false,
+  "clean_windows_verified": false,
+  "turn_available": false,
+  "initial_public_tests": {
+    "source": "79535bce8c6541df8e95be65a15bd84a6142f706",
+    "passed": 29,
+    "failed": 2,
+    "skipped": 1,
+    "failure_details": [
+      "New scroll assertion ran before its runtime fix was deployed",
+      "Host-end test attempted Send before all selected WebRTC peers were ready"
+    ],
+    "corrected_host_end_targeted_public_passed": 1
+  },
+  "final_navigation_source": "e17ca4797c77efeb5f62d831dc778a0d98a0617a",
+  "navigation_local_followup_passed": 2,
+  "strict_public_close_gate": {
+    "passed": false,
+    "reason": "Public transport ended without a close frame",
+    "assertion_unchanged": true,
+    "log": ".flowdrop/optical-public-strict-close.log"
+  },
+  "finalized_date": "2026-10-20",
+  "initial_online_source": "79535bce8c6541df8e95be65a15bd84a6142f706",
+  "public_deployment": {
+    "deployment": "8ef3e6b2-6718-43de-86f7-759fbf936a54",
+    "source": "e17ca4797c77efeb5f62d831dc778a0d98a0617a",
+    "metadata": {
+      "product": "FlowDrop Online",
+      "version": "0.4.2-preview.1",
+      "frontendBuild": "optical-windows-20261019",
+      "sourceCommit": "e17ca4797c77efeb5f62d831dc778a0d98a0617a",
+      "revision": "workspace-v3-20261016",
+      "integrityGuard": true,
+      "recipientDeliveryLedger": true,
+      "autoSelectNewMembers": true,
+      "hostRoomControls": true,
+      "membershipRevocationEvent": true,
+      "negotiationGeneration": true,
+      "textReceipts": true,
+      "productDesign": "navy-teal-20261018",
+      "opticalProtocol": 3,
+      "opticalRecovery": true,
+      "opticalFullscreen": true,
+      "opticalDecoderWatchdog": true,
+      "windowsRelease": "0.4.2-preview.1",
+      "signaling": "https://flowdrop-signaling.onrender.com/signal",
+      "pagesRelease": true,
+      "publicEndpointValidated": true,
+      "note": "Configuration validation is not deployment or Internet verification"
+    },
+    "assets": {
+      "/assets/index-aZxd2dcX.js": "4399b91ce0b805f44d2b16a52d610359e00248d82e5c4e205cddd258b373e95d",
+      "/assets/index-xhGhevHW.css": "e659e89be3dd863cffeaddcfa5a497dd7a73aca1cfb310a266bb48c8691a4304",
+      "/assets/optical-decoder.worker-BLlCi9Gz.js": "2bad22e66c623625f90ad185f1c7f5e2c35ee7a3c1d5d6b9f66bebf240701427"
+    },
+    "https_verified": true,
+    "exact_artifact_match": true
+  },
+  "final_public_tests": {
+    "passed": 30,
+    "failed": 1,
+    "skipped": 1,
+    "failure": "Recovery test accessed joining-page socket before initialization; test prerequisite corrected without runtime changes",
+    "corrected_recovery_public_repeats_passed": 3,
+    "single_clean_full_run": false,
+    "all_31_runnable_scenarios_verified_across_runs": true
+  },
+  "physical_optical_acceptance": {
+    "date": "2026-10-20",
+    "provenance": "user-reported",
+    "response": "all working",
+    "requested_scope": "Public Online Optical: PC screen to phone camera; short text and 64 KiB default-frame fixture",
+    "agent_observed": false,
+    "phone_browser": null,
+    "received_missing_counts": null,
+    "recovery_details": null,
+    "explicit_final_sha256_confirmation": null,
+    "note": "General success reported; detailed telemetry and independent hash confirmation not supplied."
+  }
+}
